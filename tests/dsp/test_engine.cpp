@@ -2,9 +2,10 @@
 // Copyright (C) 2026 Javier Sánchez
 // Host tests of the DSP core (pruebas del núcleo DSP en el ordenador): timing to the sample, trigger counts,
 // mute/solo, no NaN, levels. Writes tests/dsp/out/groove.wav to listen to.
-//   c++ -std=c++14 -O2 -I app/dsp -I base/include tests/dsp/test_engine.cpp app/dsp/engine.cpp -o build/test_engine
+//   c++ -std=c++14 -O2 -I app/dsp -I base/include tests/dsp/test_engine.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_engine
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 #include "epk.h"
@@ -45,6 +46,7 @@ static std::vector<long> trigger_times(int track, float seconds) {
 int main() {
     // 1. Timing: track 1, 1/16 at 124 BPM, 4 euclidean hits in 16 -> one hit every 4 steps = one beat
     epk_init(SR);
+    epk_pattern_select(3);                                       // ORBITA: kick 4 in 16, stab 3 in 12
     epk_play(1);
     std::vector<long> t = trigger_times(0, 4.0f);
     const double beat = 60.0 / 124.0 * SR;                       // samples per beat
@@ -57,6 +59,7 @@ int main() {
 
     // 2. Polymetry: track 3 has 12 steps, track 1 has 16; after 48 steps both are back at step 0 together
     epk_init(SR);
+    epk_pattern_select(3);
     epk_play(1);
     float l[256], r[256];
     const long steps48 = (long)std::lround(48.0 * 60.0 / 124.0 / 4.0 * SR);
@@ -81,6 +84,7 @@ int main() {
 
     // 4. A groove, 8 s: no NaN, a sane level; written out to listen to (para escuchar)
     epk_init(SR);
+    epk_pattern_select(3);
     epk_play(1);
     std::vector<float> L, R;
     float peak = 0.0f, sum2 = 0.0f;
@@ -112,6 +116,55 @@ int main() {
     }
     CHECK(tail < 0.001f, "3 s after stop the output is %.5f (expected silence)", tail);
     CHECK(epk_step(0) == -1, "stopped: no step");
+
+    // 6. Patterns (patrones): a change waits for the bar; mutes stay; edits stay in their pattern
+    epk_init(SR);
+    epk_pattern_select(3);
+    epk_play(1);
+    epk_render(l, r, 1);
+    CHECK(epk_pattern_current() == 3, "stopped then play: pattern 4 now (got %d)", epk_pattern_current() + 1);
+    const long sixteenth = (long)std::lround(60.0 / 124.0 / 4.0 * SR);
+    for (long i = 1; i < 5 * sixteenth; i++) epk_render(l, r, 1);  // five sixteenths into the bar
+    epk_mute(0, 1);
+    epk_pattern_select(7);                                       // APOGEO: no kick
+    long switched = -1;
+    for (long i = 5 * sixteenth; i < 20 * sixteenth; i++) {
+        epk_render(l, r, 1);
+        if (switched < 0 && epk_pattern_current() == 7) switched = i;
+    }
+    CHECK(epk_pattern_queued() == -1, "the queue is empty after the change");
+    const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);   // the exact bar (el compás exacto)
+    CHECK(std::labs(switched - bar) <= 1, "the change came at sample %ld, the bar starts at %ld", switched, bar);
+    CHECK(epk_muted(0), "track 1 is still muted after the pattern change (el mute es del proyecto)");
+    CHECK(epk_step(2) >= 0 && epk_step(2) <= 4, "the new pattern restarted its steps (track 3 at %d)", epk_step(2));
+    epk_param_set(2, EPK_P_TONE, 0.123f);                        // an edit on APOGEO
+    epk_play(0);
+    epk_pattern_select(4);
+    epk_render(l, r, 1);
+    CHECK(epk_pattern_current() == 4, "stopped: the change is immediate");
+    epk_pattern_select(7);
+    epk_render(l, r, 1);
+    CHECK(std::fabs(epk_param_get(2, EPK_P_TONE) - 0.123f) < 1e-6f, "the edit stayed in its pattern (%.3f)",
+          epk_param_get(2, EPK_P_TONE));
+    CHECK(std::strcmp(epk_pattern_name(0), "NEBULA") == 0, "pattern names");
+
+    // 7. Every factory pattern plays without NaN or overload (los 16 patrones suenan)
+    for (int pt = 0; pt < EPK_PATTERNS; pt++) {
+        epk_init(SR);
+        epk_pattern_select(pt);
+        epk_play(1);
+        float pk = 0.0f;
+        int bad = 0;
+        for (int b = 0; b < (int)(4.0f * SR / 256); b++) {
+            epk_render(l, r, 256);
+            for (int i = 0; i < 256; i++) {
+                if (!std::isfinite(l[i])) bad++;
+                pk = std::fmax(pk, std::fabs(l[i]));
+            }
+        }
+        CHECK(bad == 0 && pk > 0.05f && pk < 1.0f, "pattern %d %s: peak %.3f, %d bad", pt + 1, epk_pattern_name(pt),
+              pk, bad);
+    }
 
     std::printf(failures ? "dsp: %d FAILED\n" : "dsp: all passed\n", failures);
     return failures ? 1 : 0;

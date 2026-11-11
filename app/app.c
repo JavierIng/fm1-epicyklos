@@ -10,7 +10,9 @@
  *   PLAY   start / stop          SELECT  page (página); HOME+SELECT tempo
  *   PRESETS track level (nivel)   K1-K4   the page's parameters; HOME+K fine (ajuste fino)
  *   OCT-/OCT+ keyboard octave     keys    play the selected track
- *   ALGORITHM, ARP, SEQ, REC, SAVE: later phases (fases siguientes), they say which */
+ *   SAVE   the PATTERNS view (patrones): the 16 white keys choose; playing, the change waits for the bar's end
+ *          (SAVE held + white key: the same from any view). Saving to the flash: phase 6
+ *   ALGORITHM, ARP, SEQ, REC: later phases (fases siguientes), they say which */
 #include "fastmath.h"
 #include "dsp/epk.h"
 
@@ -48,8 +50,19 @@ static const char *const SLOT_LATER[2] = {"ENVIO A", "ENVIO B"};   /* MIX page, 
 static const char *const DIV_NAME[EPK_DIV_COUNT] = {"1/32", "1/16T", "1/16", "1/8T", "1/8", "1/4"};
 
 /* ------------------------------------------------------------------ state (estado) */
-enum { VIEW_ORBIT, VIEW_MIX, NVIEWS };
-static const char *const VIEW_NAME[NVIEWS] = {"ORBITA", "MEZCLA"};
+enum { VIEW_ORBIT, VIEW_MIX, NVIEWS, VIEW_PATTERNS = NVIEWS };   /* HOME cycles the first two (HOME alterna) */
+static const char *const VIEW_NAME[NVIEWS + 1] = {"ORBITA", "MEZCLA", "PATRONES"};
+/* the white keys (teclas blancas), F3..G5: key index -> pattern, -1 for a black key */
+static const int8_t WHITE_PATTERN[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6, 7, -1, 8, -1, 9, -1, 10, 11, -1,
+                                            12, -1, 13, 14, -1, 15};
+static int pattern_key(int pattern)              /* the key of a pattern (tecla de un patrón) */
+{
+    int k;
+    for (k = 0; k < NKEYS; k++)
+        if (WHITE_PATTERN[k] == pattern)
+            return k;
+    return 0;
+}
 static struct {
     int track, page, view, octave;
     uint32_t btn, keys;                    /* held at the last input (pulsados) */
@@ -60,6 +73,8 @@ static struct {
     int pop_param, pop_slot;               /* the knob turned last: its popup (ventana) */
     uint32_t pop_until;
     int steps_seen[EPK_TRACKS];
+    int pattern_seen, queued_seen;
+    uint8_t blink;
     uint32_t meter_at;
     float meters[EPK_TRACKS];
     uint8_t dirty_head, dirty_main, dirty_foot;
@@ -165,6 +180,8 @@ static void speak(void)                   /* a reader that starts listening hear
         str_cat(t, n);
         str_cat(t, ". ");
         str_cat(t, PAGE_NAME[ui.page]);
+        str_cat(t, ". PATRON ");
+        str_cat(t, epk_pattern_name(epk_pattern_current()));
         str_cat(t, ". TEMPO ");
         int_str((int32_t)(epk_tempo() + 0.5f), n);
         str_cat(t, n);
@@ -265,8 +282,22 @@ static void input(void)
     int32_t e;
     touch_poll();
     keys = touch_keys();
+    const int choosing = ui.view == VIEW_PATTERNS || (btn >> B_SAVE & 1u);   /* the keys choose patterns */
     for (k = 0; k < NKEYS; k++) {          /* the keys play the selected track (el teclado toca la pista) */
         uint32_t bit = 1u << k;
+        if (choosing) {
+            if ((keys & bit) && !(ui.keys & bit) && WHITE_PATTERN[k] >= 0) {
+                epk_pattern_select(WHITE_PATTERN[k]);
+                if (btn >> B_SAVE & 1u)
+                    ui.home_used = 2;      /* SAVE was held for this: no view change on its release */
+                app_say(epk_playing() ? "EN COLA" : "PATRON", epk_pattern_name(WHITE_PATTERN[k]));
+            }
+            if (!(keys & bit) && (ui.keys & bit) && ui.key_note[k] >= 0) {   /* a note held from before */
+                epk_note_off(ui.track, ui.key_note[k]);
+                ui.key_note[k] = -1;
+            }
+            continue;
+        }
         if ((keys & bit) && !(ui.keys & bit)) {
             int note = 53 + (int)k + 12 * ui.octave;
             ui.key_note[k] = note;
@@ -313,12 +344,20 @@ static void input(void)
             say_later("PASOS", "FASE 2");
         else if (k == B_ARP)
             say_later(shift ? "DESHACER" : "GENERAR", "FASE 4");
-        else if (k == B_SAVE)
-            say_later(shift ? "GLOBAL" : "PROYECTOS", "FASE 6");
+        else if (k == B_SAVE && shift)
+            say_later("GLOBAL", "FASE 6");
+    }
+    if (!(btn >> B_SAVE & 1u) && (ui.btn >> B_SAVE & 1u) && !shift) {   /* SAVE released: the PATTERNS view */
+        if (ui.home_used != 2) {
+            ui.view = ui.view == VIEW_PATTERNS ? VIEW_ORBIT : VIEW_PATTERNS;
+            app_say(VIEW_NAME[ui.view], ui.view == VIEW_PATTERNS ? "TECLAS BLANCAS" : "");
+            ui.dirty_main = ui.dirty_foot = 1;
+        }
+        ui.home_used = 0;
     }
     if (!(btn >> B_HOME & 1u) && (ui.btn >> B_HOME & 1u)) {   /* HOME released: a tap changes the view (vista) */
         if (!ui.home_used) {
-            ui.view = (ui.view + 1) % NVIEWS;
+            ui.view = ui.view >= NVIEWS ? VIEW_ORBIT : (ui.view + 1) % NVIEWS;
             if (ui.view == VIEW_MIX)
                 ui.page = PAGE_MIX;
             app_say(VIEW_NAME[ui.view], "");
@@ -372,6 +411,18 @@ static void set_lights(void)
         lit |= 1u << B_PLAY | LED_PLAY_GREEN;
     if (ui.btn >> B_HOME & 1u)
         lit |= 1u << B_HOME;
+    if (ui.view == VIEW_PATTERNS) {        /* the white keys: all dim, the current lit, the queued one blinks */
+        uint32_t whites = 0, keys_lit;
+        int q = epk_pattern_queued();
+        for (t = 0; t < NKEYS; t++)
+            if (WHITE_PATTERN[t] >= 0)
+                whites |= 1u << t;
+        keys_lit = 1u << pattern_key(epk_pattern_current());
+        if (q >= 0 && ui.blink)
+            keys_lit |= 1u << pattern_key(q);
+        plat_lights(lit | 1u << B_SAVE, keys_lit, dim, whites, 1);
+        return;
+    }
     plat_lights(lit, ui.keys, dim, 0, 1);
 }
 
@@ -403,6 +454,22 @@ static void draw_head(void)
     int_str((int32_t)(epk_tempo() + 0.5f), t);
     x = 232 - text_w(&FONT_B, t);
     cv_text(x, 4, &FONT_B, t, C_TEXT);
+    {                                      /* the pattern (patrón): P04, and >08 when one is queued */
+        char p[8];
+        int cur = epk_pattern_current() + 1, q = epk_pattern_queued();
+        p[0] = 'P';
+        p[1] = (char)('0' + cur / 10);
+        p[2] = (char)('0' + cur % 10);
+        p[3] = 0;
+        int32_t px = x - 26 - text_w(&FONT_S, p) - (q >= 0 ? 22 : 0);
+        px = cv_text(px, 6, &FONT_S, p, C_LABEL);
+        if (q >= 0) {
+            p[0] = '>';
+            p[1] = (char)('0' + (q + 1) / 10);
+            p[2] = (char)('0' + (q + 1) % 10);
+            cv_text(px + 2, 6, &FONT_S, p, ui.blink ? C_SOLO : C_LABEL);
+        }
+    }
     if (epk_playing()) {                   /* a play triangle (triángulo) */
         int32_t i;
         for (i = 0; i < 7; i++)
@@ -484,11 +551,31 @@ static void draw_popup(void)                     /* the knob just turned, big (e
     cv_text(120 - text_w(&FONT_XS, PARAM_HINT[p]) / 2, 108, &FONT_XS, PARAM_HINT[p], C_LABEL);
 }
 
+static void draw_patterns(void)             /* 4 x 4: the 16 patterns (los 16 patrones) */
+{
+    const int cur = epk_pattern_current(), q = epk_pattern_queued();
+    int i;
+    char n[4];
+    for (i = 0; i < EPK_PATTERNS; i++) {
+        const int32_t x = 2 + (i % 4) * 59, y = 4 + (i / 4) * 35;
+        const uint16_t edge = i == cur ? TRACK_C[2] : (i == q && ui.blink) ? C_SOLO : C_PANEL;
+        cv_rect(x, y, 57, 33, edge);
+        cv_rect(x + 2, y + 2, 53, 29, i == cur ? RGB(24, 44, 52) : C_PANEL);
+        n[0] = (char)('0' + (i + 1) / 10);
+        n[1] = (char)('0' + (i + 1) % 10);
+        n[2] = 0;
+        cv_text(x + 5, y + 4, &FONT_XS, n, i == cur ? TRACK_C[2] : C_LABEL);
+        cv_text(x + 5, y + 17, &FONT_XS, epk_pattern_name(i), i == cur ? C_TEXT : C_LABEL);
+    }
+}
+
 static void draw_main(void)
 {
     cv_begin(240, 144, C_BG);
     if (plat_ms() < ui.pop_until)
         draw_popup();
+    else if (ui.view == VIEW_PATTERNS)
+        draw_patterns();
     else if (ui.view == VIEW_ORBIT)
         draw_orbit();
     else
@@ -504,6 +591,15 @@ static void draw_foot(void)                       /* the page tabs and the four 
     char v[16];
     cv_begin(240, 72, C_BG);
     cv_rect(0, 0, 240, 1, C_RULE);
+    if (ui.view == VIEW_PATTERNS) {
+        const int q = epk_pattern_queued();
+        cv_text(6, 6, &FONT_XS, q >= 0 ? "EN COLA" : "PATRON", q >= 0 ? C_SOLO : C_LABEL);
+        cv_text(6, 20, &FONT_M, epk_pattern_name(q >= 0 ? q : epk_pattern_current()), C_TEXT);
+        cv_text(6, 50, &FONT_XS, epk_playing() ? "Cambia al acabar el compas de 16" : "Parado: cambia al momento",
+                C_LABEL);
+        cv_blit(0, 168);
+        return;
+    }
     for (i = 0; i < NPAGES; i++) {
         x = cv_text(x, 3, &FONT_XS, PAGE_NAME[i], i == ui.page ? c : C_LABEL) + 12;
     }
@@ -547,6 +643,20 @@ void app_frame(void)
                 ui.dirty_main = 1;
         }
     }
+    {                                      /* the pattern changed or one is queued (cambio / cola) */
+        int cur = epk_pattern_current(), q = epk_pattern_queued();
+        uint8_t blink = (uint8_t)((now / 250u) & 1u);
+        if (cur != ui.pattern_seen || q != ui.queued_seen || (q >= 0 && blink != ui.blink)) {
+            if (cur != ui.pattern_seen)
+                ui.dirty_foot = 1;
+            ui.pattern_seen = cur;
+            ui.queued_seen = q;
+            ui.blink = blink;
+            ui.dirty_head = 1;
+            if (ui.view == VIEW_PATTERNS)
+                ui.dirty_main = ui.dirty_foot = 1;
+        }
+    }
     if (ui.view == VIEW_MIX && now - ui.meter_at >= 50u) {   /* the meters at 20 fps (medidores) */
         ui.meter_at = now;
         for (t = 0; t < EPK_TRACKS; t++)
@@ -586,6 +696,10 @@ int app_expect(const char *what, int *got)
         *got = ui.view;
     else if (!strcmp(what, "page"))
         *got = ui.page;
+    else if (!strcmp(what, "pattern"))         /* 1..16 */
+        *got = epk_pattern_current() + 1;
+    else if (!strcmp(what, "queued"))          /* 1..16, 0 none */
+        *got = epk_pattern_queued() + 1;
     else if (!strcmp(what, "octave"))
         *got = ui.octave;
     else if (!strcmp(what, "playing"))

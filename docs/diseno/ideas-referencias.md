@@ -60,3 +60,29 @@ Lo que lo hace distinto de un delay normal (todo opcional, a medir en CPU):
 | **Espacio infinito** | Feedback cruzado delay ↔ reverb con el limitador vigilando: una nube que no muere | KNOB DLY↔REV | Bajo (lo que ya cuesta la reverb) |
 | **Throws grabados** | Grabar en el patrón los envíos al delay de cada paso, como hace el dub en la mesa | REC + girar PRESETS mientras suena | Nulo en audio (memoria del patrón) |
 | **Eco a la octava** | Cada repetición sube o baja una octava (shimmer oscuro) | KNOB OCTAVA en el lazo | **Alto**: necesita desplazador de tono; solo si sobra CPU |
+
+## ESCENAS (propuesta 11 nov, 15:58; inspirado en las scenes/performance de Elektron)
+
+Una escena es un conjunto de destinos (hasta 8: parámetro + valor) sobre el master, los efectos y las pistas, que
+se activa de golpe y se suelta para volver. **Son del proyecto** (como la mezcla): sobreviven al cambio de patrón.
+
+| Escena de ejemplo | Qué mueve |
+|---|---|
+| **SUMERGIR** | Filtro del master se cierra (LP) + envío y feedback del delay suben |
+| **CATEDRAL** | Envío y tamaño de la reverb suben, el delay baja |
+| **CINTA ROTA** | Drive + saturación de cinta + wow/flutter del delay |
+| **DIGITAL** | Reducción de bits y de frecuencia de muestreo (bit/sample-rate reduction) |
+| **TÚNEL** | Filtro paso-alto sube + reverb |
+| **SECO** | Todos los envíos a 0: el golpe en seco antes de volver |
+| **STUTTER** | Repetición de un paso (beat repeat) con el buffer del delay |
+| **ECO INFINITO** | Freeze del delay + entrada cortada |
+
+- **Cómo se tocan:** modo de teclado ESCENAS (HOME+SEQ). Las teclas negras son las escenas: mantener = activa,
+  soltar = vuelve; HOME + tecla = se queda puesta (latch). Las blancas siguen tocando la pista. Con presión en las
+  teclas (pendiente en el dispositivo), la presión sería la profundidad, como los pads del Rytm.
+- **Transición:** tiempo de morph por escena (instantáneo .. 4 compases) para subidas y bajadas de dub.
+- **Cómo se crean:** mantener la tecla de la escena y girar knobs: lo que gires queda guardado en la escena.
+- **Coste:** las escenas no cuestan CPU; la reducción de bits y el stutter, poco.
+- **Fase:** después de los efectos del master (Fase 3), porque mueven sus parámetros: Fase 3–4.
+- **Pendiente de decidir:** "beat reduction" = reducción de bits (Rytm: BR/SRR) o repetición de pasos (beat repeat).
+  Propuestas las dos.

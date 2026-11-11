@@ -6,6 +6,7 @@
 // placeholder until the real engines (fases 2-5).
 #include "epk.h"
 #include "fastmath.h"
+#include "factory.h"
 
 namespace epk {
 
@@ -108,7 +109,7 @@ struct Track {
 };
 
 struct Event { uint8_t type, track, note, vel; };
-enum { EV_NOTE_ON = 1, EV_PLAY, EV_STOP };
+enum { EV_NOTE_ON = 1, EV_PLAY, EV_STOP, EV_PATTERN };
 
 constexpr int kQueue = 64;                 // a power of two
 constexpr uint32_t kBlock = 256;           // the largest block the platform renders (APP_BLOCK)
@@ -116,6 +117,10 @@ constexpr uint32_t kBlock = 256;           // the largest block the platform ren
 struct Engine {
     float sr, bpm;
     int playing;
+    float bank[EPK_PATTERNS][EPK_TRACKS][EPK_P_PATTERN_COUNT];   // the patterns (patrones), 0..1 like Track::p
+    int pattern, queued;                   // current, queued (-1 none)
+    uint32_t bar_pos;                      // the bar clock (reloj de compás): Q32 of a sixteenth
+    int bar_step, bar_fire;
     Track tr[EPK_TRACKS];
     Event queue[kQueue];
     volatile uint32_t q_write, q_read;
@@ -149,6 +154,20 @@ void push(uint8_t type, int track, int note, float vel) {
     g.q_write = w + 1;
 }
 
+// The live parameters go back to their pattern; the new pattern comes in; every track restarts at step 0.
+// Mutes, solos, levels and pans stay: they are the project's (del proyecto).
+void switch_pattern(int to) {
+    for (int t = 0; t < EPK_TRACKS; t++)
+        for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) g.bank[g.pattern][t][p] = g.tr[t].p[p];
+    g.pattern = to;
+    g.queued = -1;
+    for (int t = 0; t < EPK_TRACKS; t++) {
+        Track &tr = g.tr[t];
+        for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) tr.p[p] = g.bank[to][t][p];
+        if (g.playing) { tr.step = -1; tr.pos = 0; tr.fire = 1; }
+    }
+}
+
 void drain() {
     while (g.q_read != g.q_write) {
         const Event &e = g.queue[g.q_read & (kQueue - 1)];
@@ -156,11 +175,17 @@ void drain() {
             Track &t = g.tr[e.track];
             t.voice.trigger(note_hz(e.note), (float)e.vel / 127.0f);
             t.triggers++;
+        } else if (e.type == EV_PATTERN) {
+            if (g.playing) g.queued = e.note;                 // at the end of the bar (al final del compás)
+            else switch_pattern(e.note);                      // stopped: now (ahora)
         } else if (e.type == EV_PLAY) {
             g.playing = 1;
+            g.bar_step = -1; g.bar_pos = 0; g.bar_fire = 1;
             for (Track &t : g.tr) { t.step = -1; t.pos = 0; t.fire = 1; }   // the first sample plays step 0
         } else if (e.type == EV_STOP) {
             g.playing = 0;
+            g.bar_step = -1;
+            if (g.queued >= 0) switch_pattern(g.queued);
             for (Track &t : g.tr) t.step = -1;
         }
         g.q_read++;
@@ -233,23 +258,33 @@ using namespace epk;
 extern "C" {
 
 void epk_init(float sample_rate) {
-    // the default song (canción por defecto): a groove to hear the polymetry (polimetría) on the orbit view
-    static const float kDefaults[EPK_TRACKS][EPK_P_COUNT] = {
-        //  note   char   tone   decay  len    hits   rot    div    level  pan
-        {0.20f, 0.00f, 0.55f, 0.42f, 15/31.f, 0.25f, 0.00f, 0.40f, 0.90f, 0.50f},   // 1: kick-like (bombo)
-        {0.80f, 1.00f, 0.95f, 0.10f, 15/31.f, 0.50f, 2/31.f, 0.40f, 0.55f, 0.58f},   // 2: hats (ruido)
-        {0.45f, 0.45f, 0.45f, 0.50f, 11/31.f, 0.25f, 3/31.f, 0.40f, 0.60f, 0.40f},   // 3: stab, 12 steps (acorde)
-        {0.35f, 0.60f, 0.35f, 0.35f, 12/31.f, 0.40f, 1/31.f, 0.40f, 0.50f, 0.65f},   // 4: 13 steps (bajo)
-        {0.30f, 0.50f, 0.25f, 0.95f, 6/31.f,  0.30f, 0.00f, 0.80f, 0.45f, 0.35f},    // 5: 7 steps of 1/8 (drone)
-        {0.65f, 0.30f, 0.60f, 0.30f, 9/31.f,  0.30f, 4/31.f, 0.40f, 0.40f, 0.50f},   // 6: 10 steps
-    };
+    // the project's mix (mezcla del proyecto): level, pan per track
+    static const float kMix[EPK_TRACKS][2] = {{0.90f, 0.50f}, {0.55f, 0.58f}, {0.60f, 0.40f},
+                                              {0.62f, 0.62f}, {0.50f, 0.36f}, {0.45f, 0.70f}};
     g.sr = sample_rate;
     g.bpm = 124.0f;
     g.playing = 0;
     g.q_write = g.q_read = 0;
+    g.pattern = 0; g.queued = -1;
+    g.bar_pos = 0; g.bar_step = -1; g.bar_fire = 0;
+    for (int pt = 0; pt < EPK_PATTERNS; pt++)
+        for (int i = 0; i < EPK_TRACKS; i++) {
+            const TrackSpec &k = kFactory[pt][i];
+            float *b = g.bank[pt][i];
+            b[EPK_P_NOTE] = (float)(k.note - 24) / 60.0f;
+            b[EPK_P_CHARACTER] = k.character;
+            b[EPK_P_TONE] = k.tone;
+            b[EPK_P_DECAY] = k.decay;
+            b[EPK_P_LENGTH] = (float)(k.length - 1) / 31.0f;
+            b[EPK_P_HITS] = (float)k.hits / (float)k.length;
+            b[EPK_P_ROTATE] = (float)k.rotate / 31.0f;
+            b[EPK_P_DIVISION] = (float)k.division / (float)(EPK_DIV_COUNT - 1);
+        }
     for (int i = 0; i < EPK_TRACKS; i++) {
         Track &t = g.tr[i];
-        for (int p = 0; p < EPK_P_COUNT; p++) t.p[p] = kDefaults[i][p];
+        for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) t.p[p] = g.bank[0][i][p];
+        t.p[EPK_P_LEVEL] = kMix[i][0];
+        t.p[EPK_P_PAN] = kMix[i][1];
         t.muted = t.soloed = 0;
         t.step = -1; t.pos = 0; t.fire = 0;
         t.gain = 1.0f; t.meter = 0.0f; t.triggers = 0; t.key_note = -1;
@@ -257,16 +292,34 @@ void epk_init(float sample_rate) {
         t.mask = euclid(t.length, param_int(t, EPK_P_HITS), param_int(t, EPK_P_ROTATE));
         t.voice.init(0x1234567u * (uint32_t)(i + 1));
     }
-    g.tr[5].muted = 1;                                                // track 6 starts muted (silenciada)
 }
 
 void epk_render(float *left, float *right, uint32_t frames) {
     drain();
     const int solo = any_solo();
     for (uint32_t i = 0; i < frames; i++) left[i] = right[i] = 0.0f;
-    for (uint32_t done = 0; done < frames; done += kBlock) {
-        const uint32_t n = frames - done < kBlock ? frames - done : kBlock;
+    // the bar clock (reloj de compás) in sixteenths: a queued pattern comes in on the sample its bar starts
+    const uint32_t inc = (uint32_t)(g.bpm * (1.0f / 60.0f) * 4.0f / g.sr * 4294967296.0f);
+    uint32_t done = 0;
+    while (done < frames) {
+        if (g.playing && g.bar_fire) {
+            g.bar_fire = 0;
+            g.bar_step = (g.bar_step + 1) % EPK_BAR_STEPS;
+            if (g.bar_step == 0 && g.queued >= 0) switch_pattern(g.queued);
+        }
+        uint32_t n = frames - done, until = 0xFFFFFFFFu;
+        if (n > kBlock) n = kBlock;
+        if (g.playing) {
+            const uint32_t remain = g.bar_pos ? 0u - g.bar_pos : 0xFFFFFFFFu;
+            until = remain / inc + (remain % inc ? 1u : 0u);
+            if (until < n) n = until;
+        }
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
+        done += n;
+        if (g.playing) {
+            g.bar_pos += n * inc;
+            if (n == until) g.bar_fire = 1;
+        }
     }
     float peak = g.meter_master;
     for (uint32_t i = 0; i < frames; i++) {                           // the master (salida): a soft clip
@@ -322,6 +375,16 @@ void epk_note_on(int track, int note, float velocity) {
 void epk_note_off(int track, int note) {
     if (track >= 0 && track < EPK_TRACKS && g.tr[track].key_note == note) g.tr[track].key_note = -1;
 }
+
+void epk_pattern_select(int pattern) {
+    if (pattern >= 0 && pattern < EPK_PATTERNS) push(EV_PATTERN, 0, pattern, 0.0f);
+}
+int epk_pattern_current(void) { return g.pattern; }
+int epk_pattern_queued(void) { return g.queued; }
+const char *epk_pattern_name(int pattern) {
+    return pattern >= 0 && pattern < EPK_PATTERNS ? kFactoryNames[pattern] : "";
+}
+int epk_bar_step(void) { return g.playing ? g.bar_step : -1; }
 
 int epk_step(int track) { return track >= 0 && track < EPK_TRACKS && g.playing ? g.tr[track].step : -1; }
 int epk_length(int track) { return track >= 0 && track < EPK_TRACKS ? param_int(g.tr[track], EPK_P_LENGTH) : 0; }

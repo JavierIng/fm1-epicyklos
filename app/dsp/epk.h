@@ -13,6 +13,8 @@ extern "C" {
 
 #define EPK_TRACKS 6          /* tracks (pistas) */
 #define EPK_MAX_STEPS 32      /* steps per pattern (pasos por patrón) */
+#define EPK_PATTERNS 16       /* patterns per project (patrones por proyecto) */
+#define EPK_BAR_STEPS 16      /* a pattern change waits for the end of a bar of 16 sixteenths (compás) */
 
 /* per-track parameters (parámetros por pista), each 0..1 at this interface */
 enum {
@@ -24,7 +26,8 @@ enum {
     EPK_P_HITS,       /* euclidean hits (golpes) */
     EPK_P_ROTATE,     /* rotation (rotación) */
     EPK_P_DIVISION,   /* step division (división): see EPK_DIV_* */
-    EPK_P_LEVEL,      /* level (nivel) */
+    EPK_P_PATTERN_COUNT, /* the parameters above belong to the pattern (al patrón); the ones below, to the project */
+    EPK_P_LEVEL = EPK_P_PATTERN_COUNT,   /* level (nivel) */
     EPK_P_PAN,        /* pan (panorama): 0 left, 0.5 centre, 1 right */
     EPK_P_COUNT
 };
@@ -51,6 +54,14 @@ int epk_muted(int track);
 void epk_solo(int track, int on);
 int epk_soloed(int track);
 int epk_audible(int track);                    /* after mute and solo (tras mute y solo) */
+
+/* patterns (patrones): sound and rhythm of every track. The mix, mutes, solos and tempo stay (son del proyecto).
+ * Playing, a change waits for the end of the bar; stopped, it is immediate. Edits stay in the pattern (en memoria). */
+void epk_pattern_select(int pattern);
+int epk_pattern_current(void);
+int epk_pattern_queued(void);                  /* -1 none (ninguno en cola) */
+const char *epk_pattern_name(int pattern);
+int epk_bar_step(void);                        /* 0..15 within the bar, -1 stopped (paso del compás) */
 
 /* the keys (teclado): a note on the track, now */
 void epk_note_on(int track, int note, float velocity);

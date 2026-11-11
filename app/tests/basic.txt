@@ -5,6 +5,20 @@ shot boot.png
 expect view 0
 expect track 0
 expect playing 0
+expect pattern 1
+# SAVE: the PATTERNS view (patrones); stopped, a white key changes at once (pattern 4 ORBITA = key 6)
+tap SAVE
+wait 30
+expect view 2
+key 6 down
+wait 30
+key 6 up
+wait 30
+expect pattern 4
+shot patterns.png
+tap SAVE
+wait 30
+expect view 0
 # PLAY: the sequencer runs (el secuenciador arranca) and every audible track triggers
 wav groove.wav
 tap PLAY
@@ -66,6 +80,28 @@ turn K1 -3
 wait 50
 shot popup.png
 wait 1200
+# a queued pattern (en cola): SAVE held + white key 12 = pattern 8 APOGEO; track 1 muted first
+press HOME
+tap FX
+release HOME
+wait 30
+expect mute1 1
+press SAVE
+key 12 down
+wait 30
+key 12 up
+release SAVE
+wait 30
+expect view 0
+expect queued 8
+expect pattern 4
+wait 2200
+expect pattern 8
+expect queued 0
+expect mute1 1
+press HOME
+tap FX
+release HOME
 # the keys play the selected track (teclado)
 key 7 down
 wait 50

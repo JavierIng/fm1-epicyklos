@@ -10,7 +10,7 @@ fail=0
 mkdir -p build tests/dsp/out
 CXX="${CXX:-c++}"
 "$CXX" -std=c++14 -O2 -Wall -Wextra -fno-exceptions -fno-rtti -I app/dsp -I base/include \
-    tests/dsp/test_engine.cpp app/dsp/engine.cpp -o build/test_engine
+    tests/dsp/test_engine.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_engine
 ./build/test_engine || fail=1
 ./build.sh --host
 for t in app/tests/*.txt; do
