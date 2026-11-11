@@ -60,10 +60,15 @@ jobs:
       - run: sudo apt-get install -y -qq libfribidi0
       - run: pip install -q pillow fonttools
       - run: sh base/tools/get_toolchain.sh "$HOME/.jieli"
-      - name: "JieLi AC79 SDK (tested revision, checked by hash; base/bsp/tools/get_sdk.sh)"
+      - name: JieLi AC79 SDK (gitee, fixed tag, as zvenson/fm1-build does)
         run: |
-          sh base/bsp/tools/get_sdk.sh "$HOME/.jieli/ac79-sdk"
-          echo "AC79_SDK=$HOME/.jieli/ac79-sdk" >> "$GITHUB_ENV"
+          for i in 1 2 3; do
+            git clone -q --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+                https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK" && break
+            rm -rf "$HOME/fw-AC79_AIoT_SDK"; sleep 20
+          done
+          test -f "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/uboot.boot"
+          echo "AC79_SDK=$HOME/fw-AC79_AIoT_SDK" >> "$GITHUB_ENV"
       - run: ./build.sh
       - name: Size report (memoria usada)
         run: ls -l app/build/*.fwsc app/build/*.bin; ls app/build
