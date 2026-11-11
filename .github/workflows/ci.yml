@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: sudo apt-get install -y -qq clang lld libfribidi0
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq clang lld libfribidi0
       - run: pip install -q pillow fonttools
       - uses: actions/setup-node@v4
         with:
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: sudo apt-get install -y -qq libfribidi0
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libfribidi0
       - run: pip install -q pillow fonttools
       - name: JieLi toolchain
         run: |
