@@ -28,6 +28,20 @@
 - **Coste estimado** (sin verificar en el chip): al quitar los 6 compresores, ~3.000–3.500 ciclos por muestra
   de ~4.900. Los modelos pesados de MACRO y MAREA de 16 bandas siguen pudiendo pasarse.
 
+## Patrones, aleatorio, mute y solo (decidido 11 nov, 15:54)
+
+- **Patrón** = la secuencia y el sonido de cada pista. La **mezcla, los efectos y el tempo van con el proyecto**:
+  al cambiar de patrón no saltan los niveles ni la cola del delay.
+- **16 patrones por proyecto** (~2 KB cada uno; 4–6 proyectos en flash, estimado). SAVE abre los patrones:
+  las 16 teclas blancas son los huecos (luz = ocupado); el cambio queda **en cola hasta el final del compás de
+  16 pasos** (opción: inmediato). SAVE otra vez guarda. Nombre automático editable (SELECT posición, ALGORITHM letra).
+- **ARP = aleatorio de la página actual**, con límites musicales (SONIDO en escala y rangos útiles; RITMO golpes y
+  rotación, no la longitud; MEZCLA solo pan y envíos, nunca el nivel). HOME+ARP deshace. ARP + ALGORITHM = cuánto.
+  ARP + girar un knob = bloquear ese parámetro.
+- **Mute y solo por pista** (ya en la Fase 1): en todas las vistas HOME+pista = mute; en MEZCLA pista = mute y
+  HOME+pista = solo. Mute y solo son de la actuación: no se guardan en el patrón.
+- Fases: patrones en memoria, cambio en cola y aleatorio en la **Fase 2**; guardado en flash y nombres en la **Fase 6**.
+
 ## Mapa del panel (cambia por las 6 pistas)
 
 | Control | Función |
@@ -35,8 +49,8 @@
 | FX…GLO | Seleccionar pista 1–6. HOME + pista = mute. En la vista MEZCLA: pista = mute, HOME + pista = solo |
 | HOME | Toque: ÓRBITA → MEZCLA → MASTER. Mantener: SHIFT |
 | HOME + SAVE | GLOBAL (tempo, clock, MIDI, sistema) |
-| SAVE | Proyectos |
-| ARP | GENERAR patrón nuevo. HOME + ARP = deshacer |
+| SAVE | Patrones (teclas blancas = 16 huecos); SAVE otra vez = guardar |
+| ARP | ALEATORIO de la página actual. HOME + ARP = deshacer. ARP + ALGORITHM = cantidad; ARP + knob = bloquear |
 | SEQ | Modo PASOS (16 teclas blancas = pasos, con sus LEDs) |
 | PLAY | Arranca/para. HOME + PLAY = FILL |
 | REC | Mantener: DUB THROW. Mantener REC + pista = throw de esa pista. HOME + REC = FREEZE del delay |
