@@ -13,10 +13,11 @@
 #include "voices.h"
 
 // big buffers go in the device's pool RAM, not in .bss (los buffers grandes van al pool de RAM)
-#if defined(__GCC_PI32V2__) || defined(__pi32v2__)
-#define EPK_POOL __attribute__((section(".pool")))
-#else
+// The simulator, the emulator and the tests build with PLAT_HOST; the firmware build is the one without it.
+#ifdef PLAT_HOST
 #define EPK_POOL
+#else
+#define EPK_POOL __attribute__((section(".pool")))
 #endif
 
 namespace epk {

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Javier Sánchez
 // Host tests of the DSP core (pruebas del núcleo DSP en el ordenador): timing to the sample, trigger counts,
 // mute/solo, no NaN, levels. Writes tests/dsp/out/groove.wav to listen to.
-//   c++ -std=c++14 -O2 -I app/dsp -I base/include tests/dsp/test_engine.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_engine
+//   c++ -std=c++14 -O2 -DPLAT_HOST -I app/dsp -I base/include tests/dsp/test_engine.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_engine
 #include <chrono>
 #include <algorithm>
 #include <cmath>
