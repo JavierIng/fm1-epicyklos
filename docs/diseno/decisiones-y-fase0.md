@@ -143,3 +143,11 @@
 - **Manual de usuario:** `docs/manual/es.md` y `docs/manual/en.md`, se amplían en cada fase solo con lo que ya funciona.
 - **Pendiente conocido:** un patrón aleatorizado conserva el nombre anterior; no hay marca de "modificado".
 - Validación: pruebas DSP, 58 comprobaciones en el simulador, emulador sin interfaz y CI en verde (commit 0508291). Nada instalado en el FM-1.
+
+## Fase 2c (entregada en el emulador, 2026-11-11)
+
+- **GOLPE** (palma / caja / aro) en la **pista 6**, que ya hacía de percusión en los 16 patrones. Se propuso la pista 3, pero habría quitado el acorde de los patrones de muestra.
+- **Adelantar y atrasar:** página GROOVE con SWING y DESPLAZA (pista entera, ±45 % de paso); micro por paso en la vista PASOS (paso mantenido + K3, ±3/8 de paso). Probado a la muestra.
+- **ATAQUE** en la voz de prueba (MOTOR, K4): 1 ms a ~1,4 s; la caída empieza al terminar el ataque. Los motores de percusión no lo usan.
+- Páginas: SONIDO · MOTOR · RITMO · GROOVE · MEZCLA.
+- Validación: pruebas DSP (13 bloques), 62 comprobaciones en el simulador, emulador sin interfaz. Nada instalado en el FM-1.

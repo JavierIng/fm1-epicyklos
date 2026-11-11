@@ -1,6 +1,6 @@
 # EPICYKLOS · User manual (draft)
 
-> Status: **Phase 2b, browser emulator only.** None of this has been tested on a real FM-1 yet.
+> Status: **Phase 2c, browser emulator only.** None of this has been tested on a real FM-1 yet.
 > The manual grows with each phase and only describes what already works. Español: [es.md](es.md).
 > On-screen text is in Spanish for now; the Spanish label is given in brackets.
 
@@ -37,10 +37,14 @@ Each track has a sound engine (ENGINE page [MOTOR], K1). So far:
 - **GRAVE** (track 1): kick. Note, drive (clean to industrial), click, decay, sweep [BARRIDO], rumble.
 - **METAL** (track 2): 808/909-style hats. Tune [AFINA], metal (noise to metallic), brightness [BRILLO], decay,
   ring [ANILLO], variation [VARÍA].
-- **PRUEBA** (tracks 3-6): a placeholder voice until the engines of phases 4 and 5 arrive.
+- **GOLPE** (track 6): clap, snare or rim. Tune [AFINA], type [TIPO: PALMA → CAJA → ARO], brightness, decay,
+  body [CUERPO], tail [COLA].
+- **PRUEBA** (tracks 3-5): a placeholder voice until the engines of phases 4 and 5 arrive. It has attack
+  [ATAQUE] (ENGINE page, K4): the sound comes in at once or slowly.
 
 ## 5. Pages (SELECT)
-SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, division) · MIX [MEZCLA] (level, pan;
+SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, division) · GROOVE (swing, shift
+[DESPLAZA]) · MIX [MEZCLA] (level, pan;
 sends arrive in phase 3).
 
 ## 6. Patterns and banks (SAVE)
@@ -58,7 +62,14 @@ sends arrive in phase 3).
 - Tap: step on or off (the track becomes hand-made, "A MANO").
 - **Hold a step + K1:** probability (100, 75, 50, 25 %). **+ K2:** condition (1:2, 2:2, 1:4…: it plays only on
   that turn of the cycle).
+- **Hold a step + K3:** micro-timing, moves that hit earlier (−) or later (+) in eighths of a step, up to 3/8.
 - Turning hits [GOLPES] on a hand-made track returns it to the euclidean spread.
+
+### Early and late (GROOVE page)
+- **SWING:** delays the track's odd steps (up to 0.4 of a step).
+- **Shift [DESPLAZA]:** moves the whole track earlier or later (±45 % of a step). For example, the clap a
+  little early or the hats a little late.
+- Swing, shift and micro-timing add up, limited to 0.9 of a step.
 
 ## 8. Random (ARP)
 - **ARP:** changes the parameters of the page shown, on the selected track. It never touches engine, length,

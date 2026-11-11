@@ -118,4 +118,5 @@ Apuntadas para ir viendo; ninguna está comprometida.
   - Blades: es analógico (pendiente de confirmar mirando la carpeta); se escribiría un filtro doble digital con su idea.
 - **Filtro doble tipo Blades:** dos SVF con enrutado serie/paralelo y mezcla LP/BP/HP; candidato a ser el filtro DJ del master. Frecuencia y resonancia como destinos de los LFO globales y los seguidores de envolvente (con suavizado y límite de resonancia).
 - **Riesgo:** la lista supera lo que cabe sonando a la vez; la CPU real no se conoce hasta probar en el aparato. Lo pesado, con interruptor de calidad.
+- **Flanger** (11 nov, 19:27): solo si la CPU lo permite. Es barato (una línea de retardo corta modulada, ~1-2 KB); encajaría como efecto de pista o dentro del delay. Sin decidir.
 - **Otros pendientes:** tap tempo; marca de "modificado" y nombre nuevo al aleatorizar un patrón; interfaz en inglés.

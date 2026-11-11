@@ -34,7 +34,8 @@ inline uint32_t rotate_mask(uint32_t m, int length, int rotate) {
 struct Steps {
     uint32_t mask;                         // the manual hits, before rotation (golpes a mano)
     uint8_t manual;
-    uint8_t meta[EPK_MAX_STEPS];           // bits 0-1 EPK_PROB_*, bits 2-4 EPK_COND_*; indexed before rotation
+    uint8_t meta[EPK_MAX_STEPS];           // bits 0-1 EPK_PROB_*, 2-4 EPK_COND_*, 5-7 micro-timing (signed, eighths
+                                           // of a step); indexed before rotation
 };
 
 // ------------------------------------------------------------------ track (pista)
@@ -51,6 +52,9 @@ struct Track {
     uint32_t triggers;
     int key_note;                          // last key played (-1 none)
     Rng chance;
+    // triggers off the grid (golpes fuera de la rejilla): [0] this step's, late; [1] the next step's, early.
+    // at: where in the current step, Q32
+    struct Pending { uint32_t at; int step, on; } pend[2];
     Voice voice;
 };
 
@@ -124,9 +128,9 @@ void push(uint8_t type, int track, int a, int b) {
 }
 
 // ------------------------------------------------------------------ patterns: factory and generated
-// the engines by track (motores): kick, hats, and the test voice until the other engines exist
+// the engines by track (motores): kick, hats, clap / snare on 6, and the test voice until the other engines exist
 static const uint8_t kEngine[EPK_TRACKS] = {EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_TEST, EPK_ENG_TEST,
-                                            EPK_ENG_TEST, EPK_ENG_TEST};
+                                            EPK_ENG_TEST, EPK_ENG_GOLPE};
 
 void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1, float e2, int len, int hits,
               int rot, int div) {
@@ -138,6 +142,9 @@ void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1
     b[EPK_P_ENGINE] = (float)kEngine[i] / (float)(EPK_ENG_COUNT - 1);
     b[EPK_P_EXTRA1] = e1;
     b[EPK_P_EXTRA2] = e2;
+    b[EPK_P_ATTACK] = 0.0f;
+    b[EPK_P_SWING] = 0.0f;
+    b[EPK_P_SHIFT] = 0.5f;                                           // on the grid (en la rejilla)
     b[EPK_P_LENGTH] = (float)(len - 1) / 31.0f;
     b[EPK_P_HITS] = (float)clampi(hits, 0, len) / (float)len;
     b[EPK_P_ROTATE] = (float)(rot % len) / 31.0f;
@@ -154,6 +161,11 @@ void fill_factory(int pt) {
         float e2 = kEngine[i] == EPK_ENG_GRAVE ? 0.40f : kEngine[i] == EPK_ENG_METAL ? 0.30f : 0.0f;
         if (i == 0 && pt == 8) e2 = 0.75f;                           // ECLIPSE: more rumble (más rumble)
         if (i == 0 && pt == 13) e2 = 0.85f;                          // NADIR
+        if (kEngine[i] == EPK_ENG_GOLPE) {                           // rim at the start, clap, snare at the peak
+            const float type = pt < 3 ? 0.95f : pt >= 8 && pt < 12 ? 0.50f : 0.05f;
+            set_spec(pt, i, 52, type, k.tone, k.decay, 0.5f, 0.4f, k.length, k.hits, k.rotate, k.division);
+            continue;
+        }
         set_spec(pt, i, k.note, k.character, k.tone, k.decay, e1, e2, k.length, k.hits, k.rotate, k.division);
     }
 }
@@ -206,11 +218,13 @@ void generate(int pt, uint32_t seed) {
         const int div = r.unipolar() < 0.5f ? EPK_DIV_1_8 : EPK_DIV_1_4;
         set_spec(pt, 4, scale_note(r, 38, 8), 0.5f, tone, dec, 0.0f, 0.0f, len, hits, 0, div);
     }
-    {   // 6 perc (percusión)
-        const int len = kLen[ri(r, 12)], hits = 1 + ri(r, len * 4 / 10 + 1);
-        const float ch = r.unipolar() < 0.3f ? rr(r, 0.85f, 1.0f) : rr(r, 0.05f, 0.35f);
-        const float tone = rr(r, 0.45f, 0.85f), dec = rr(r, 0.06f, 0.35f);
-        set_spec(pt, 5, scale_note(r, 62, 12), ch, tone, dec, 0.0f, 0.0f, len, hits, ri(r, len), EPK_DIV_1_16);
+    {   // 6 GOLPE: clap, snare or rim; often the backbeat (2 y 4), otherwise a cycle of its own
+        static const float kType[3] = {0.05f, 0.50f, 0.95f};
+        const float type = kType[ri(r, 3)], tone = rr(r, 0.35f, 0.80f), dec = rr(r, 0.15f, 0.50f);
+        const float body = rr(r, 0.30f, 0.80f), tail = rr(r, 0.20f, 0.70f);
+        const int back = r.unipolar() < 0.45f;
+        const int len = back ? 16 : kLen[ri(r, 12)], hits = back ? 2 : 1 + ri(r, len * 3 / 10 + 1);
+        set_spec(pt, 5, 48 + ri(r, 10), type, tone, dec, body, tail, len, hits, back ? 4 : ri(r, len), EPK_DIV_1_16);
     }
     for (int i = 2; i < EPK_TRACKS; i++)                             // now and then a track rests (descansa)
         if (r.unipolar() < 0.10f) g.bank[pt][i][EPK_P_HITS] = 0.0f;
@@ -302,7 +316,7 @@ void drain() {
             g.playing = 0;
             g.bar_step = -1;
             if (g.queued >= 0) switch_pattern(g.queued, g.queued_bank);
-            for (Track &k : g.tr) k.step = -1;
+            for (Track &k : g.tr) { k.step = -1; k.pend[0].on = k.pend[1].on = 0; }
         }
         g.q_read++;
     }
@@ -313,22 +327,57 @@ int any_solo() {
     return 0;
 }
 
-// The next step: it triggers if the pattern, its condition and its chance say so (siguiente paso)
-void advance(Track &t, int len, uint32_t mask) {
-    t.step = (t.step + 1) % len;
-    if (t.step == 0) t.cycle++;
-    if (!(mask >> t.step & 1u)) return;
-    const uint8_t meta = t.st.meta[unrotated(t, t.step, len)];
+// A step's place off the grid, in steps (fuera de la rejilla): the track's SHIFT, SWING on the odd steps, and
+// the step's own micro-timing. Negative = early.
+inline float step_offset(const Track &t, int step, int len) {
+    float off = (t.p[EPK_P_SHIFT] - 0.5f) * 0.9f;
+    if (step & 1) off += t.p[EPK_P_SWING] * 0.4f;
+    int micro = t.st.meta[unrotated(t, step, len)] >> 5 & 7;
+    if (micro > 3) micro -= 8;
+    off += (float)micro * 0.125f;
+    return off < -0.9f ? -0.9f : off > 0.9f ? 0.9f : off;
+}
+
+// Does this step play on this turn of the cycle? Its condition and its chance decide (condición y azar)
+inline int step_passes(Track &t, int step, uint32_t cycle, int len) {
+    const uint8_t meta = t.st.meta[unrotated(t, step, len)];
     const int prob = meta & 3, cond = meta >> 2 & 7;
     if (cond == EPK_COND_1_2 || cond == EPK_COND_2_2) {
-        if ((int)(t.cycle & 1u) != cond - EPK_COND_1_2) return;
+        if ((int)(cycle & 1u) != cond - EPK_COND_1_2) return 0;
     } else if (cond >= EPK_COND_1_4) {
-        if ((int)(t.cycle & 3u) != cond - EPK_COND_1_4) return;
+        if ((int)(cycle & 3u) != cond - EPK_COND_1_4) return 0;
     }
-    if (prob && t.chance.unipolar() >= 1.0f - 0.25f * (float)prob) return;
+    return !(prob && t.chance.unipolar() >= 1.0f - 0.25f * (float)prob);
+}
+
+inline void trigger_step(Track &t, int step) {
     const int note = t.key_note >= 0 ? t.key_note : param_int(t, EPK_P_NOTE);
-    t.voice.trigger(note_hz(note), t.step == 0 ? 1.0f : 0.8f);       // the first step accented (acento)
+    t.voice.trigger(note_hz(note), step == 0 ? 1.0f : 0.8f);         // the first step accented (acento)
     t.triggers++;
+}
+
+// The next step (siguiente paso). A step on the grid triggers now; a late one is left pending inside this step;
+// an early one was left pending by the step before it, so here the next step's is prepared. first: the sequencer
+// just started, nothing came before, so an early step plays now.
+void advance(Track &t, int len, uint32_t mask, int first) {
+    t.step = (t.step + 1) % len;
+    if (t.step == 0) t.cycle++;
+    t.pend[0].on = t.pend[1].on = 0;
+    if (mask >> t.step & 1u) {
+        const float off = step_offset(t, t.step, len);
+        if ((off > -0.01f || first) && step_passes(t, t.step, t.cycle, len)) {
+            if (off > 0.01f) {
+                t.pend[0].at = (uint32_t)(off * 4294967296.0f); t.pend[0].step = t.step; t.pend[0].on = 1;
+            } else trigger_step(t, t.step);
+        }
+    }
+    const int next = (t.step + 1) % len;
+    if (mask >> next & 1u) {
+        const float off = step_offset(t, next, len);
+        if (off <= -0.01f && step_passes(t, next, t.cycle + (next == 0 ? 1u : 0u), len)) {
+            t.pend[1].at = (uint32_t)((1.0f + off) * 4294967296.0f); t.pend[1].step = next; t.pend[1].on = 1;
+        }
+    }
 }
 
 // The sequencer for one track over a block: the voice is rendered in pieces, each trigger at its own sample.
@@ -344,19 +393,25 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
         if (g.playing && t.fire) {                                   // play: step 0 now (paso 0 ya)
             t.fire = 0;
             t.step = -1;
-            advance(t, len, mask);
+            advance(t, len, mask, 1);
         }
         uint32_t run = n - done, until = 0xFFFFFFFFu;
         if (g.playing) {                                             // samples until the next step (hasta el paso)
             const uint32_t remain = t.pos ? 0u - t.pos : 0xFFFFFFFFu;
             until = remain / inc + (remain % inc ? 1u : 0u);
             if (until < run) run = until;
+            for (Track::Pending &pd : t.pend) {                      // and until a trigger off the grid
+                if (!pd.on) continue;
+                if (t.pos >= pd.at) { pd.on = 0; trigger_step(t, pd.step); continue; }
+                const uint32_t gap = pd.at - t.pos, d = gap / inc + (gap % inc ? 1u : 0u);
+                if (d < run) run = d;
+            }
         }
         t.voice.render(g.buf + done, run, t.p, g.sr);
         done += run;
         if (g.playing) {
             t.pos += run * inc;                                      // wraps past 2^32 at the step's end
-            if (run == until) advance(t, len, mask);
+            if (run == until) advance(t, len, mask, 0);
         }
     }
     const float target = (t.muted || (solo && !t.soloed)) ? 0.0f : 1.0f;
@@ -386,7 +441,7 @@ extern "C" {
 void epk_init(float sample_rate) {
     // the project's mix (mezcla del proyecto): level, pan per track
     static const float kMix[EPK_TRACKS][2] = {{0.85f, 0.50f}, {0.50f, 0.58f}, {0.60f, 0.40f},
-                                              {0.62f, 0.62f}, {0.50f, 0.36f}, {0.45f, 0.70f}};
+                                              {0.62f, 0.62f}, {0.50f, 0.36f}, {0.60f, 0.57f}};
     g.sr = sample_rate;
     g.bpm = 124.0f;
     g.playing = 0;
@@ -404,6 +459,7 @@ void epk_init(float sample_rate) {
         t.p[EPK_P_PAN] = kMix[i][1];
         t.muted = t.soloed = 0;
         t.step = -1; t.pos = 0; t.fire = 0; t.cycle = 0;
+        t.pend[0].on = t.pend[1].on = 0;
         t.gain = 1.0f; t.meter = 0.0f; t.triggers = 0; t.key_note = -1;
         t.chance.init(0x2545F491u * (uint32_t)(i + 1));
         t.voice.init(param_int(t, EPK_P_ENGINE), 0x1234567u * (uint32_t)(i + 1));
@@ -488,9 +544,10 @@ int epk_audible(int track) {
 void epk_step_toggle(int track, int step) {
     if (valid(track) && step >= 0 && step < EPK_MAX_STEPS) push(EV_STEP_TOGGLE, track, step, 0);
 }
-void epk_step_set(int track, int step, int prob, int cond) {
+void epk_step_set(int track, int step, int prob, int cond, int micro) {
     if (!valid(track) || step < 0 || step >= EPK_MAX_STEPS) return;
-    push(EV_STEP_META, track, step, clampi(prob, 0, EPK_PROB_COUNT - 1) | clampi(cond, 0, EPK_COND_COUNT - 1) << 2);
+    push(EV_STEP_META, track, step, clampi(prob, 0, EPK_PROB_COUNT - 1) | clampi(cond, 0, EPK_COND_COUNT - 1) << 2 |
+                                    (clampi(micro, -3, 3) & 7) << 5);
 }
 static int step_meta(int track, int step) {
     if (!valid(track)) return 0;
@@ -500,6 +557,7 @@ static int step_meta(int track, int step) {
 }
 int epk_step_prob(int track, int step) { return step_meta(track, step) & 3; }
 int epk_step_cond(int track, int step) { return step_meta(track, step) >> 2 & 7; }
+int epk_step_micro(int track, int step) { const int m = step_meta(track, step) >> 5 & 7; return m > 3 ? m - 8 : m; }
 int epk_steps_manual(int track) { return valid(track) ? g.tr[track].st.manual : 0; }
 void epk_steps_euclid(int track) { if (valid(track)) push(EV_EUCLID, track, 0, 0); }
 

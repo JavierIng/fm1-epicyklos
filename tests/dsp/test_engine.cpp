@@ -180,7 +180,7 @@ int main() {
           epk_steps_manual(0), epk_pattern(0));
     epk_param_set(0, EPK_P_ROTATE, 1.0f / 31.0f);
     CHECK(epk_pattern(0) == 0x220Au, "rotated by one: %x (expected 220a)", epk_pattern(0));
-    epk_step_set(0, 3, EPK_PROB_50, EPK_COND_1_2);                // step 3 as it plays = index 2 before rotation
+    epk_step_set(0, 3, EPK_PROB_50, EPK_COND_1_2, 0);                // step 3 as it plays = index 2 before rotation
     epk_render(l, r, 1);
     CHECK(epk_step_prob(0, 3) == EPK_PROB_50 && epk_step_cond(0, 3) == EPK_COND_1_2, "step chance and condition");
     epk_param_set(0, EPK_P_ROTATE, 0.0f);
@@ -200,7 +200,7 @@ int main() {
             epk_pattern_select(0, 3);
             epk_render(l, r, 1);
             epk_param_set(0, EPK_P_HITS, 1.0f / 16.0f);
-            epk_step_set(0, 0, c.prob, c.cond);
+            epk_step_set(0, 0, c.prob, c.cond, 0);
             epk_play(1);
             for (long i = 0; i + 256 < 16 * cyc; i += 256) epk_render(l, r, 256);
             const unsigned n = epk_triggers(0);
@@ -260,9 +260,74 @@ int main() {
               bad, quiet, worst);
     }
 
+    // 12. Off the grid (fuera de la rejilla): SHIFT moves the whole track, micro one step, SWING the odd steps
+    {
+        const double step = 60.0 / 124.0 / 4.0 * SR;                 // samples per sixteenth
+        auto fresh = [&]() {
+            epk_init(SR);
+            epk_pattern_select(0, 3);                                // kick 4 in 16: steps 0, 4, 8, 12
+            epk_render(l, r, 1);
+        };
+        fresh();                                                     // late by 0.225 of a step
+        epk_param_set(0, EPK_P_SHIFT, 0.75f);
+        epk_play(1);
+        std::vector<long> a = trigger_times(0, 2.0f);
+        CHECK(a.size() >= 4, "shift late: %zu triggers", a.size());
+        for (size_t i = 0; i < a.size(); i++)
+            CHECK(std::fabs((double)a[i] - ((double)i * 4.0 + 0.225) * step) <= 1.5, "late: trigger %zu at %ld", i, a[i]);
+        fresh();                                                     // early by 0.225: the first plays at 0
+        epk_param_set(0, EPK_P_SHIFT, 0.25f);
+        epk_play(1);
+        a = trigger_times(0, 2.0f);
+        CHECK(a.size() >= 4 && a[0] == 0, "shift early: %zu triggers, first at %ld", a.size(), a.empty() ? -1L : a[0]);
+        for (size_t i = 1; i < a.size(); i++)
+            CHECK(std::fabs((double)a[i] - ((double)i * 4.0 - 0.225) * step) <= 1.5, "early: trigger %zu at %ld", i, a[i]);
+        fresh();                                                     // micro: step 4 early by 2/8, step 8 late by 3/8
+        epk_step_set(0, 4, EPK_PROB_100, EPK_COND_NONE, -2);
+        epk_step_set(0, 8, EPK_PROB_100, EPK_COND_NONE, 3);
+        epk_render(l, r, 1);
+        CHECK(epk_step_micro(0, 4) == -2 && epk_step_micro(0, 8) == 3 && !epk_steps_manual(0),
+              "micro stored: %d %d", epk_step_micro(0, 4), epk_step_micro(0, 8));
+        epk_play(1);
+        a = trigger_times(0, 1.9f);
+        const double want[4] = {0.0, 3.75, 8.375, 12.0};
+        CHECK(a.size() >= 4, "micro: %zu triggers", a.size());
+        for (size_t i = 0; i < 4 && i < a.size(); i++)
+            CHECK(std::fabs((double)a[i] - want[i] * step) <= 1.5, "micro: trigger %zu at %ld (want %.0f)", i, a[i],
+                  want[i] * step);
+        fresh();                                                     // swing: hats on every step, the odd ones late
+        epk_param_set(1, EPK_P_LENGTH, 15.0f / 31.0f);
+        epk_param_set(1, EPK_P_HITS, 1.0f);
+        epk_param_set(1, EPK_P_ROTATE, 0.0f);
+        epk_param_set(1, EPK_P_SWING, 0.5f);
+        epk_play(1);
+        a = trigger_times(1, 1.0f);
+        CHECK(a.size() >= 8, "swing: %zu triggers", a.size());
+        for (size_t i = 0; i < a.size(); i++)
+            CHECK(std::fabs((double)a[i] - ((double)i + (i & 1 ? 0.2 : 0.0)) * step) <= 1.5, "swing: trigger %zu at %ld",
+                  i, a[i]);
+    }
+
+    // 13. GOLPE: clap, snare and rim sound, without NaN (palma, caja y aro suenan)
+    for (float type : {0.0f, 0.5f, 1.0f}) {
+        epk_init(SR);
+        for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
+        epk_param_set(5, EPK_P_CHARACTER, type);
+        epk_note_on(5, 52, 1.0f);
+        float pk = 0.0f;
+        int bad = 0;
+        for (int k = 0; k < 40; k++) {
+            epk_render(l, r, 256);
+            for (int i = 0; i < 256; i++) { bad += !std::isfinite(l[i]); pk = std::fmax(pk, std::fabs(l[i])); }
+        }
+        CHECK(epk_engine(5) == EPK_ENG_GOLPE && bad == 0 && pk > 0.05f && pk < 1.0f, "GOLPE type %.1f: engine %d, peak %.3f",
+              type, epk_engine(5), pk);
+        std::printf("GOLPE type %.1f: peak %.3f\n", type, pk);
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
-        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL"};
+        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE"};
         double base = 0.0;
         for (int e = 0; e < EPK_ENG_COUNT; e++) {
             epk_init(SR);

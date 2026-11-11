@@ -12,7 +12,7 @@
  *   SAVE   the PATTERNS view (patrones): black keys = banks A..K (bancos), white keys = the bank's 16 patterns;
  *          playing, the change waits for the bar's end. SAVE held + keys: the same from any view
  *   SEQ    the STEPS view (pasos): the 16 white keys are steps (OCT-/OCT+ the other 16); hold a step and turn
- *          K1 for its chance (probabilidad), K2 for its condition (condición)
+ *          K1 for its chance (probabilidad), K2 for its condition (condición), K3 early or late (micro)
  *   ARP    random (aleatorio): the page shown, for the selected track; in the PATTERNS view, a whole new pattern.
  *          HOME+ARP undo (deshacer). ARP held + ALGORITHM: how much (cantidad). ARP held + a knob: lock it (bloquear)
  *   ALGORITHM, REC: later phases (fases siguientes), they say which */
@@ -36,29 +36,33 @@ static uint16_t dim_colour(uint16_t c)               /* a colour at ~35 % (apaga
 }
 
 /* ------------------------------------------------------------------ pages (páginas) */
-enum { PAGE_SOUND, PAGE_ENGINE, PAGE_RHYTHM, PAGE_MIX, NPAGES };
+enum { PAGE_SOUND, PAGE_ENGINE, PAGE_RHYTHM, PAGE_GROOVE, PAGE_MIX, NPAGES };
 enum { SLOT_NONE = -1, SLOT_LATER = -2 };            /* nothing there / a later phase (fase siguiente) */
-static const char *const PAGE_NAME[NPAGES] = {"SONIDO", "MOTOR", "RITMO", "MEZCLA"};
+static const char *const PAGE_NAME[NPAGES] = {"SONIDO", "MOTOR", "RITMO", "GROOVE", "MEZCLA"};
 static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_NOTE, EPK_P_CHARACTER, EPK_P_TONE, EPK_P_DECAY},
-    {EPK_P_ENGINE, EPK_P_EXTRA1, EPK_P_EXTRA2, SLOT_NONE},
+    {EPK_P_ENGINE, EPK_P_EXTRA1, EPK_P_EXTRA2, EPK_P_ATTACK},
     {EPK_P_LENGTH, EPK_P_HITS, EPK_P_ROTATE, EPK_P_DIVISION},
+    {EPK_P_SWING, EPK_P_SHIFT, SLOT_NONE, SLOT_NONE},
     {EPK_P_LEVEL, EPK_P_PAN, SLOT_LATER, SLOT_LATER},   /* delay / reverb sends: phase 3 (fase 3) */
 };
-static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL"};
-/* what NOTE, CHARACTER, TONE, DECAY, EXTRA1, EXTRA2 are in each engine (0 = unused) */
-static const char *const SND_NAME[EPK_ENG_COUNT][6] = {
-    {"NOTA", "CARACTER", "TONO", "CAIDA", 0, 0},
-    {"NOTA", "DRIVE", "CLICK", "CAIDA", "BARRIDO", "RUMBLE"},
-    {"AFINA", "METAL", "BRILLO", "CAIDA", "ANILLO", "VARIA"},
+static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE"};
+/* what NOTE, CHARACTER, TONE, DECAY, EXTRA1, EXTRA2, ATTACK are in each engine (0 = unused) */
+static const char *const SND_NAME[EPK_ENG_COUNT][7] = {
+    {"NOTA", "CARACTER", "TONO", "CAIDA", 0, 0, "ATAQUE"},
+    {"NOTA", "DRIVE", "CLICK", "CAIDA", "BARRIDO", "RUMBLE", 0},
+    {"AFINA", "METAL", "BRILLO", "CAIDA", "ANILLO", "VARIA", 0},
+    {"AFINA", "TIPO", "BRILLO", "CAIDA", "CUERPO", "COLA", 0},
 };
-static const char *const SND_HINT[EPK_ENG_COUNT][6] = {
+static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
     {"La nota de la secuencia", "Seno con caida, sierra, ruido", "Hasta donde se abre el filtro",
-     "Cuanto dura cada golpe", 0, 0},
+     "Cuanto dura cada golpe", 0, 0, "Entra de golpe o poco a poco"},
     {"La nota del bombo", "Saturacion: limpio a industrial", "El chasquido del ataque", "Cuanto dura el bombo",
-     "Cuanto cae el tono al golpear", "La cola grave entre bombos"},
+     "Cuanto cae el tono al golpear", "La cola grave entre bombos", 0},
     {"Afinacion del metal", "De ruido (909) a metal (808)", "Mas oscuro o mas brillante", "Cerrado o abierto",
-     "Resonancia: mas campana", "Cada golpe dura distinto"},
+     "Resonancia: mas campana", "Cada golpe dura distinto", 0},
+    {"Afinacion del cuerpo", "Palma, caja o aro", "Mas oscuro o mas brillante", "Cuanto dura el golpe",
+     "Cuanto cuerpo afinado lleva", "Cola de ruido; abre la palma", 0},
 };
 static const char *const SLOT_LATER_NAME[2] = {"ENVIO A", "ENVIO B"};   /* MIX page, phase 3 */
 static const char *const DIV_NAME[EPK_DIV_COUNT] = {"1/32", "1/16T", "1/16", "1/8T", "1/8", "1/4"};
@@ -67,7 +71,7 @@ static const char *const COND_NAME[EPK_COND_COUNT] = {"SIEMPRE", "1:2", "2:2", "
 
 static int snd_index(int p)                          /* a sound parameter's column in SND_NAME, -1 if not one */
 {
-    return p <= EPK_P_DECAY ? p : p == EPK_P_EXTRA1 ? 4 : p == EPK_P_EXTRA2 ? 5 : -1;
+    return p <= EPK_P_DECAY ? p : p == EPK_P_EXTRA1 ? 4 : p == EPK_P_EXTRA2 ? 5 : p == EPK_P_ATTACK ? 6 : -1;
 }
 static const char *param_name(int track, int p)
 {
@@ -77,6 +81,8 @@ static const char *param_name(int track, int p)
     case EPK_P_HITS: return "GOLPES";
     case EPK_P_ROTATE: return "ROTAR";
     case EPK_P_DIVISION: return "DIVISION";
+    case EPK_P_SWING: return "SWING";
+    case EPK_P_SHIFT: return "DESPLAZA";
     case EPK_P_LEVEL: return "NIVEL";
     case EPK_P_PAN: return "PAN";
     default: return SND_NAME[epk_engine(track)][snd_index(p)];
@@ -90,6 +96,8 @@ static const char *param_hint(int track, int p)
     case EPK_P_HITS: return "Golpes repartidos en el ciclo";
     case EPK_P_ROTATE: return "Gira el patron en su orbita";
     case EPK_P_DIVISION: return "Velocidad de los pasos";
+    case EPK_P_SWING: return "Los pasos impares se atrasan";
+    case EPK_P_SHIFT: return "La pista entera antes o despues";
     case EPK_P_LEVEL: return "Volumen de la pista";
     case EPK_P_PAN: return "Izquierda o derecha";
     default: return SND_HINT[epk_engine(track)][snd_index(p)];
@@ -192,6 +200,19 @@ static void slot_str(int bank, int pattern, char *b)   /* A04 */
     b[3] = 0;
 }
 
+static void micro_str(int micro, char *b)             /* a step's micro-timing in eighths: -2/8 early, +3/8 late */
+{
+    b[0] = 0;
+    if (!micro) {
+        str_cat(b, "0");
+        return;
+    }
+    b[0] = micro < 0 ? '-' : '+';
+    b[1] = (char)('0' + (micro < 0 ? -micro : micro));
+    b[2] = 0;
+    str_cat(b, "/8");
+}
+
 /* a parameter's value as the screen shows it (valor en pantalla) */
 static void param_str(int track, int p, char *b)
 {
@@ -210,6 +231,20 @@ static void param_str(int track, int p, char *b)
     }
     case EPK_P_ROTATE: int_str(i, b); break;
     case EPK_P_DIVISION: str_cat(b, DIV_NAME[i]); break;
+    case EPK_P_SHIFT: {                    /* % of a step, - early (antes), + late (después) */
+        int c = (int)((v - 0.5f) * 90.0f + (v < 0.5f ? -0.5f : 0.5f));
+        if (c > 0)
+            str_cat(b, "+");
+        int_str(c, b + (c > 0));
+        break;
+    }
+    case EPK_P_CHARACTER:
+        if (epk_engine(track) == EPK_ENG_GOLPE) {
+            str_cat(b, v < 0.3f ? "PALMA" : v < 0.7f ? "CAJA" : "ARO");
+            break;
+        }
+        int_str((int)(v * 100.0f + 0.5f), b);
+        break;
     case EPK_P_PAN: {
         int c = (int)(v * 100.0f + 0.5f) - 50;
         if (c == 0)
@@ -421,6 +456,12 @@ static void random_page(void)
                 epk_steps_euclid(ui.track);
             } else if (p == EPK_P_ROTATE)
                 target = (float)(int)(rnd() * (float)len) / 31.0f;
+            else if (p == EPK_P_SWING)
+                target = rnd() * 0.6f;
+            else if (p == EPK_P_SHIFT)
+                target = 0.5f + (rnd() - 0.5f) * 0.3f;     /* near the grid (cerca de la rejilla) */
+            else if (p == EPK_P_ATTACK)
+                target = rnd() * rnd() * 0.6f;
             else
                 target = 0.05f + rnd() * 0.9f;
             epk_param_set(ui.track, p, v + (target - v) * a);
@@ -455,17 +496,22 @@ static void undo(void)
 static void turn_step(int slot, int32_t detents)
 {
     int prob = epk_step_prob(ui.track, ui.hold_step), cond = epk_step_cond(ui.track, ui.hold_step);
+    int micro = epk_step_micro(ui.track, ui.hold_step);
+    char m[8];
     if (slot == 0)
         prob = clamp(prob + (int)detents, 0, EPK_PROB_COUNT - 1);
     else if (slot == 1)
         cond = clamp(cond + (int)detents, 0, EPK_COND_COUNT - 1);
+    else if (slot == 2)
+        micro = clamp(micro + (int)detents, -3, 3);
     else
         return;
     if (!(epk_pattern(ui.track) >> ui.hold_step & 1u))
         epk_step_toggle(ui.track, ui.hold_step);       /* editing a silent step turns it on (lo enciende) */
-    epk_step_set(ui.track, ui.hold_step, prob, cond);
+    epk_step_set(ui.track, ui.hold_step, prob, cond, micro);
     ui.hold_edited = 1;
-    app_say(slot == 0 ? "PROB" : "COND", slot == 0 ? PROB_NAME[prob] : COND_NAME[cond]);
+    micro_str(micro, m);
+    app_say(slot == 0 ? "PROB" : slot == 1 ? "COND" : "MICRO", slot == 0 ? PROB_NAME[prob] : slot == 1 ? COND_NAME[cond] : m);
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -713,7 +759,9 @@ static void draw_head(void)
         if (ui.view != VIEW_PATTERNS) {
             int_str(ui.track + 1, t);
             x = cv_text(x + 10, 4, &FONT_B, t, TRACK_C[ui.track]);
-            cv_text(x + 4, 7, &FONT_XS, ENG_NAME[epk_engine(ui.track)], C_LABEL);
+            x = cv_text(x + 4, 7, &FONT_XS, ENG_NAME[epk_engine(ui.track)], C_LABEL);
+            if (ui.view == VIEW_STEPS && epk_steps_manual(ui.track))
+                cv_text(x + 5, 7, &FONT_XS, "A MANO", C_SOLO);
         }
     }
     int_str((int32_t)(epk_tempo() + 0.5f), t);
@@ -864,6 +912,8 @@ static void draw_steps(void)                /* two rows of 16 steps (dos filas d
             cv_rect(x + 2, y + h - 2 - bar, 8, bar, c);
             if (epk_step_cond(ui.track, s))
                 cv_rect(x + 4, y + 3, 4, 4, C_SOLO);                       /* it has a condition (condición) */
+            if (epk_step_micro(ui.track, s))                              /* early or late: a tick to that side */
+                cv_rect(x + 5 + epk_step_micro(ui.track, s), y + h - 7, 2, 4, C_TEXT);
         }
         if (s == cur)
             cv_rect(x, y + h + 2, 12, 3, C_TEXT);
@@ -933,7 +983,9 @@ static void draw_foot(void)                       /* the page tabs and the four 
         return;
     }
     if (ui.view == VIEW_STEPS && ui.hold_step >= 0) {
-        cv_text(6, 3, &FONT_XS, "PASO MANTENIDO:  K1 PROB   K2 COND", c);
+        cv_text(6, 3, &FONT_XS, "PASO MANTENIDO:  K1 PROB  K2 COND  K3 MICRO", c);
+        micro_str(epk_step_micro(ui.track, ui.hold_step), v);
+        draw_card(2, "MICRO", v, -1.0f, 0);
         int_str(ui.hold_step + 1, v);
         draw_card(0, "PROB", PROB_NAME[epk_step_prob(ui.track, ui.hold_step)],
                   (float)(4 - epk_step_prob(ui.track, ui.hold_step)) / 4.0f, 0);
@@ -943,9 +995,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
         return;
     }
     for (i = 0; i < NPAGES; i++)
-        x = cv_text(x, 3, &FONT_XS, PAGE_NAME[i], i == ui.page ? c : C_LABEL) + 10;
-    if (ui.view == VIEW_STEPS)
-        cv_text(x + 4, 3, &FONT_XS, epk_steps_manual(ui.track) ? "A MANO" : "EUCLID", C_SOLO);
+        x = cv_text(x, 3, &FONT_XS, PAGE_NAME[i], i == ui.page ? c : C_LABEL) + 7;
     for (i = 0; i < 4; i++) {
         const int p = slot_param(ui.track, ui.page, i);
         const int32_t cx = i * 60 + 2;
@@ -1081,6 +1131,8 @@ int app_expect(const char *what, int *got)
         *got = epk_step_prob(atoi(what + 4) - 1, atoi(u + 1));
     else if (!strncmp(what, "cond", 4) && u)
         *got = epk_step_cond(atoi(what + 4) - 1, atoi(u + 1));
+    else if (!strncmp(what, "micro", 5) && u)
+        *got = epk_step_micro(atoi(what + 5) - 1, atoi(u + 1));
     else if (!strncmp(what, "trig", 4)) {
         int n = (int)epk_triggers(atoi(what + 4) - 1);
         *got = u ? n >= atoi(u + 1) : n;

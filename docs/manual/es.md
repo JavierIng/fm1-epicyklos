@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **Fase 2b, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
+> Estado: **Fase 2c, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
 ## 1. Qué es
@@ -35,10 +35,12 @@ Al mantener HOME, la parte baja de la pantalla muestra esta chuleta.
 Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 - **GRAVE** (pista 1): bombo. NOTA, DRIVE (de limpio a industrial), CLICK, CAÍDA, BARRIDO, RUMBLE (cola grave).
 - **METAL** (pista 2): platos tipo 808/909. AFINA, METAL (de ruido a metálico), BRILLO, CAÍDA, ANILLO, VARÍA.
-- **PRUEBA** (pistas 3-6): voz provisional hasta que lleguen los motores de las fases 4 y 5.
+- **GOLPE** (pista 6): palma, caja o aro. AFINA, TIPO (PALMA → CAJA → ARO), BRILLO, CAÍDA, CUERPO, COLA.
+- **PRUEBA** (pistas 3-5): voz provisional hasta que lleguen los motores de las fases 4 y 5. Tiene ATAQUE
+  (página MOTOR, K4): el sonido entra de golpe o poco a poco.
 
 ## 5. Páginas (SELECT)
-SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · MEZCLA (NIVEL, PAN; los envíos llegan en la fase 3).
+SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA) · MEZCLA (NIVEL, PAN; los envíos llegan en la fase 3).
 
 ## 6. Patrones y bancos (SAVE)
 - **Teclas negras = bancos A a K. Teclas blancas = los 16 patrones del banco.**
@@ -55,7 +57,14 @@ SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · MEZCLA (NIVEL, 
 - Toque: enciende o apaga el paso (la pista pasa a "A MANO").
 - **Mantener un paso + K1:** probabilidad (100, 75, 50, 25 %). **+ K2:** condición (1:2, 2:2, 1:4…: suena solo
   en esa vuelta del ciclo).
+- **Mantener un paso + K3:** micro, mueve ese golpe antes (−) o después (+) en octavos de paso, hasta 3/8.
 - Girar GOLPES en una pista hecha a mano la devuelve al reparto euclidiano.
+
+### Adelantar y atrasar (página GROOVE)
+- **SWING:** atrasa los pasos impares de la pista (hasta 0,4 de paso).
+- **DESPLAZA:** mueve la pista entera antes o después (±45 % de un paso). Por ejemplo, la palma un poco
+  adelantada o los platos un poco tarde.
+- Swing, desplazamiento y micro se suman, con un tope de 0,9 de paso.
 
 ## 8. Aleatorio (ARP)
 - **ARP:** cambia los parámetros de la página que estás viendo, en la pista elegida. No toca motor, longitud,

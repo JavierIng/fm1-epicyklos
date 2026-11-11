@@ -21,16 +21,19 @@ extern "C" {
  * engine (motor): see voices.h */
 enum {
     EPK_P_NOTE,       /* note (nota): 0..1 -> MIDI 24..84 */
-    EPK_P_CHARACTER,  /* TEST: sine/saw/noise. GRAVE: drive. METAL: noise..metal */
+    EPK_P_CHARACTER,  /* TEST: sine/saw/noise. GRAVE: drive. METAL: noise..metal. GOLPE: clap..snare..rim */
     EPK_P_TONE,       /* TEST: cutoff. GRAVE: click. METAL: brightness */
     EPK_P_DECAY,      /* decay (caída) */
     EPK_P_ENGINE,     /* the engine (motor): EPK_ENG_* */
     EPK_P_EXTRA1,     /* GRAVE: pitch sweep (barrido). METAL: ring (resonancia) */
     EPK_P_EXTRA2,     /* GRAVE: rumble. METAL: vary (variación de la caída) */
+    EPK_P_ATTACK,     /* attack (ataque): how slowly the sound comes in; the drum engines ignore it */
     EPK_P_LENGTH,     /* pattern length (longitud): 1..32 steps */
     EPK_P_HITS,       /* euclidean hits (golpes) */
     EPK_P_ROTATE,     /* rotation (rotación) */
     EPK_P_DIVISION,   /* step division (división): see EPK_DIV_* */
+    EPK_P_SWING,      /* swing: the odd steps play late (los pasos impares se atrasan), up to 0.4 of a step */
+    EPK_P_SHIFT,      /* the whole track early or late (adelanta o atrasa la pista): 0.5 = on the grid, +-0.45 step */
     EPK_P_PATTERN_COUNT, /* the parameters above belong to the pattern (al patrón); the ones below, to the project */
     EPK_P_LEVEL = EPK_P_PATTERN_COUNT,   /* level (nivel) */
     EPK_P_PAN,        /* pan (panorama): 0 left, 0.5 centre, 1 right */
@@ -38,7 +41,7 @@ enum {
 };
 
 /* engines (motores) */
-enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_COUNT };
+enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_COUNT };
 
 /* a step's chance (probabilidad) and condition (condición): N:M plays on the Nth of every M cycles */
 enum { EPK_PROB_100, EPK_PROB_75, EPK_PROB_50, EPK_PROB_25, EPK_PROB_COUNT };
@@ -83,11 +86,13 @@ int epk_bar_step(void);                        /* 0..15 within the bar, -1 stopp
 void epk_pattern_randomize(uint32_t seed);     /* a whole new pattern in the current slot (aleatorio general) */
 
 /* steps (pasos): a track's hits are euclidean (from HITS) until a step is edited by hand; then they are the
- * player's (manual). ROTATE turns both. Chance and condition belong to each step. */
+ * player's (manual). ROTATE turns both. Chance, condition and micro-timing belong to each step: micro is -3..3
+ * eighths of a step, early or late (antes o después). SWING, SHIFT and micro add up, within +-0.9 of a step. */
 void epk_step_toggle(int track, int step);
-void epk_step_set(int track, int step, int prob, int cond);   /* EPK_PROB_*, EPK_COND_* */
+void epk_step_set(int track, int step, int prob, int cond, int micro);   /* EPK_PROB_*, EPK_COND_*, -3..3 */
 int epk_step_prob(int track, int step);
 int epk_step_cond(int track, int step);
+int epk_step_micro(int track, int step);
 int epk_steps_manual(int track);
 void epk_steps_euclid(int track);              /* back to the euclidean hits (vuelve al euclidiano) */
 

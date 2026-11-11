@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
-// EPICYKLOS voices (motores de sonido): TEST (prueba), GRAVE (kick + rumble), METAL (808 / 909 hats and rides).
+// EPICYKLOS voices (motores de sonido): TEST (prueba), GRAVE (kick + rumble), METAL (808 / 909 hats and rides),
+// GOLPE (clap, snare, rim).
 // Every voice is plain data with init / trigger / render; parameters arrive 0..1 (p[EPK_P_*]).
 // Rules: no heap, float only, no 64-bit multiplies.
 #pragma once
@@ -23,7 +24,8 @@ struct Rng {                               // xorshift32 (ruido)
 };
 
 // ------------------------------------------------------------------ TEST (voz de prueba)
-// One oscillator morphing sine (with a pitch drop) -> saw -> noise, a low-pass, an exponential decay.
+// One oscillator morphing sine (with a pitch drop) -> saw -> noise, a low-pass, an attack (ATTACK: 1 ms .. 1.4 s)
+// and an exponential decay that starts when the attack ends.
 struct TestVoice {
     float phase, freq, pitch_env, amp, attack;
     float ic1, ic2;
@@ -44,6 +46,7 @@ struct TestVoice {
         const float decay_s = 0.01f * fm_exp2f(p[EPK_P_DECAY] * 7.6f);            // 10 ms .. ~2 s
         const float amp_mul = fm_expf(-6.9f / (decay_s * sr));
         const float pitch_mul = fm_expf(-1.0f / (0.035f * sr));
+        const float attack_inc = 1.0f / (0.001f * fm_exp2f(p[EPK_P_ATTACK] * 10.5f) * sr);
         const float drop = clamp01(1.0f - character * 3.0f) * 3.0f;
         const float to_saw = clamp01(character * 2.0f);
         const float to_noise = clamp01(character * 2.0f - 1.0f);
@@ -60,9 +63,9 @@ struct TestVoice {
             const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
             ic1 = fm_flush(2.0f * v1 - ic1);
             ic2 = fm_flush(2.0f * v2 - ic2);
-            attack = fm_minf(attack + 0.02f, 1.0f);
             out[i] = v2 * amp * attack;
-            amp = fm_flush(amp * amp_mul);
+            if (attack < 1.0f) attack = fm_minf(attack + attack_inc, 1.0f);       // the decay waits for the attack
+            else amp = fm_flush(amp * amp_mul);
             pitch_env *= pitch_mul;
         }
     }
@@ -212,6 +215,78 @@ struct Metal {
     }
 };
 
+// ------------------------------------------------------------------ GOLPE (palma, caja, aro)
+// Noise through a band-pass with its own envelope, and a tuned body. CHARACTER goes from clap (three quick bursts
+// and a tail, no body) through snare (body + noise) to rim (a short, higher body, almost no noise).
+// Parameters: NOTE body tune, CHARACTER type, TONE brightness, DECAY, EXTRA1 body (cuerpo), EXTRA2 tail (cola:
+// the noise's length, and how far apart the clap's bursts are).
+struct Golpe {
+    float ph, ph2, freq, vel, pitch_env, body, burst, tail;
+    float ic1, ic2;
+    int bursts_left, gap_count, fresh;
+    Rng rng;
+
+    void init(uint32_t seed) {
+        ph = ph2 = 0.0f; freq = 165.0f; vel = 0.0f; pitch_env = 0.0f; body = burst = tail = 0.0f;
+        ic1 = ic2 = 0.0f;
+        bursts_left = gap_count = fresh = 0;
+        rng.init(seed);
+    }
+    void trigger(float hz, float velocity) { freq = hz; vel = velocity; fresh = 1; }
+    void render(float *out, uint32_t n, const float *p, float sr) {
+        const float type = p[EPK_P_CHARACTER];
+        const float clap = clamp01(1.0f - type * 2.5f), rim = clamp01(type * 2.5f - 1.5f);
+        const float snare = 1.0f - clap - rim;
+        const float tail_amt = p[EPK_P_EXTRA2];
+        if (fresh) {                                                              // a new hit (golpe nuevo)
+            fresh = 0;
+            ph = ph2 = 0.0f; pitch_env = 1.0f; body = vel;
+            if (clap > 0.05f) { bursts_left = 3; gap_count = 0; burst = tail = 0.0f; }
+            else { bursts_left = 0; burst = tail = vel; }
+        }
+        const int gap = (int)((0.008f + 0.012f * tail_amt) * sr);
+        const float fc = 700.0f * fm_exp2f(p[EPK_P_TONE] * 3.0f);                 // 700 Hz .. 5.6 kHz
+        const float g = fm_tanf(3.14159265f * fm_minf(fc, sr * 0.4f) / sr);
+        const float k = 0.7f + 0.6f * snare;
+        const float a1 = 1.0f / (1.0f + g * (g + k)), a2 = g * a1, a3 = g * a2;
+        const float burst_mul = fm_expf(-1.0f / (0.004f * sr));
+        const float tail_s = 0.03f * fm_exp2f(p[EPK_P_DECAY] * 4.5f) * (0.4f + 1.2f * tail_amt);
+        const float tail_mul = fm_expf(-6.9f / (tail_s * sr));
+        const float body_s = 0.05f * fm_exp2f(p[EPK_P_DECAY] * 2.5f) * (1.0f - rim) + 0.018f * rim;
+        const float body_mul = fm_expf(-6.9f / (body_s * sr));
+        const float pitch_mul = fm_expf(-1.0f / (0.012f * sr));
+        const float body_lvl = snare * p[EPK_P_EXTRA1] * 1.2f + rim;
+        const float noise_lvl = clap * 1.6f + snare * 0.9f + rim * 0.15f;
+        const float hp_lvl = 0.6f * (1.0f - clap);
+        const float f_body = freq * (1.0f + 1.4f * rim) / sr, drop = 0.1f + 0.5f * snare;
+        for (uint32_t i = 0; i < n; i++) {
+            if (bursts_left > 0) {                                                // the clap's bursts (ráfagas)
+                if (gap_count <= 0) {
+                    burst = vel; gap_count = gap;
+                    if (--bursts_left == 0) tail = vel;
+                } else gap_count--;
+            }
+            const float nz = rng.bipolar();
+            const float v3 = nz - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
+            ic1 = fm_flush(2.0f * v1 - ic1);
+            ic2 = fm_flush(2.0f * v2 - ic2);
+            const float hp = nz - k * v1 - v2;
+            const float noise = (v1 * 1.6f + hp * hp_lvl) * fm_maxf(burst, tail);
+            const float inc = f_body * (1.0f + drop * pitch_env);
+            ph += inc;
+            if (ph >= 1.0f) ph -= 1.0f;
+            ph2 += inc * 1.59f;
+            if (ph2 >= 1.0f) ph2 -= 1.0f;
+            const float b = fm_sin_turns(ph) + rim * 0.6f * fm_sin_turns(ph2);
+            out[i] = fm_tanhf((b * body * body_lvl + noise * noise_lvl) * 1.4f);
+            burst = fm_flush(burst * burst_mul);
+            tail = fm_flush(tail * tail_mul);
+            body = fm_flush(body * body_mul);
+            pitch_env *= pitch_mul;
+        }
+    }
+};
+
 // ------------------------------------------------------------------ a track's voice (la voz de una pista)
 // One engine at a time, in the same memory (una a la vez, en la misma memoria).
 struct Voice {
@@ -221,6 +296,7 @@ struct Voice {
         TestVoice test;
         Grave grave;
         Metal metal;
+        Golpe golpe;
     } u;
 
     void init(int eng, uint32_t sd) {
@@ -228,6 +304,7 @@ struct Voice {
         switch (eng) {
         case EPK_ENG_GRAVE: u.grave.init(sd); break;
         case EPK_ENG_METAL: u.metal.init(sd); break;
+        case EPK_ENG_GOLPE: u.golpe.init(sd); break;
         default: u.test.init(sd); break;
         }
     }
@@ -235,6 +312,7 @@ struct Voice {
         switch (engine) {
         case EPK_ENG_GRAVE: u.grave.trigger(hz, velocity); break;
         case EPK_ENG_METAL: u.metal.trigger(hz, velocity); break;
+        case EPK_ENG_GOLPE: u.golpe.trigger(hz, velocity); break;
         default: u.test.trigger(hz, velocity); break;
         }
     }
@@ -242,6 +320,7 @@ struct Voice {
         switch (engine) {
         case EPK_ENG_GRAVE: u.grave.render(out, n, p, sr); break;
         case EPK_ENG_METAL: u.metal.render(out, n, p, sr); break;
+        case EPK_ENG_GOLPE: u.golpe.render(out, n, p, sr); break;
         default: u.test.render(out, n, p, sr); break;
         }
     }
