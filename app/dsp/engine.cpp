@@ -9,7 +9,6 @@
 
 namespace epk {
 
-constexpr float kTwoPi = 6.2831853f;
 
 // ------------------------------------------------------------------ helpers (utilidades)
 inline float clamp01(float x) { return x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x; }

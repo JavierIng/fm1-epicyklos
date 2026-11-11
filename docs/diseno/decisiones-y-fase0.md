@@ -91,3 +91,16 @@
   - enlazar código C++ dentro del firmware (Fase 1);
   - CPU real: solo en el dispositivo (Fase 7).
 - **No disponible:** el shell del Mac (una VM Linux) no tiene salida a internet. Desde ahí no se instala nada, pero sirve para dejar y leer archivos en `~/Documents/FM1`.
+
+## Estado de la Fase 1 (11 nov 2026)
+
+- **Núcleo DSP en C++** (`app/dsp/`), compilado aparte a -O2 por el build de fm1-base (`o2_cflags`): reloj en
+  coma fija Q32 (exacto: el primer intento en float derivaba ~0,4 muestras por tiempo; lo detectó la prueba),
+  6 pistas con secuenciador euclidiano polimétrico (longitud, golpes, rotación, división), voz de prueba (seno con
+  caída / sierra / ruido + filtro SVF), mute, solo, nivel, pan y soft clip.
+- **Interfaz** (`app/app.c`, reescrito, GPL): vistas ÓRBITA y MEZCLA, páginas SONIDO / RITMO / MEZCLA de 4 knobs,
+  popup con valor grande y explicación al girar, mapa del panel de las decisiones (lo de fases futuras avisa).
+- **Verificado:** pruebas del núcleo en el ordenador (timing a la muestra, polimetría 16/12, mute/solo, sin NaN),
+  23 comprobaciones del panel en el simulador, emulador sin navegador con sonido, y **firmware compilado en CI con el
+  C++ enlazado**: sin multiplicaciones de 64 bit junto a lecturas, sin double por software; imagen 148.092 B.
+- **No verificado:** nada en el FM-1 (no se ha instalado). CPU real desconocida.

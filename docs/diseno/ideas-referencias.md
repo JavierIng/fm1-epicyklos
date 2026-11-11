@@ -49,3 +49,14 @@ Lo que lo hace distinto de un delay normal (todo opcional, a medir en CPU):
 - **Duck del delay por el bombo:** las repeticiones respiran con el kick.
 - **Throw** (REC), **freeze** (HOME+REC, el buffer queda en bucle) y **auto-oscilación controlada** (sirena dub con el limitador interno).
 - **Cinta que se degrada** (modo largo para drone): cada pasada pierde agudos y gana ruido, a lo Basinski.
+
+### Más ideas para el delay (11 nov, tarde), todas controlables con un knob o un botón
+
+| Idea | Qué hace | Control | Coste |
+|---|---|---|---|
+| **Tiempos en pasos** | El tiempo del delay se elige en pasos de 1/16: 3, 5, 7, 11... Los ecos caen fuera del 4/4 y crean polirritmos con las órbitas | KNOB TIEMPO en pasos, además de 1/8 con puntillo, etc. | Nulo |
+| **Parada de cinta** | Frenar la cinta (el tono cae hasta parar) y arrancarla; también en reversa con el freeze | Mantener HOME+REC = frenar; soltar = arrancar | Bajo |
+| **Desgaste (dropouts)** | Cada repetición puede perderse o salir apagada, con una probabilidad | KNOB DESGASTE | Bajo |
+| **Espacio infinito** | Feedback cruzado delay ↔ reverb con el limitador vigilando: una nube que no muere | KNOB DLY↔REV | Bajo (lo que ya cuesta la reverb) |
+| **Throws grabados** | Grabar en el patrón los envíos al delay de cada paso, como hace el dub en la mesa | REC + girar PRESETS mientras suena | Nulo en audio (memoria del patrón) |
+| **Eco a la octava** | Cada repetición sube o baja una octava (shimmer oscuro) | KNOB OCTAVA en el lazo | **Alto**: necesita desplazador de tono; solo si sobra CPU |
