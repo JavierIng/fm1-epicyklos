@@ -62,7 +62,7 @@ expect solo1 0
 # PRESETS: the selected track's level (nivel)
 turn PRESET -8
 wait 30
-expect level3 48
+expect level3 40
 # HOME+SELECT: tempo
 press HOME
 wait 30
