@@ -8,6 +8,7 @@
 #include "fastmath.h"
 #include "factory.h"
 #include "voices.h"
+#include "fx.h"
 
 namespace epk {
 
@@ -66,7 +67,7 @@ constexpr uint32_t kBlock = 256;           // the largest block the platform ren
 
 struct Undo {
     int ready, pattern, bank;
-    float p[EPK_TRACKS][EPK_P_PATTERN_COUNT], pan[EPK_TRACKS];
+    float p[EPK_TRACKS][EPK_P_PATTERN_COUNT], mix[EPK_TRACKS][3];   // mix: pan, send A, send B
     Steps st[EPK_TRACKS];
 };
 
@@ -83,11 +84,13 @@ struct Engine {
     Undo undo;
     Event queue[kQueue];
     volatile uint32_t q_write, q_read;
-    float meter_master;
-    float buf[kBlock];
+    float meter_master, meter_fx;
+    float fx[EPK_FX_COUNT];                // the send effects' parameters (del proyecto)
+    Fx sends;
+    float buf[kBlock], bus_a[kBlock], bus_b[kBlock], fx_l[kBlock], fx_r[kBlock];
 };
 
-static Engine g;                           // zero-initialised (.bss): no constructor runs at boot
+static Engine g EPK_POOL;                  // zero-initialised (pool RAM on the device): no constructor runs at boot
 
 static const float kStepsPerBeat[EPK_DIV_COUNT] = {8.0f, 6.0f, 4.0f, 3.0f, 2.0f, 1.0f};
 
@@ -311,7 +314,9 @@ void drain() {
                 for (int k = 0; k < EPK_TRACKS; k++) {
                     Track &u = g.tr[k];
                     for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) u.p[p] = g.undo.p[k][p];
-                    u.p[EPK_P_PAN] = g.undo.pan[k];
+                    u.p[EPK_P_PAN] = g.undo.mix[k][0];
+                    u.p[EPK_P_SEND_A] = g.undo.mix[k][1];
+                    u.p[EPK_P_SEND_B] = g.undo.mix[k][2];
                     u.st = g.undo.st[k];
                 }
             g.undo.ready = 0;
@@ -430,6 +435,7 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const float target = (t.muted || (solo && !t.soloed)) ? 0.0f : 1.0f;
     const float lvl = t.p[EPK_P_LEVEL] * t.p[EPK_P_LEVEL];          // a squared taper (curva cuadrática)
     const float pan = t.p[EPK_P_PAN];
+    const float send_a = t.p[EPK_P_SEND_A] * t.p[EPK_P_SEND_A], send_b = t.p[EPK_P_SEND_B] * t.p[EPK_P_SEND_B];
     const float gl = fm_cosf(pan * 1.5707963f), gr = fm_sinf(pan * 1.5707963f);   // equal power (potencia constante)
     float peak = t.meter;
     for (uint32_t i = 0; i < n; i++) {
@@ -437,6 +443,8 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
         const float s = g.buf[i] * lvl * t.gain;
         l[i] += s * gl;
         r[i] += s * gr;
+        g.bus_a[i] += s * send_a;                                    // after the fader (tras el fader)
+        g.bus_b[i] += s * send_b;
         peak = fm_maxf(peak, fm_fabsf(s));
     }
     t.meter = peak;
@@ -453,8 +461,15 @@ extern "C" {
 
 void epk_init(float sample_rate) {
     // the project's mix (mezcla del proyecto): level, pan per track
-    static const float kMix[EPK_TRACKS][2] = {{0.85f, 0.50f}, {0.50f, 0.58f}, {0.60f, 0.40f},
-                                              {0.62f, 0.62f}, {0.50f, 0.36f}, {0.60f, 0.57f}};
+    static const float kMix[EPK_TRACKS][4] = {{0.85f, 0.50f, 0.00f, 0.00f}, {0.50f, 0.58f, 0.30f, 0.30f},
+                                              {0.60f, 0.40f, 0.65f, 0.55f}, {0.62f, 0.62f, 0.00f, 0.20f},
+                                              {0.50f, 0.36f, 0.40f, 0.70f}, {0.60f, 0.57f, 0.40f, 0.50f}};
+    // the send effects (efectos): a dotted-eighth tape echo into a long, dark plate
+    static const float kFx[EPK_FX_COUNT] = {0.0f, 2.0f / 15.0f, 0.50f, 0.45f, 0.35f, 0.25f, 0.75f,
+                                            0.72f, 0.45f, 0.40f, 0.75f};
+    for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
+    g.sends.init();
+    g.meter_fx = 0.0f;
     g.sr = sample_rate;
     g.bpm = 124.0f;
     g.playing = 0;
@@ -470,6 +485,8 @@ void epk_init(float sample_rate) {
         t.st = g.bank_steps[0][i];
         t.p[EPK_P_LEVEL] = kMix[i][0];
         t.p[EPK_P_PAN] = kMix[i][1];
+        t.p[EPK_P_SEND_A] = kMix[i][2];
+        t.p[EPK_P_SEND_B] = kMix[i][3];
         t.muted = t.soloed = 0;
         t.step = -1; t.pos = 0; t.fire = 0; t.cycle = 0;
         t.pend[0].on = t.pend[1].on = 0;
@@ -499,7 +516,16 @@ void epk_render(float *left, float *right, uint32_t frames) {
             until = remain / inc + (remain % inc ? 1u : 0u);
             if (until < n) n = until;
         }
+        for (uint32_t i = 0; i < n; i++) g.bus_a[i] = g.bus_b[i] = g.fx_l[i] = g.fx_r[i] = 0.0f;
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
+        g.sends.process(g.bus_a, g.bus_b, g.fx_l, g.fx_r, n, g.fx, g.bpm, g.sr);
+        float fx_peak = g.meter_fx;
+        for (uint32_t i = 0; i < n; i++) {                            // the returns (retornos)
+            left[done + i] += g.fx_l[i];
+            right[done + i] += g.fx_r[i];
+            fx_peak = fm_maxf(fx_peak, fm_maxf(fm_fabsf(g.fx_l[i]), fm_fabsf(g.fx_r[i])));
+        }
+        g.meter_fx = fx_peak;
         done += n;
         if (g.playing) {
             g.bar_pos += n * inc;
@@ -517,7 +543,13 @@ void epk_render(float *left, float *right, uint32_t frames) {
 
 void epk_panic(void) {
     for (Track &t : g.tr) t.voice.init(t.voice.engine, t.voice.seed);
+    g.sends.clear();                                                 // and the echoes and the tail (ecos y cola)
 }
+
+void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COUNT) g.fx[param] = clamp01(value01); }
+float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
+int epk_fx_steps(int param) { return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : 0; }
+float epk_fx_meter(void) { float m = g.meter_fx; g.meter_fx = 0.0f; return m; }
 
 void epk_play(int on) { push(on ? EV_PLAY : EV_STOP, 0, 0, 0); }
 int epk_playing(void) { return g.playing; }
@@ -579,7 +611,9 @@ void epk_undo_save(void) {
     for (int k = 0; k < EPK_TRACKS; k++) {
         const Track &t = g.tr[k];
         for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) g.undo.p[k][p] = t.p[p];
-        g.undo.pan[k] = t.p[EPK_P_PAN];
+        g.undo.mix[k][0] = t.p[EPK_P_PAN];
+        g.undo.mix[k][1] = t.p[EPK_P_SEND_A];
+        g.undo.mix[k][2] = t.p[EPK_P_SEND_B];
         g.undo.st[k] = t.st;
     }
     g.undo.pattern = g.pattern;

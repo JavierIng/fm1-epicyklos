@@ -1,0 +1,229 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Javier Sánchez
+// EPICYKLOS send effects (efectos de envío): bus A, a delay with three types (TAPE, BBD, PINGPONG); bus B, PLACA,
+// a plate reverb. Both run at half the sample rate (a mitad de frecuencia) on 16-bit buffers, to fit the FM-1's
+// RAM: the delay 66 KB (1.5 s), the reverb 33 KB.
+// PLACA follows the plate topology Jon Dattorro published ("Effect Design, Part 1", J. Audio Eng. Soc., 1997): four
+// input diffusers and a figure-of-eight tank with two modulated all-passes. The delay lengths are his, scaled from
+// 29761 Hz to 22050 Hz. Written for this project; no code from other implementations.
+// Rules: no heap, float only, no 64-bit multiplies.
+#pragma once
+#include "epk.h"
+#include "fastmath.h"
+#include "voices.h"
+
+// big buffers go in the device's pool RAM, not in .bss (los buffers grandes van al pool de RAM)
+#if defined(__GCC_PI32V2__) || defined(__pi32v2__)
+#define EPK_POOL __attribute__((section(".pool")))
+#else
+#define EPK_POOL
+#endif
+
+namespace epk {
+
+constexpr int kDelayLen = 33075;                       // 1.5 s at 22050 Hz
+constexpr int kDelayHalf = kDelayLen / 2;              // PINGPONG: one line per side
+static int16_t g_delay_buf[kDelayLen] EPK_POOL;
+
+// ------------------------------------------------------------------ bus A: the delay (eco)
+// fx[EPK_FX_DLY_*]: TYPE, TIME (1..16 sixteenths; halved until it fits the buffer), FEEDBACK (past 0.9 it feeds
+// itself: the dub siren, held by the saturation), TONE (the loop's low-pass), WEAR (desgaste: TAPE wow, flutter and
+// drive; BBD a darker, noisier clock; PINGPONG a softer top).
+struct Delay {
+    int w, type;
+    float cur;                                         // the delay now, in half-rate samples (suavizado)
+    float lp, hp, wow, flutter;
+    Rng rng;
+
+    void clear() {
+        for (int i = 0; i < kDelayLen; i++) g_delay_buf[i] = 0;
+        lp = hp = 0.0f;
+    }
+    void init() { w = 0; type = -1; cur = 0.0f; wow = flutter = 0.0f; rng.init(0x51ED270Bu); clear(); }
+
+    static inline float rd(int base, int len, int w, float delay) {      // linear interpolation (interpolación)
+        const int whole = (int)delay;
+        const float frac = delay - (float)whole;
+        int i0 = w - whole, i1;
+        if (i0 < 0) i0 += len;
+        i1 = i0 - 1;
+        if (i1 < 0) i1 += len;
+        const float a = (float)g_delay_buf[base + i0], b = (float)g_delay_buf[base + i1];
+        return (a + (b - a) * frac) * (1.0f / 32767.0f);
+    }
+    static inline int16_t pack(float x) { return (int16_t)(fm_clampf(x, -1.0f, 1.0f) * 32767.0f); }
+
+    // one half-rate sample in, a stereo pair out (una muestra a mitad de frecuencia)
+    void tick(float in, const float *fx, float bpm, float hsr, float &out_l, float &out_r) {
+        const int ty = clampi((int)(fx[EPK_FX_DLY_TYPE] * (float)(EPK_DLY_COUNT - 1) + 0.5f), 0, EPK_DLY_COUNT - 1);
+        if (ty != type) { type = ty; clear(); w = 0; cur = 0.0f; }      // another machine: an empty tape
+        const int len = type == EPK_DLY_PINGPONG ? kDelayHalf : kDelayLen;
+        const float wear = fx[EPK_FX_DLY_WEAR];
+        const int steps = 1 + (int)(fx[EPK_FX_DLY_TIME] * 15.0f + 0.5f);
+        float target = (float)steps * hsr * 15.0f / bpm;                // a sixteenth = 15 / bpm seconds
+        const float longest = (float)(len - 8) * 0.98f;
+        while (target > longest) target *= 0.5f;
+        if (cur <= 0.0f) cur = target;
+        // the time glides: the pitch bends like a tape changing speed (el tono se desliza)
+        cur += (target - cur) * (type == EPK_DLY_TAPE ? 0.0004f : type == EPK_DLY_BBD ? 0.001f : 0.002f);
+        float delay = cur;
+        if (type == EPK_DLY_TAPE) {
+            wow += 0.7f / hsr;
+            if (wow >= 1.0f) wow -= 1.0f;
+            flutter += 6.3f / hsr;
+            if (flutter >= 1.0f) flutter -= 1.0f;
+            delay *= 1.0f + wear * (0.004f * fm_sin_turns(wow) + 0.0008f * fm_sin_turns(flutter));
+        }
+        if (delay < 2.0f) delay = 2.0f;
+        if (delay > (float)(len - 4)) delay = (float)(len - 4);
+
+        float fc = 400.0f * fm_exp2f(fx[EPK_FX_DLY_TONE] * 4.5f);       // 400 Hz .. 9 kHz
+        if (type == EPK_DLY_BBD) fc *= fm_clampf(0.25f * hsr / cur, 0.25f, 1.0f) * (1.0f - 0.5f * wear);   // long = dark
+        else fc *= 1.0f - 0.45f * wear;
+        const float a = 1.0f - fm_expf(-6.2831853f * fm_minf(fc, hsr * 0.45f) / hsr);
+        const float fb = fx[EPK_FX_DLY_FEEDBACK] * 1.1f;
+        const float drive = type == EPK_DLY_TAPE ? 1.0f + 1.5f * wear : 1.0f;
+
+        if (type == EPK_DLY_PINGPONG) {                                 // left line, then right line, and back
+            const float yl = rd(0, len, w, delay), yr = rd(kDelayHalf, len, w, delay);
+            lp = fm_flush(lp + (yr - lp) * a);
+            hp = fm_flush(hp + (lp - hp) * 0.025f);
+            g_delay_buf[w] = pack(fm_tanhf(in + (lp - hp) * fb));
+            g_delay_buf[kDelayHalf + w] = pack(yl);
+            out_l = yl; out_r = yr;
+        } else {
+            const float y = rd(0, len, w, delay);
+            lp = fm_flush(lp + (y - lp) * a);
+            hp = fm_flush(hp + (lp - hp) * 0.025f);                     // ~90 Hz: the lows do not pile up
+            float x = in + (lp - hp) * fb;
+            if (type == EPK_DLY_BBD) x += rng.bipolar() * 0.0015f * (0.3f + wear);   // the clock's hiss (soplido)
+            g_delay_buf[w] = pack(fm_tanhf(x * drive) / drive);
+            out_l = out_r = y;
+        }
+        if (++w >= len) w = 0;
+    }
+};
+
+// ------------------------------------------------------------------ bus B: PLACA (reverb de placa)
+// the lines, in order, inside one buffer: 4 input diffusers; left half: modulated all-pass, delay, all-pass, delay;
+// right half the same. Values are stored at half scale (headroom for the all-passes).
+constexpr int kVerbLines = 12;
+constexpr int kVerbLineLen[kVerbLines] = {105, 79, 281, 205, 512, 3300, 1334, 2757, 688, 3125, 1968, 2344};
+constexpr int kVerbLen = 105 + 79 + 281 + 205 + 512 + 3300 + 1334 + 2757 + 688 + 3125 + 1968 + 2344;
+static int16_t g_verb_buf[kVerbLen] EPK_POOL;
+
+struct Plate {
+    enum { IN1, IN2, IN3, IN4, L_MOD, L_DL1, L_AP, L_DL2, R_MOD, R_DL1, R_AP, R_DL2 };
+    int off[kVerbLines], w[kVerbLines];
+    float l_fb, r_fb, l_damp, r_damp, lfo;
+
+    void clear() {
+        for (int i = 0; i < kVerbLen; i++) g_verb_buf[i] = 0;
+        l_fb = r_fb = l_damp = r_damp = 0.0f;
+    }
+    void init() {
+        int o = 0;
+        for (int i = 0; i < kVerbLines; i++) { off[i] = o; w[i] = 0; o += kVerbLineLen[i]; }
+        lfo = 0.0f;
+        clear();
+    }
+    inline float rd(int line, int back) const {                         // back: 1 .. the line's length
+        int i = w[line] - back;
+        if (i < 0) i += kVerbLineLen[line];
+        return (float)g_verb_buf[off[line] + i] * (1.0f / 16384.0f);
+    }
+    inline void wr(int line, float x) {
+        g_verb_buf[off[line] + w[line]] = (int16_t)(fm_clampf(x, -1.99f, 1.99f) * 16384.0f);
+        if (++w[line] >= kVerbLineLen[line]) w[line] = 0;
+    }
+    inline float allpass(int line, int len, float x, float g) {
+        const float d = rd(line, len), v = x - g * d;
+        wr(line, v);
+        return d + g * v;
+    }
+    inline float allpass_mod(int line, float len, float x, float g) {    // a length that moves (longitud que se mueve)
+        const int whole = (int)len;
+        const float frac = len - (float)whole;
+        const float d0 = rd(line, whole), d1 = rd(line, whole + 1), d = d0 + (d1 - d0) * frac;
+        const float v = x - g * d;
+        wr(line, v);
+        return d + g * v;
+    }
+    inline float delay(int line, float x) {
+        const float d = rd(line, kVerbLineLen[line]);
+        wr(line, x);
+        return d;
+    }
+
+    void tick(float in, const float *fx, float hsr, float &out_l, float &out_r) {
+        const float decay = 0.30f + 0.69f * fx[EPK_FX_REV_DECAY];
+        const float open = 0.12f + 0.88f * fx[EPK_FX_REV_TONE];         // the tank's low-pass: 1 = no damping
+        const float depth = 1.0f + 10.0f * fx[EPK_FX_REV_MOD];
+        lfo += (0.4f + 1.1f * fx[EPK_FX_REV_MOD]) / hsr;
+        if (lfo >= 1.0f) lfo -= 1.0f;
+        float x = in * 0.5f;
+        x = allpass(IN1, 105, x, 0.75f);
+        x = allpass(IN2, 79, x, 0.75f);
+        x = allpass(IN3, 281, x, 0.625f);
+        x = allpass(IN4, 205, x, 0.625f);
+        // the tank (el tanque): each half feeds the other
+        float l = allpass_mod(L_MOD, 498.0f + depth * fm_sin_turns(lfo), x + decay * r_fb, -0.7f);
+        l = delay(L_DL1, l);
+        l_damp = fm_flush(l_damp + (l - l_damp) * open);
+        l = allpass(L_AP, 1334, l_damp * decay, 0.5f);
+        const float l_out = delay(L_DL2, l);
+        float r = allpass_mod(R_MOD, 673.0f + depth * fm_sin_turns(lfo + 0.25f), x + decay * l_fb, -0.7f);
+        r = delay(R_DL1, r);
+        r_damp = fm_flush(r_damp + (r - r_damp) * open);
+        r = allpass(R_AP, 1968, r_damp * decay, 0.5f);
+        const float r_out = delay(R_DL2, r);
+        l_fb = l_out; r_fb = r_out;
+        // the output taps (tomas de salida), Dattorro's, scaled
+        out_l = 1.2f * (rd(R_DL1, 197) + rd(R_DL1, 2204) - rd(R_AP, 1418) + rd(R_DL2, 1479) - rd(L_DL1, 1475) -
+                        rd(L_AP, 139) - rd(L_DL2, 790));
+        out_r = 1.2f * (rd(L_DL1, 262) + rd(L_DL1, 2688) - rd(L_AP, 910) + rd(L_DL2, 1981) - rd(R_DL1, 1564) -
+                        rd(R_AP, 248) - rd(R_DL2, 90));
+    }
+};
+
+// ------------------------------------------------------------------ both buses (los dos envíos)
+// Full-rate samples in and out; inside, every second sample runs the effects, and their output is interpolated back.
+struct Fx {
+    Delay delay;
+    Plate plate;
+    int half;
+    float acc_a, acc_b;
+    float prev_l, prev_r, cur_l, cur_r;
+
+    void init() { delay.init(); plate.init(); half = 0; acc_a = acc_b = 0.0f; prev_l = prev_r = cur_l = cur_r = 0.0f; }
+    void clear() { delay.clear(); plate.clear(); acc_a = acc_b = prev_l = prev_r = cur_l = cur_r = 0.0f; }
+
+    // a, b: the send buses (se suman al estéreo l, r)
+    void process(const float *a, const float *b, float *l, float *r, uint32_t n, const float *fx, float bpm, float sr) {
+        const float hsr = sr * 0.5f;
+        const float dly_level = fx[EPK_FX_DLY_LEVEL] * fx[EPK_FX_DLY_LEVEL] * 1.5f;
+        const float rev_level = fx[EPK_FX_REV_LEVEL] * fx[EPK_FX_REV_LEVEL] * 1.5f;
+        const float to_rev = fx[EPK_FX_DLY_TO_REV];
+        for (uint32_t i = 0; i < n; i++) {
+            acc_a += a[i];
+            acc_b += b[i];
+            if (half) {
+                float dl, dr, vl, vr;
+                delay.tick(acc_a * 0.5f, fx, bpm, hsr, dl, dr);
+                plate.tick(acc_b * 0.5f + (dl + dr) * 0.5f * to_rev, fx, hsr, vl, vr);
+                acc_a = acc_b = 0.0f;
+                prev_l = cur_l; prev_r = cur_r;
+                cur_l = dl * dly_level + vl * rev_level;
+                cur_r = dr * dly_level + vr * rev_level;
+                l[i] += (prev_l + cur_l) * 0.5f;                        // halfway to the new value (a medio camino)
+                r[i] += (prev_r + cur_r) * 0.5f;
+            } else {
+                l[i] += cur_l;
+                r[i] += cur_r;
+            }
+            half ^= 1;
+        }
+    }
+};
+
+}  // namespace epk

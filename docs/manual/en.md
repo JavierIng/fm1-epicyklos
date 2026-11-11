@@ -1,6 +1,6 @@
 # EPICYKLOS · User manual (draft)
 
-> Status: **Phase 2c, browser emulator only.** None of this has been tested on a real FM-1 yet.
+> Status: **Phase 3a, browser emulator only.** None of this has been tested on a real FM-1 yet.
 > The manual grows with each phase and only describes what already works. Español: [es.md](es.md).
 > On-screen text is in Spanish for now; the Spanish label is given in brackets.
 
@@ -19,10 +19,10 @@ techno, hypnotic techno, ambient and drone.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | select track 1-6 | mute the track |
 | (in the MIX view) | mute the track | solo the track |
-| HOME | tap: ORBIT ↔ MIX [ÓRBITA / MEZCLA] | the shift key |
+| HOME | tap: ORBIT → MIX → EFFECTS [ÓRBITA / MEZCLA / EFECTOS] | the shift key |
 | PLAY | start / stop | — |
 | SELECT | change page | **tempo** (1 BPM per click) |
-| PRESETS | track level | — |
+| PRESETS | track level | the track's send to the delay |
 | K1-K4 | the page's 4 parameters | fine adjust |
 | OCT- / OCT+ | keyboard octave | — |
 | SAVE | PATTERNS view [PATRONES] | — |
@@ -46,8 +46,7 @@ Each track has a sound engine (ENGINE page [MOTOR], K1). So far:
 
 ## 5. Pages (SELECT)
 SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, division) · GROOVE (swing, shift
-[DESPLAZA]) · MIX [MEZCLA] (level, pan;
-sends arrive in phase 3).
+[DESPLAZA]) · MIX [MEZCLA] (level, pan, A delay [A ECO], B reverb).
 
 ## 6. Patterns and banks (SAVE)
 - **Black keys = banks A to K. White keys = the bank's 16 patterns.**
@@ -80,6 +79,21 @@ sends arrive in phase 3).
 - **HOME + ARP:** undoes the last random (one level).
 - **ARP held + ALGORITHM:** amount (10-100 %). **ARP held + a knob:** locks that parameter.
 
-## 9. To come
-Effects and scenes (phase 3), harmony and generative tools (4), more engines (5), saving, names, clock and
+## 9. Send effects (EFFECTS view [EFECTOS])
+Each track sends part of its sound to the **delay (A)** and the **reverb (B)** from the MIX page (K3 and K4).
+The send is taken after the level: a muted track stops sending, but the tail rings on.
+
+In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
+- **Delay [ECO]:** type [TIPO: TAPE, BBD, PINGPONG], time [TIEMPO] in sixteenths, 1 to 16 (try 3, 5 or 7),
+  feedback [REPITE] (at the top the delay feeds itself), tone [TONO] (each repeat darker).
+- **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level.
+- **Reverb (PLACA, a plate):** decay [CAÍDA], tone, movement [MOVER], level.
+
+Changing the time in TAPE bends the pitch, like a tape changing speed. Changing the type starts the delay
+empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit is halved.
+
+The effects belong to the project: they do not change with the pattern.
+
+## 10. To come
+Master filter, compressor, modulation and scenes (phase 3b), harmony and generative tools (4), more engines (5), saving, names, clock and
 MIDI (6), testing on the device (7, only when decided).

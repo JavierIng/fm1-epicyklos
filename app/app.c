@@ -5,7 +5,8 @@
  * (device/unity.c, host/plat_host.c), after the platform: gfx.c and announce.c are in scope.
  * Panel (panel, docs/diseno/decisiones-y-fase0.md):
  *   FX SCL ENV LFO EDIT GLO  select track 1-6 (pista); HOME+track mute. MIX view: track = mute, HOME+track = solo
- *   HOME   tap: ORBIT <-> MIX view (vista); held: shift (mayúsculas)
+ *   HOME   tap: ORBIT -> MIX -> EFFECTS view (vista); held: shift (mayúsculas). In EFFECTS, SELECT and K1-K4 are
+ *          the delay's and the reverb's (eco y reverb); HOME+PRESETS the track's send to the delay
  *   PLAY   start / stop          SELECT  page (página); HOME+SELECT tempo
  *   PRESETS track level (nivel)   K1-K4   the page's parameters; HOME+K fine (ajuste fino)
  *   OCT-/OCT+ keyboard octave     keys    play the selected track
@@ -27,6 +28,7 @@
 #define C_TEXT RGB(221, 227, 240)
 #define C_MUTE RGB(255, 90, 110)
 #define C_SOLO RGB(242, 193, 78)
+#define C_FX RGB(79, 209, 197)                       /* the effects' colour (color de los efectos) */
 static const uint16_t TRACK_C[EPK_TRACKS] = {RGB(255, 90, 110), RGB(242, 193, 78), RGB(79, 209, 197),
                                             RGB(139, 124, 246), RGB(90, 169, 255), RGB(232, 121, 249)};
 static uint16_t dim_colour(uint16_t c)               /* a colour at ~35 % (apagado) */
@@ -44,7 +46,7 @@ static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_ENGINE, EPK_P_EXTRA1, EPK_P_EXTRA2, EPK_P_ATTACK},
     {EPK_P_LENGTH, EPK_P_HITS, EPK_P_ROTATE, EPK_P_DIVISION},
     {EPK_P_SWING, EPK_P_SHIFT, SLOT_NONE, SLOT_NONE},
-    {EPK_P_LEVEL, EPK_P_PAN, SLOT_LATER, SLOT_LATER},   /* delay / reverb sends: phase 3 (fase 3) */
+    {EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B},   /* sends: A the delay, B the reverb */
 };
 static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR"};
 /* what NOTE, CHARACTER, TONE, DECAY, EXTRA1, EXTRA2, ATTACK are in each engine (0 = unused) */
@@ -67,7 +69,6 @@ static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
     {"Afinacion del tambor", "De tom redondo a metalico", "Brillo del ataque", "Cuanto dura el golpe",
      "Cuanto cae el tono al golpear", "El chasquido del ataque", 0},
 };
-static const char *const SLOT_LATER_NAME[2] = {"ENVIO A", "ENVIO B"};   /* MIX page, phase 3 */
 static const char *const DIV_NAME[EPK_DIV_COUNT] = {"1/32", "1/16T", "1/16", "1/8T", "1/8", "1/4"};
 static const char *const PROB_NAME[EPK_PROB_COUNT] = {"100%", "75%", "50%", "25%"};
 static const char *const COND_NAME[EPK_COND_COUNT] = {"SIEMPRE", "1:2", "2:2", "1:4", "2:4", "3:4", "4:4"};
@@ -88,6 +89,8 @@ static const char *param_name(int track, int p)
     case EPK_P_SHIFT: return "DESPLAZA";
     case EPK_P_LEVEL: return "NIVEL";
     case EPK_P_PAN: return "PAN";
+    case EPK_P_SEND_A: return "A ECO";
+    case EPK_P_SEND_B: return "B REVERB";
     default: return SND_NAME[epk_engine(track)][snd_index(p)];
     }
 }
@@ -103,6 +106,8 @@ static const char *param_hint(int track, int p)
     case EPK_P_SHIFT: return "La pista entera antes o despues";
     case EPK_P_LEVEL: return "Volumen de la pista";
     case EPK_P_PAN: return "Izquierda o derecha";
+    case EPK_P_SEND_A: return "Cuanto va al eco";
+    case EPK_P_SEND_B: return "Cuanto va a la reverb";
     default: return SND_HINT[epk_engine(track)][snd_index(p)];
     }
 }
@@ -115,9 +120,25 @@ static int slot_param(int track, int page, int slot)
     return p;
 }
 
+/* ------------------------------------------------------------------ the effects' pages (páginas de EFECTOS) */
+enum { NFXPAGES = 3 };
+static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB"};
+static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
+    {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
+    {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, SLOT_NONE},
+    {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
+};
+static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "TONO", "DESGASTE", "A REVERB", "NIVEL",
+                                                  "CAIDA", "TONO", "MOVER", "NIVEL"};
+static const char *const FX_HINT[EPK_FX_COUNT] = {
+    "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
+    "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
+    "Cuanto dura la cola", "Oscura o brillante", "Movimiento dentro de la placa", "Retorno de la reverb"};
+static const char *const DLY_NAME[EPK_DLY_COUNT] = {"TAPE", "BBD", "PINGPONG"};
+
 /* ------------------------------------------------------------------ state (estado) */
-enum { VIEW_ORBIT, VIEW_MIX, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME alternates the first two */
-static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "PATRONES", "PASOS"};
+enum { VIEW_ORBIT, VIEW_MIX, VIEW_FX, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME goes round the first three */
+static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "EFECTOS", "PATRONES", "PASOS"};
 /* the keys, F3..G5: a white key's place among the whites (0..15), a black key's among the blacks (0..10) */
 static const int8_t WHITE_OF[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6, 7, -1, 8, -1, 9, -1, 10, 11, -1,
                                        12, -1, 13, 14, -1, 15};
@@ -143,6 +164,8 @@ static struct {
     uint32_t pop_until;
     int bank;                              /* the bank shown in the PATTERNS view (banco a la vista) */
     int step_page, hold_step, hold_edited; /* STEPS view: which 16, the step held (-1), a knob turned meanwhile */
+    int fx_page, pop_fx;                   /* EFFECTS view: its page; the popup is an effect's knob (-1 a track's) */
+    float fx_meter;
     int amount;                            /* random: how much, 1..10 (cantidad) */
     uint32_t locked;                       /* random: parameters it leaves alone, a bit each (bloqueados) */
     uint32_t rng;
@@ -214,6 +237,20 @@ static void micro_str(int micro, char *b)             /* a step's micro-timing i
     b[1] = (char)('0' + (micro < 0 ? -micro : micro));
     b[2] = 0;
     str_cat(b, "/8");
+}
+
+static void int_str(int32_t v, char *b);
+static void fx_str(int p, char *b)                    /* an effect's value as the screen shows it */
+{
+    const float v = epk_fx_get(p);
+    b[0] = 0;
+    if (p == EPK_FX_DLY_TYPE)
+        str_cat(b, DLY_NAME[(int)(v * (float)(EPK_DLY_COUNT - 1) + 0.5f)]);
+    else if (p == EPK_FX_DLY_TIME) {
+        int_str(1 + (int)(v * 15.0f + 0.5f), b);
+        str_cat(b, "/16");
+    } else
+        int_str((int)(v * 100.0f + 0.5f), b);
 }
 
 /* a parameter's value as the screen shows it (valor en pantalla) */
@@ -337,6 +374,7 @@ void app_init(void)
     ui.page = PAGE_SOUND;
     ui.view = VIEW_ORBIT;
     ui.hold_step = -1;
+    ui.pop_fx = -1;
     ui.amount = 10;
     ui.rng = 0x1F123BB5u;
     for (k = 0; k < NKEYS; k++)
@@ -384,7 +422,7 @@ static void set_view(int v)
         ui.page = PAGE_RHYTHM;
     if (v == VIEW_PATTERNS)
         ui.bank = epk_bank_current();
-    app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : "");
+    app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : v == VIEW_FX ? "ECO+REV" : "");
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -393,10 +431,6 @@ static void turn_param(int page, int slot, int32_t detents, int fine)
     int p = slot_param(ui.track, page, slot);
     float v;
     int steps;
-    if (p == SLOT_LATER) {
-        say_later(SLOT_LATER_NAME[slot - 2], "FASE 3");
-        return;
-    }
     if (p < 0)
         return;
     steps = epk_param_steps(p);
@@ -413,7 +447,21 @@ static void turn_param(int page, int slot, int32_t detents, int fine)
         v += (float)detents / (fine ? 400.0f : 40.0f);   /* 40 clicks end to end (de punta a punta) */
     epk_param_set(ui.track, p, fm_clampf(v, 0.0f, 1.0f));
     ui.pop_param = p;
+    ui.pop_fx = -1;
     ui.pop_until = ui.view == VIEW_STEPS ? 0u : plat_ms() + 1000u;   /* the steps stay in sight (a la vista) */
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
+/* EFFECTS view: one of the delay's or the reverb's knobs (un knob del eco o de la reverb) */
+static void turn_fx(int slot, int32_t detents, int fine)
+{
+    const int p = slot >= 0 ? FX_PAGE_PARAM[ui.fx_page][slot] : SLOT_NONE;
+    const int steps = p >= 0 ? epk_fx_steps(p) : 0;
+    if (p < 0)
+        return;
+    epk_fx_set(p, epk_fx_get(p) + (float)detents / (steps ? (float)(steps - 1) : fine ? 400.0f : 40.0f));
+    ui.pop_fx = p;
+    ui.pop_until = plat_ms() + 1000u;
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -634,7 +682,12 @@ static void input(void)
     }
     if (!arp && (ui.btn >> B_ARP & 1u)) {     /* ARP released: random (aleatorio) */
         if (!ui.arp_used)
-            ui.view == VIEW_PATTERNS ? random_pattern() : random_page();
+{
+            if (ui.view == VIEW_FX)
+                app_say("ALEATORIO", "NO EN EFECTOS");
+            else
+                ui.view == VIEW_PATTERNS ? random_pattern() : random_page();
+        }
         ui.arp_used = 0;
     }
     if (!shift && (ui.btn >> B_HOME & 1u)) {  /* HOME released: a tap changes the view (vista) */
@@ -655,7 +708,7 @@ static void input(void)
                 int_str(ui.amount * 10, t);
                 str_cat(t, "%");
                 app_say("CANTIDAD", t);
-            } else if (ENC_SLOT[k] >= 0) {
+            } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX) {
                 const int p = slot_param(ui.track, ui.page, ENC_SLOT[k]);
                 if (p >= 0) {
                     ui.locked ^= 1u << p;
@@ -671,6 +724,10 @@ static void input(void)
                 epk_set_tempo(epk_tempo() + (float)e);
                 int_str((int32_t)(epk_tempo() + 0.5f), t);
                 app_say("TEMPO", t);
+            } else if (ui.view == VIEW_FX) {
+                ui.fx_page = ((ui.fx_page + (int)e) % NFXPAGES + NFXPAGES) % NFXPAGES;
+                app_say("PAGINA", FX_PAGE_NAME[ui.fx_page]);
+                ui.dirty_foot = 1;
             } else {
                 ui.page = ((ui.page + (int)e) % NPAGES + NPAGES) % NPAGES;
                 app_say("PAGINA", PAGE_NAME[ui.page]);
@@ -680,11 +737,13 @@ static void input(void)
             say_later("MUTAR", "FASE 4");
         } else if (k == EN_PRESET) {
             if (shift)
-                say_later("ENVIO A", "FASE 3");
+                turn_param(PAGE_MIX, 2, e, 0);   /* HOME+PRESETS: the track's send to the delay */
             else
                 turn_param(PAGE_MIX, 0, e, 0);   /* PRESETS: the track's level, from any page */
         } else if (ui.view == VIEW_STEPS && ui.hold_step >= 0)
             turn_step(ENC_SLOT[k], e);
+        else if (ui.view == VIEW_FX)
+            turn_fx(ENC_SLOT[k], e, shift);
         else
             turn_param(ui.page, ENC_SLOT[k], e, shift);
     }
@@ -847,17 +906,20 @@ static void draw_mixer(void)
 static void draw_popup(void)                     /* the knob just turned, big (el knob girado, en grande) */
 {
     char v[16];
-    const int p = ui.pop_param, steps = epk_param_steps(p);
-    const float val = epk_param_get(ui.track, p);
-    const uint16_t c = TRACK_C[ui.track];
-    const char *name = param_name(ui.track, p), *hint = param_hint(ui.track, p);
+    const int fx = ui.pop_fx >= 0, p = fx ? ui.pop_fx : ui.pop_param, steps = fx ? epk_fx_steps(p) : epk_param_steps(p);
+    const float val = fx ? epk_fx_get(p) : epk_param_get(ui.track, p);
+    const uint16_t c = fx ? C_FX : TRACK_C[ui.track];
+    const char *name = fx ? FX_NAME[p] : param_name(ui.track, p), *hint = fx ? FX_HINT[p] : param_hint(ui.track, p);
     cv_rect(12, 8, 216, 128, C_PANEL);
     cv_rect(12, 8, 216, 1, c);
     cv_rect(12, 135, 216, 1, c);
     if (!name || !hint)
         return;
     cv_text(120 - text_w(&FONT_S, name) / 2, 16, &FONT_S, name, c);
-    param_str(ui.track, p, v);
+    if (fx)
+        fx_str(p, v);
+    else
+        param_str(ui.track, p, v);
     cv_text(120 - text_w(&FONT_L, v) / 2, 40, &FONT_L, v, C_TEXT);
     cv_rect(28, 90, 184, 4, C_RULE);
     if (steps)
@@ -926,6 +988,47 @@ static void draw_steps(void)                /* two rows of 16 steps (dos filas d
     cv_rect(2, 10 + ui.step_page * 68, 3, 54, c);                          /* the row the keys edit (fila activa) */
 }
 
+static void draw_fx(void)                         /* the delay, the reverb, and what each track sends them */
+{
+    char v[16];
+    int t;
+    const int32_t m = (int32_t)(fm_minf(ui.fx_meter * 1.5f, 1.0f) * 76.0f + 0.5f);
+    cv_rect(4, 4, 112, 80, C_PANEL);                                  /* the delay (eco) */
+    cv_rect(4, 4, 112, 1, ui.fx_page < 2 ? C_FX : C_RULE);
+    cv_text(10, 8, &FONT_XS, "A  ECO", ui.fx_page < 2 ? C_FX : C_LABEL);
+    fx_str(EPK_FX_DLY_TYPE, v);
+    cv_text(10, 24, text_w(&FONT_M, v) > 100 ? &FONT_S : &FONT_M, v, C_TEXT);
+    fx_str(EPK_FX_DLY_TIME, v);
+    cv_text(10, 52, &FONT_S, v, C_TEXT);
+    cv_rect(10, 74, 100, 3, C_RULE);
+    cv_rect(10, 74, (int32_t)(epk_fx_get(EPK_FX_DLY_FEEDBACK) * 100.0f + 0.5f), 3, C_FX);
+    cv_rect(120, 4, 108, 80, C_PANEL);                                /* the reverb */
+    cv_rect(120, 4, 108, 1, ui.fx_page == 2 ? C_FX : C_RULE);
+    cv_text(126, 8, &FONT_XS, "B  REVERB", ui.fx_page == 2 ? C_FX : C_LABEL);
+    cv_text(126, 24, &FONT_M, "PLACA", C_TEXT);
+    cv_text(126, 52, &FONT_XS, "CAIDA", C_LABEL);
+    cv_rect(126, 74, 96, 3, C_RULE);
+    cv_rect(126, 74, (int32_t)(epk_fx_get(EPK_FX_REV_DECAY) * 96.0f + 0.5f), 3, C_FX);
+    cv_rect(232, 6, 4, 76, C_PANEL);                                  /* the returns' meter (medidor) */
+    cv_rect(232, 6 + 76 - m, 4, m, C_TEXT);
+    cv_text(4, 90, &FONT_XS, "ENVIOS", C_LABEL);                      /* each track's sends: A then B */
+    for (t = 0; t < EPK_TRACKS; t++) {
+        const int32_t x = 52 + t * 31, top = 92, h = 46;
+        const int32_t a = (int32_t)(epk_param_get(t, EPK_P_SEND_A) * (float)h + 0.5f);
+        const int32_t b = (int32_t)(epk_param_get(t, EPK_P_SEND_B) * (float)h + 0.5f);
+        const uint16_t c = epk_audible(t) ? TRACK_C[t] : dim_colour(TRACK_C[t]);
+        int_str(t + 1, v);
+        cv_text(x - 9, top + 30, &FONT_XS, v, t == ui.track ? C_TEXT : TRACK_C[t]);
+        cv_rect(x, top, 7, h, C_PANEL);
+        cv_rect(x, top + h - a, 7, a, c);
+        cv_rect(x + 9, top, 7, h, C_PANEL);
+        cv_rect(x + 9, top + h - b, 7, b, dim_colour(c));
+        if (t == ui.track)
+            cv_rect(x, top + h + 2, 16, 1, C_TEXT);
+    }
+    cv_text(4, 104, &FONT_XS, "A  B", C_RULE);
+}
+
 static void draw_main(void)
 {
     cv_begin(240, 144, C_BG);
@@ -935,6 +1038,8 @@ static void draw_main(void)
         draw_patterns();
     else if (ui.view == VIEW_STEPS)
         draw_steps();
+    else if (ui.view == VIEW_FX)
+        draw_fx();
     else if (ui.view == VIEW_ORBIT)
         draw_orbit();
     else
@@ -965,7 +1070,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
         cv_text(6, 4, &FONT_XS, "HOME +", c);
         cv_text(6, 19, &FONT_XS, "SELECT: tempo        PISTA: mute", C_TEXT);
         cv_text(6, 32, &FONT_XS, "ARP: deshacer        K1-K4: ajuste fino", C_TEXT);
-        cv_text(6, 45, &FONT_XS, "En MEZCLA, PISTA: solo", C_TEXT);
+        cv_text(6, 45, &FONT_XS, "PRESETS: envio al eco   En MEZCLA, PISTA: solo", C_TEXT);
         cv_text(6, 58, &FONT_XS, "Soltar sin tocar nada: cambia de vista", C_LABEL);
         cv_blit(0, 168);
         return;
@@ -982,6 +1087,27 @@ static void draw_foot(void)                       /* the page tabs and the four 
                 ? epk_pattern_name(ui.bank, epk_pattern_current()) : "ELIGE PATRON", C_TEXT);
         cv_text(6, 44, &FONT_XS, "Negras: banco   Blancas: patron", C_LABEL);
         cv_text(6, 57, &FONT_XS, "ARP: patron al azar   HOME+ARP: deshacer", C_LABEL);
+        cv_blit(0, 168);
+        return;
+    }
+    if (ui.view == VIEW_FX) {                 /* the effects' pages and knobs (páginas y knobs de EFECTOS) */
+        for (i = 0; i < NFXPAGES; i++)
+            x = cv_text(x, 3, &FONT_XS, FX_PAGE_NAME[i], i == ui.fx_page ? C_FX : C_LABEL) + 10;
+        cv_text(236 - text_w(&FONT_XS, "PRESETS+HOME: ENVIO"), 3, &FONT_XS, "PRESETS+HOME: ENVIO", C_RULE);
+        for (i = 0; i < 4; i++) {
+            const int p = FX_PAGE_PARAM[ui.fx_page][i];
+            const int32_t cx = i * 60 + 2;
+            cv_rect(cx, 18, 56, 52, C_PANEL);
+            if (p < 0)
+                continue;
+            fx_str(p, v);
+            if (text_w(&FONT_S, v) > 50)
+                v[4] = 0;                                              /* PINGPONG -> PING on the small card */
+            cv_text(cx + 4, 22, &FONT_XS, FX_NAME[p], C_LABEL);
+            cv_text(cx + 4, 36, text_w(&FONT_M, v) > 50 ? &FONT_S : &FONT_M, v, C_TEXT);
+            cv_rect(cx + 4, 63, 48, 3, C_RULE);
+            cv_rect(cx + 4, 63, (int32_t)(epk_fx_get(p) * 48.0f + 0.5f), 3, C_FX);
+        }
         cv_blit(0, 168);
         return;
     }
@@ -1002,11 +1128,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
     for (i = 0; i < 4; i++) {
         const int p = slot_param(ui.track, ui.page, i);
         const int32_t cx = i * 60 + 2;
-        if (p == SLOT_LATER) {
-            cv_rect(cx, 18, 56, 52, C_PANEL);
-            cv_text(cx + 4, 22, &FONT_XS, SLOT_LATER_NAME[i - 2], C_RULE);
-            cv_text(cx + 4, 40, &FONT_S, "F3", C_RULE);
-        } else if (p < 0) {
+        if (p < 0) {
             cv_rect(cx, 18, 56, 52, C_PANEL);
         } else {
             param_str(ui.track, p, v);
@@ -1056,6 +1178,11 @@ void app_frame(void)
             if (ui.view == VIEW_PATTERNS)
                 ui.dirty_main = ui.dirty_foot = 1;
         }
+    }
+    if (ui.view == VIEW_FX && now - ui.meter_at >= 50u) {    /* the returns' meter (medidor de los retornos) */
+        ui.meter_at = now;
+        ui.fx_meter = ui.fx_meter * 0.6f + epk_fx_meter();
+        ui.dirty_main = 1;
     }
     if (ui.view == VIEW_MIX && now - ui.meter_at >= 50u) {   /* the meters at 20 fps (medidores) */
         ui.meter_at = now;
@@ -1109,6 +1236,15 @@ int app_expect(const char *what, int *got)
         *got = epk_playing();
     else if (!strcmp(what, "tempo"))
         *got = (int)(epk_tempo() + 0.5f);
+    else if (!strcmp(what, "fxpage"))
+        *got = ui.fx_page;
+    else if (!strncmp(what, "fx", 2) && what[2] >= '0' && what[2] <= '9') {   /* fxK: effect parameter K, x100 */
+        const int k = atoi(what + 2);
+        *got = epk_fx_steps(k) ? (int)(epk_fx_get(k) * (float)(epk_fx_steps(k) - 1) + 0.5f) : (int)(epk_fx_get(k) * 100.0f + 0.5f);
+    } else if (!strncmp(what, "senda", 5))
+        *got = (int)(epk_param_get(atoi(what + 5) - 1, EPK_P_SEND_A) * 100.0f + 0.5f);
+    else if (!strncmp(what, "sendb", 5))
+        *got = (int)(epk_param_get(atoi(what + 5) - 1, EPK_P_SEND_B) * 100.0f + 0.5f);
     else if (!strcmp(what, "amount"))
         *got = ui.amount;
     else if (!strcmp(what, "undo"))

@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **Fase 2c, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
+> Estado: **Fase 3a, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
 ## 1. Qué es
@@ -18,10 +18,10 @@ para dub techno, techno hipnótico, ambient y drone.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | elegir pista 1-6 | mute de la pista |
 | (en vista MEZCLA) | mute de la pista | solo de la pista |
-| HOME | toque: ÓRBITA ↔ MEZCLA | es la tecla de función |
+| HOME | toque: ÓRBITA → MEZCLA → EFECTOS | es la tecla de función |
 | PLAY | arrancar / parar | — |
 | SELECT | cambiar de página | **tempo** (1 BPM por clic) |
-| PRESETS | nivel de la pista | — |
+| PRESETS | nivel de la pista | envío de la pista al eco |
 | K1-K4 | los 4 parámetros de la página | ajuste fino |
 | OCT- / OCT+ | octava del teclado | — |
 | SAVE | vista PATRONES | — |
@@ -42,7 +42,7 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
   (página MOTOR, K4): el sonido entra de golpe o poco a poco.
 
 ## 5. Páginas (SELECT)
-SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA) · MEZCLA (NIVEL, PAN; los envíos llegan en la fase 3).
+SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA) · MEZCLA (NIVEL, PAN, A ECO, B REVERB).
 
 ## 6. Patrones y bancos (SAVE)
 - **Teclas negras = bancos A a K. Teclas blancas = los 16 patrones del banco.**
@@ -75,6 +75,21 @@ SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, 
 - **HOME + ARP:** deshace el último aleatorio (un solo nivel).
 - **ARP mantenido + ALGORITHM:** cantidad (10-100 %). **ARP mantenido + un knob:** bloquea ese parámetro.
 
-## 9. Pendiente
-Efectos y escenas (fase 3), armonía y generativos (4), más motores (5), guardado, nombres, reloj y MIDI (6),
+## 9. Efectos de envío (vista EFECTOS)
+Cada pista manda parte de su sonido al **eco (A)** y a la **reverb (B)** desde la página MEZCLA (K3 y K4). El
+envío sale después del nivel: si silencias una pista deja de enviar, pero la cola sigue sonando.
+
+En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
+- **ECO:** TIPO (TAPE, BBD, PINGPONG), TIEMPO (en semicorcheas, de 1 a 16: prueba 3, 5 o 7), REPITE (arriba del
+  todo el eco se realimenta solo), TONO (cada repetición más oscura).
+- **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL.
+- **REVERB (PLACA):** CAÍDA, TONO, MOVER (movimiento interno), NIVEL.
+
+Al cambiar el TIEMPO en TAPE el tono se desliza, como una cinta que cambia de velocidad. Al cambiar de TIPO el
+eco empieza vacío. El tiempo máximo es 1,5 s (0,75 s en PINGPONG); si no cabe, se divide por dos.
+
+Los efectos son del proyecto: no cambian al cambiar de patrón.
+
+## 10. Pendiente
+Filtro del master, compresor, modulación y escenas (fase 3b), armonía y generativos (4), más motores (5), guardado, nombres, reloj y MIDI (6),
 prueba en el aparato (7, solo cuando se decida).

@@ -4,6 +4,7 @@
 // mute/solo, no NaN, levels. Writes tests/dsp/out/groove.wav to listen to.
 //   c++ -std=c++14 -O2 -I app/dsp -I base/include tests/dsp/test_engine.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_engine
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -359,6 +360,69 @@ int main() {
             CHECK(epk_engine(5) == EPK_ENG_TAMBOR && t0.first > 1.0 && std::isfinite(t0.first), "TAMBOR type %.1f: energy %.2f",
                   type, t0.first);
         }
+    }
+
+    // 15. The sends (envíos): the echo comes back on time, PINGPONG alternates sides, the reverb leaves a tail,
+    // and nothing blows up with the feedback and the decay at their ends (nada se dispara).
+    {
+        auto hit = [&](int type, float fb, float send_a, float send_b, float decay, float seconds, std::vector<float> &L2,
+                       std::vector<float> &R2) {
+            epk_init(SR);
+            for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
+            epk_param_set(5, EPK_P_PAN, 0.5f);
+            epk_param_set(5, EPK_P_SEND_A, send_a);
+            epk_param_set(5, EPK_P_SEND_B, send_b);
+            epk_param_set(5, EPK_P_DECAY, 0.1f);
+            epk_fx_set(EPK_FX_DLY_TYPE, (float)type / (float)(EPK_DLY_COUNT - 1));
+            epk_fx_set(EPK_FX_DLY_FEEDBACK, fb);
+            epk_fx_set(EPK_FX_DLY_TO_REV, 0.0f);
+            epk_fx_set(EPK_FX_DLY_WEAR, 0.0f);
+            epk_fx_set(EPK_FX_REV_DECAY, decay);
+            epk_render(l, r, 256);                                   // the delay settles on its time
+            epk_note_on(5, 52, 1.0f);
+            L2.clear(); R2.clear();
+            for (int k = 0; k < (int)(seconds * SR / 256); k++) {
+                epk_render(l, r, 256);
+                L2.insert(L2.end(), l, l + 256);
+                R2.insert(R2.end(), r, r + 256);
+            }
+        };
+        auto rms = [&](const std::vector<float> &v, double from_s, double to_s) {
+            double e = 0.0;
+            const size_t a = (size_t)(from_s * SR), b = std::min(v.size(), (size_t)(to_s * SR));
+            for (size_t i = a; i < b; i++) e += (double)v[i] * v[i];
+            return std::sqrt(e / (double)(b > a ? b - a : 1));
+        };
+        std::vector<float> A, B;
+        const double echo = 3.0 * 15.0 / 124.0;                      // 3 sixteenths at 124 BPM = 0.363 s
+        for (int type = 0; type < EPK_DLY_COUNT; type++) {
+            hit(type, 0.5f, 1.0f, 0.0f, 0.5f, 2.0f, A, B);
+            const double gap = rms(A, echo - 0.10, echo - 0.02), first = rms(A, echo, echo + 0.08);
+            int bad = 0;
+            for (float v : A) bad += !std::isfinite(v);
+            CHECK(bad == 0 && first > 0.01 && first > gap * 4.0, "delay type %d: echo %.4f against %.4f before it", type,
+                  first, gap);
+            if (type == EPK_DLY_PINGPONG) {
+                const double l1 = rms(A, echo, echo + 0.08), r1 = rms(B, echo, echo + 0.08);
+                const double l2 = rms(A, 2 * echo, 2 * echo + 0.08), r2 = rms(B, 2 * echo, 2 * echo + 0.08);
+                CHECK(l1 > r1 * 3.0 && r2 > l2 * 3.0, "pingpong: first echo L %.4f R %.4f, second L %.4f R %.4f", l1, r1, l2, r2);
+            }
+            hit(type, 1.0f, 1.0f, 1.0f, 1.0f, 20.0f, A, B);          // everything at the top, 20 s
+            float pk = 0.0f;
+            bad = 0;
+            for (float v : A) { bad += !std::isfinite(v); pk = std::fmax(pk, std::fabs(v)); }
+            CHECK(bad == 0 && pk <= 1.0f, "delay type %d at full feedback and decay: %d bad samples, peak %.3f", type, bad, pk);
+        }
+        hit(0, 0.0f, 0.0f, 1.0f, 0.9f, 4.0f, A, B);                  // the plate alone (solo la placa)
+        const double early = rms(A, 0.3, 0.6), late = rms(A, 2.0, 2.5), side = rms(B, 0.3, 0.6);
+        CHECK(early > 0.003 && late > 0.0003 && late < early && side > 0.003, "plate: tail %.5f at 0.3 s, %.5f at 2 s, right %.5f",
+              early, late, side);
+        double diff = 0.0;
+        for (size_t i = (size_t)(0.3 * SR); i < (size_t)(0.6 * SR); i++) diff += std::fabs(A[i] - B[i]);
+        CHECK(diff > 1.0, "plate: left and right differ (stereo)");
+        hit(0, 0.0f, 0.0f, 1.0f, 0.0f, 4.0f, A, B);
+        CHECK(rms(A, 3.0, 3.5) < 0.0002, "plate at the shortest decay: %.6f after 3 s", rms(A, 3.0, 3.5));
+        std::printf("plate: tail %.4f at 0.3 s, %.4f at 2 s (decay 0.9)\n", early, late);
     }
 
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare

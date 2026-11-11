@@ -157,3 +157,13 @@
 - **GOLPE corregido** tras la prueba de Javier ("los knobs cambian poco"): rangos más anchos (BRILLO 350 Hz–8,5 kHz, CAÍDA hasta ~2 s), AFINA mueve también la banda de ruido, CUERPO actúa en los tres tipos. Hay una prueba que exige que cada knob cambie la energía o el brillo al menos un 25 % en palma, caja y aro.
 - **Knobs más rápidos:** 40 clics de punta a punta en los parámetros continuos (antes 64); HOME sigue dando el ajuste fino.
 - **TAMBOR** (toms, congas, percusión metálica; 2 operadores FM). Se elige en MOTOR; por defecto en la pista 6 de PULSAR, PERIGEO, FOSFORO y CUASAR, y en parte de los patrones generados.
+
+## Fase 3a: envíos, eco y reverb (entregada en el emulador, 2026-11-11, noche)
+
+- **Envíos por pista** A (eco) y B (reverb) en la página MEZCLA, después del fader; HOME+PRESETS = envío A.
+- **Eco** (bus A) con tres tipos sobre un buffer de 16 bit a 22 kHz (66 KB, 1,5 s): TAPE (wow/flutter, saturación, el tiempo desliza el tono), BBD (más oscuro cuanto más largo, soplido de reloj) y PINGPONG (dos líneas de 0,75 s). Tiempo en semicorcheas (1–16). El feedback puede auto-oscilar; lo sujeta la saturación.
+- **Reverb PLACA** (bus B): topología de placa de Dattorro (1997) escrita para este proyecto, a 22 kHz en 16 bit (33 KB). **No es un port de Plateau**, como se había apuntado al principio; se inspira en el mismo algoritmo publicado. Controles: caída, tono, movimiento, nivel.
+- **Vista EFECTOS** en el ciclo de HOME (ÓRBITA → MEZCLA → EFECTOS) con páginas ECO, ECO 2 y REVERB.
+- Los efectos son del proyecto. Los buffers grandes y el estado del motor van al pool de RAM del aparato (no a .bss).
+- **Aún no hecho de la lista del eco:** cabezales múltiples, resonador en el feedback, duck por el bombo, throw/freeze, parada de cinta, dropouts, throws grabados, eco a la octava. Tampoco el flanger.
+- Validación: el eco vuelve a su tiempo en los tres tipos, PINGPONG alterna lados, la placa deja cola estéreo, y con feedback y caída al máximo durante 20 s no hay valores inválidos ni saturación dura. 70 comprobaciones en el simulador.

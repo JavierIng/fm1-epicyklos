@@ -9,7 +9,7 @@ expect pattern 1
 # SAVE: the PATTERNS view (patrones); stopped, a white key changes at once (pattern 4 ORBITA = key 6)
 tap SAVE
 wait 30
-expect view 2
+expect view 3
 key 6 down
 wait 30
 key 6 up
@@ -71,6 +71,34 @@ turn SELECT 6
 release HOME
 wait 30
 expect tempo 130
+# HOME again: the EFFECTS view (efectos): SELECT its pages, K1-K4 the delay and the reverb
+tap HOME
+wait 30
+expect view 2
+expect fx0 0
+turn K1 2
+wait 30
+expect fx0 2
+turn K2 2
+wait 30
+expect fx1 4
+shot fx.png
+turn K1 -2
+turn SELECT 2
+wait 30
+expect fxpage 2
+turn K1 4
+wait 30
+expect fx7 82
+# HOME+PRESETS: the selected track's send to the delay (envío al eco)
+press HOME
+turn PRESET 4
+release HOME
+wait 30
+expect senda3 75
+expect view 2
+wait 1200
+shot fx2.png
 # back to the orbit, a page and a knob: the popup (ventana)
 tap HOME
 wait 30
@@ -126,7 +154,7 @@ tap FX
 wait 30
 tap SEQ
 wait 30
-expect view 3
+expect view 4
 expect page 2
 key w5 down
 wait 30
@@ -177,7 +205,7 @@ expect undo 0
 # banks (bancos): black key = bank, white key = pattern. Bank C, pattern 5
 tap SAVE
 wait 30
-expect view 2
+expect view 3
 key b2 down
 wait 30
 key b2 up

@@ -37,11 +37,30 @@ enum {
     EPK_P_PATTERN_COUNT, /* the parameters above belong to the pattern (al patrón); the ones below, to the project */
     EPK_P_LEVEL = EPK_P_PATTERN_COUNT,   /* level (nivel) */
     EPK_P_PAN,        /* pan (panorama): 0 left, 0.5 centre, 1 right */
+    EPK_P_SEND_A,     /* send to the delay (envío A), after the fader */
+    EPK_P_SEND_B,     /* send to the reverb (envío B), after the fader */
     EPK_P_COUNT
 };
 
 /* engines (motores) */
 enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_COUNT };
+
+/* the send effects (efectos de envío), the project's: bus A a delay, bus B the plate reverb PLACA. Each 0..1 */
+enum {
+    EPK_FX_DLY_TYPE,      /* EPK_DLY_* */
+    EPK_FX_DLY_TIME,      /* 1..16 sixteenths (semicorcheas); halved until it fits 1.5 s (0.75 s in PINGPONG) */
+    EPK_FX_DLY_FEEDBACK,  /* past 0.9 the delay feeds itself (auto-oscila), held by its saturation */
+    EPK_FX_DLY_TONE,      /* the loop's low-pass: each repeat darker (cada repetición más oscura) */
+    EPK_FX_DLY_WEAR,      /* wear (desgaste): TAPE wow, flutter, drive; BBD darker and noisier; PINGPONG softer */
+    EPK_FX_DLY_TO_REV,    /* the delay into the reverb (el eco a la reverb) */
+    EPK_FX_DLY_LEVEL,     /* return level (retorno) */
+    EPK_FX_REV_DECAY,     /* how long the plate rings (cuánto dura) */
+    EPK_FX_REV_TONE,      /* dark .. bright (oscura .. brillante) */
+    EPK_FX_REV_MOD,       /* movement inside the tank (movimiento) */
+    EPK_FX_REV_LEVEL,     /* return level (retorno) */
+    EPK_FX_COUNT
+};
+enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
 
 /* a step's chance (probabilidad) and condition (condición): N:M plays on the Nth of every M cycles */
 enum { EPK_PROB_100, EPK_PROB_75, EPK_PROB_50, EPK_PROB_25, EPK_PROB_COUNT };
@@ -72,6 +91,12 @@ void epk_solo(int track, int on);
 int epk_soloed(int track);
 int epk_audible(int track);                    /* after mute and solo (tras mute y solo) */
 
+/* the send effects (efectos de envío) */
+void epk_fx_set(int param, float value01);
+float epk_fx_get(int param);
+int epk_fx_steps(int param);                   /* >0: stepped (por pasos) */
+float epk_fx_meter(void);                      /* the returns' peak since the last call (medidor de los retornos) */
+
 /* patterns (patrones): sound and rhythm of every track, 16 to a bank, banks A..K. The mix, mutes, solos and tempo
  * stay (son del proyecto). Playing, a change waits for the end of the bar; stopped, it is immediate. Edits stay in
  * the pattern while its bank is the current one (en memoria); bank A is the first project, B..K start as generated
@@ -96,7 +121,7 @@ int epk_step_micro(int track, int step);
 int epk_steps_manual(int track);
 void epk_steps_euclid(int track);              /* back to the euclidean hits (vuelve al euclidiano) */
 
-/* one level of undo for the current pattern and the pans (deshacer): save before a change, restore after */
+/* one level of undo for the current pattern, the pans and the sends (deshacer): save before a change, restore after */
 void epk_undo_save(void);
 void epk_undo_restore(void);
 int epk_undo_ready(void);
