@@ -103,3 +103,19 @@ se activa de golpe y se suelta para volver. **Son del proyecto** (como la mezcla
 - Las **ESCENAS** pueden mover profundidades y velocidades de LFO (p. ej. una escena que acelera el LFO del filtro).
 - **Fase:** el LFO de pista y la deriva con los motores (Fases 2b–5); los LFO globales y seguidores con los efectos
   del master (Fase 3).
+
+## Ideas del 11 nov (tarde): granular, Clouds/Warps, filtro doble — sin decidir
+
+Apuntadas para ir viendo; ninguna está comprometida.
+
+- **NIEBLA como granular que se graba solo:** buffer circular que captura una pista o la mezcla sin pulsar nada; congelar para quedarse con el trozo. Controles: posición, tamaño, densidad, afinación en escala, dispersión, granos al revés. No hay entrada de audio confirmada ni sitio en flash para muestras, así que el material sale del propio aparato y se pierde al apagar.
+  - Memoria: 2 s a 22 kHz/16 bit = 88 KB (de ~270 KB libres, a repartir con delay y reverb). Alternativa: leer del buffer del delay (0 KB extra, pero quedan atados).
+  - Abierto: ¿pista (ocupa una de las seis) o efecto global?
+- **Código de Mutable Instruments** (repo `pichenettes/eurorack`; STM32 = MIT, compatible con GPL-3.0, con crédito):
+  - Clouds: aprovechar solo el motor de granos; sin modos espectrales (FFT demasiado cara).
+  - Warps: wavefolder y modulación en anillo sí; vocoder solo si sobra CPU.
+  - Beads: no está publicado; solo como inspiración.
+  - Blades: es analógico (pendiente de confirmar mirando la carpeta); se escribiría un filtro doble digital con su idea.
+- **Filtro doble tipo Blades:** dos SVF con enrutado serie/paralelo y mezcla LP/BP/HP; candidato a ser el filtro DJ del master. Frecuencia y resonancia como destinos de los LFO globales y los seguidores de envolvente (con suavizado y límite de resonancia).
+- **Riesgo:** la lista supera lo que cabe sonando a la vez; la CPU real no se conoce hasta probar en el aparato. Lo pesado, con interruptor de calidad.
+- **Otros pendientes:** tap tempo; marca de "modificado" y nombre nuevo al aleatorizar un patrón; interfaz en inglés.
