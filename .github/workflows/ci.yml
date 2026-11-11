@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Packages (paquetes), with retries: the runners' mirrors fail now and then
+      - name: Packages (paquetes), with retries (the runners' mirrors fail now and then)
         run: |
           for i in 1 2 3 4; do
             sudo apt-get update -qq || true
