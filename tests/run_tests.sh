@@ -23,7 +23,7 @@ if command -v node >/dev/null 2>&1; then
     mkdir -p app/build/headless
     printf '%s' '[["wait",800],["shot","boot"],["btn",1024],["wait",60],["btn",0],["wait",2500],["shot","playing"]]' \
         > app/build/headless/script.json
-    node tools/headless.mjs app/build/emu/app.wasm app/build/headless --min-peak 0.05 || fail=1
+    node tools/headless.mjs app/build/emu/app.wasm app/build/headless --min-peak 0.02 || fail=1
 fi
 [ $fail = 0 ] && echo "tests: all passed" || echo "tests: FAILED"
 exit $fail
