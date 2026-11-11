@@ -119,3 +119,16 @@
   23 comprobaciones del panel en el simulador, emulador sin navegador con sonido, y **firmware compilado en CI con el
   C++ enlazado**: sin multiplicaciones de 64 bit junto a lecturas, sin double por software; imagen 148.092 B.
 - **No verificado:** nada en el FM-1 (no se ha instalado). CPU real desconocida.
+
+## Estado de la Fase 2a: patrones (11 nov 2026, tarde)
+
+- **16 patrones del primer proyecto** (`app/dsp/factory.cpp`, re menor): NEBULA, BRUMA, DERIVA, ORBITA, PULSAR,
+  MAREA, PERIGEO, APOGEO, ECLIPSE, SILICE, FOSFORO, CUASAR, HORIZONTE, NADIR, ZENIT, CYKLOS. Del ambient sin bombo al
+  pico y la salida; incluyen tresillos (PERIGEO), ciclos en cinco (CUASAR), un ciclo de acordes de 32 (HORIZONTE).
+- **Cambio de patrón:** en cola hasta el final del compás de 16 semicorcheas, en la muestra exacta (prueba); parado,
+  al momento. Mezcla, mute y solo se quedan (prueba). Las ediciones con los knobs se quedan en su patrón (en memoria;
+  guardar en flash: Fase 6).
+- **Vista PATRONES:** SAVE la abre; teclas blancas = 16 huecos (luz: el actual; parpadea el que está en cola);
+  SAVE mantenido + tecla blanca cambia desde cualquier vista. Cabecera: `P04 >08`.
+- **Verificado:** pruebas del núcleo, 34 comprobaciones en el simulador, emulador sin navegador, firmware en CI.
+- **Limitación:** suenan con la voz de prueba hasta que lleguen los motores (Fases 2b–5).
