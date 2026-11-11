@@ -132,3 +132,14 @@
   SAVE mantenido + tecla blanca cambia desde cualquier vista. Cabecera: `P04 >08`.
 - **Verificado:** pruebas del núcleo, 34 comprobaciones en el simulador, emulador sin navegador, firmware en CI.
 - **Limitación:** suenan con la voz de prueba hasta que lleguen los motores (Fases 2b–5).
+
+## Fase 2b (entregada en el emulador, 2026-11-11)
+
+- **Motores:** GRAVE (bombo con rumble) en la pista 1 y METAL (platos 808/909) en la pista 2. Pistas 3-6 siguen con la voz de prueba.
+- **Bancos y patrones:** teclas negras = bancos A-K, teclas blancas = 16 patrones del banco. Banco A = patrones de muestra; B-K = generados a partir de una semilla (176 patrones no caben en RAM). Lo editado en un banco se pierde al cambiar de banco hasta que exista el guardado en flash (fase 6).
+- **Vista PASOS (SEQ):** teclas blancas = pasos; paso mantenido + K1 probabilidad, + K2 condición.
+- **Aleatorio (ARP):** de la página a la vista; en la vista PATRONES, patrón entero. HOME+ARP deshace (un nivel). ARP+ALGORITHM cantidad, ARP+knob bloqueo.
+- **Tempo:** HOME+SELECT. Al mantener HOME la pantalla muestra una chuleta de combinaciones. Tap tempo: pendiente.
+- **Manual de usuario:** `docs/manual/es.md` y `docs/manual/en.md`, se amplían en cada fase solo con lo que ya funciona.
+- **Pendiente conocido:** un patrón aleatorizado conserva el nombre anterior; no hay marca de "modificado".
+- Validación: pruebas DSP, 58 comprobaciones en el simulador, emulador sin interfaz y CI en verde (commit 0508291). Nada instalado en el FM-1.
