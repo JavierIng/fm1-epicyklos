@@ -12,7 +12,7 @@
 | Hypnus Records, Toki Fuko, ambient | Drones, filtros que se mueven como agua, espacios grandes |
 
 Consecuencias concretas:
-- Tempo hasta **150 BPM** (antes 40–200; se mantiene, pero los presets por defecto cubren 120–140).
+- Rango de tempo 40–200 BPM; los proyectos de inicio, entre 120 y 140.
 - **METAL**: modos 808 y **909** (hat/ride con ruido + metálico).
 - **GRAVE**: modo "industrial" (drive y cola de rumble más larga).
 
@@ -31,3 +31,21 @@ Consecuencias concretas:
 Envío A: delay dub → (opcional) envío a B. Envío B: **PLACA**. Inserto del master: **MAREA** u otro filtro. Por pista: inserto opcional **RESONADOR**.
 
 Sin medir en el chip no se puede tener todo a la vez: MAREA (16 bandas) + PLACA + delay + 6 motores + 6 compresores probablemente supera el presupuesto de un núcleo. Por eso habrá un **medidor de CPU** y los efectos pesados se elegirán uno a uno.
+
+## Delay: tipos y lo que lo saca de lo normal
+
+Un buffer, tres tipos (KNOB TIPO en la página DELAY):
+
+| Tipo | Carácter | Cómo |
+|---|---|---|
+| **TAPE** | Eco de cinta dub: oscuro, con wow/flutter, saturación que crece con el feedback, desgaste | Interpolación con la velocidad de cinta modulada; cambiar el tiempo **desliza el tono** como al mover la velocidad de un Space Echo, en vez de saltar |
+| **BBD** | Analógico de cubos (bucket brigade): más oscuro, ruido de reloj, compansión, granulado al alargar el tiempo | Remuestreo a la frecuencia del "reloj" del BBD, filtro anti-alias, compansor; tiempos largos = más sucio |
+| **PINGPONG** | Estéreo alternando L/R, limpio o con color | El buffer partido en dos (2 × 0,75 s) con cruce de feedback |
+
+Lo que lo hace distinto de un delay normal (todo opcional, a medir en CPU):
+- **Cabezales múltiples** (TAPE): 3 cabezales a 1×, 2× y 3× con combinaciones, como los ecos de cinta de dub.
+- **Feedback resonante:** el RESONADOR (SMR) dentro del lazo de feedback, afinado a la escala → los ecos se convierten en notas.
+- **Filtro en el lazo con barrido:** cada repetición más oscura o más fina; un knob que barre en vivo.
+- **Duck del delay por el bombo:** las repeticiones respiran con el kick.
+- **Throw** (REC), **freeze** (HOME+REC, el buffer queda en bucle) y **auto-oscilación controlada** (sirena dub con el limitador interno).
+- **Cinta que se degrada** (modo largo para drone): cada pasada pierde agudos y gana ruido, a lo Basinski.

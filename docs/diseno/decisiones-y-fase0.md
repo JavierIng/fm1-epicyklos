@@ -17,17 +17,16 @@
 | Estética | Punto de partida "Nebulosa": fondo casi negro azulado, un color por pista, vista orbital, popup grande al girar un knob con explicación |
 | Nombre | **EPICYKLOS** (provisional; epi + Cyklos = "epiciclo"). Repo previsto: `JavierIng/fm1-epicyklos` |
 
-## Mezclador y cadena master
+## Mezclador y cadena master (revisado 11 nov, 12:30)
 
-- **Por pista:**
-  - nivel, pan, mute y solo;
-  - envío A (delay) y envío B (reverb);
-  - compresor sencillo (cantidad + velocidad);
-  - duck desde la pista del bombo;
-  - corte de graves y drive.
+- **Por pista:** nivel, pan, mute, solo, envío A (delay), envío B (reverb), duck desde la pista del bombo,
+  corte de graves y drive. **Sin compresor por pista.**
+- **Un solo compresor**, en la salida (compresor de bus), y **una sola reverb** (PLACA, tipo Plateau).
 - **Master:** retornos A/B → filtro DJ → EQ de 3 bandas → compresor de bus → saturación de cinta → limitador.
-- **Delay dub:** 16 bit a 22 kHz, 1,5 s; freeze y throw.
-- **Coste estimado** (sin verificar en el chip): ~3.300–3.800 ciclos por muestra de un presupuesto de ~4.900, en un solo núcleo. Los modelos pesados de MACRO pueden exceder ese presupuesto. Los motores tendrán una clase de coste, y el segundo núcleo será un extra.
+- **Delay** con tipos: **TAPE**, **BBD** y **PINGPONG** (ver `ideas-referencias.md`, "Delay").
+  Un único buffer de 16 bit a 22 kHz (~1,5 s, 66 KB) que cada tipo usa a su manera.
+- **Coste estimado** (sin verificar en el chip): al quitar los 6 compresores, ~3.000–3.500 ciclos por muestra
+  de ~4.900. Los modelos pesados de MACRO y MAREA de 16 bandas siguen pudiendo pasarse.
 
 ## Mapa del panel (cambia por las 6 pistas)
 
@@ -71,9 +70,9 @@
   - Cómo: clang 18 + wasi-sysroot 25 + un sustituto de `emcc`.
   - Prueba headless en Node: arranca, responde a teclas, dibuja la pantalla y suena (pico 0,09).
   - Publicada como página de prueba.
+- **Repo:** `JavierIng/fm1-epicyklos`, primer commit subido el 11 nov (esqueleto de la Fase 0, CI en GitHub Actions).
 - **Pendiente:**
   - comprobar que la página suena en el navegador de Javier;
-  - repo en GitHub (falta el acceso);
   - prueba de C++ con el toolchain de JieLi en GitHub Actions;
   - mapa real de RAM y flash de la plantilla.
 - **No disponible:** el shell del Mac (una VM Linux) no tiene salida a internet. Desde ahí no se instala nada, pero sirve para dejar y leer archivos en `~/Documents/FM1`.
