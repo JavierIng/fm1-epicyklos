@@ -84,5 +84,22 @@ se activa de golpe y se suelta para volver. **Son del proyecto** (como la mezcla
 - **Cómo se crean:** mantener la tecla de la escena y girar knobs: lo que gires queda guardado en la escena.
 - **Coste:** las escenas no cuestan CPU; la reducción de bits y el stutter, poco.
 - **Fase:** después de los efectos del master (Fase 3), porque mueven sus parámetros: Fase 3–4.
-- **Pendiente de decidir:** "beat reduction" = reducción de bits (Rytm: BR/SRR) o repetición de pasos (beat repeat).
-  Propuestas las dos.
+- **Decidido (11 nov, 16:58): las dos.** REDUCCIÓN (bits + frecuencia de muestreo, como BR/SRR del Rytm) en la
+  cadena del master, y STUTTER (repetición de 1/4, 1/8, 1/16 o 1/32 con el buffer del delay).
+
+## MODULACIÓN: LFOs y seguidores de envolvente (propuesta 11 nov, 16:58)
+
+| Fuente | Dónde | Qué es |
+|---|---|---|
+| **LFO de pista** (1 por pista) | Página MOVIMIENTO de cada pista | Formas: seno, triángulo, sierra, cuadrada, S&H, aleatorio suave. Sincronizado (1/16 .. 64 compases) o libre. Reinicio: libre, por compás o por cambio de patrón. 1 destino de la pista + profundidad |
+| **DERIVA** (en la misma página) | Por pista | Paseo aleatorio muy lento sobre la afinación y el tono: lo que hace "vivir" a un drone |
+| **LFO globales** (2) | Página MOD del master | Igual que los de pista, pero para el master y los efectos: un barrido de filtro de 32 compases, el tiempo del delay que respira |
+| **SEGUIDORES** (2) | Página MOD del master | Siguen el nivel de una pista (o del master) con ataque y caída: el bombo abre el delay, la percusión cierra el filtro del acorde, el bajo "bombea" la reverb. El DUCK es un caso de estos (seguidor del bombo → bajar volumen) |
+
+- Cada fuente global tiene **2 destinos** con su cantidad (+/−). Suficiente para el dub sin convertir la pantalla en
+  una matriz ilegible de 4 knobs; si se queda corto, se amplía.
+- **Coste:** los LFOs se calculan una vez por bloque de control (32 muestras): casi nada. Un seguidor ≈ 5 ciclos por
+  muestra. Lo caro sería modular a ritmo de audio; no se hará salvo en los motores que lo lleven dentro.
+- Las **ESCENAS** pueden mover profundidades y velocidades de LFO (p. ej. una escena que acelera el LFO del filtro).
+- **Fase:** el LFO de pista y la deriva con los motores (Fases 2b–5); los LFO globales y seguidores con los efectos
+  del master (Fase 3).
