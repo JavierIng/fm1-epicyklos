@@ -1,0 +1,215 @@
+{
+  "format": "rubato-plaits-chord-table",
+  "version": 1,
+  "table": {
+    "id": "joe-mcmullen",
+    "packageId": "joe-mcmullen/disastrous-peace",
+    "version": "1.0.1",
+    "digest": "sha256:08ff8f6a26c128247f689f0043bfce02c7f25ae25e57065fb9f78606a8507b85",
+    "name": "Disastrous Peace",
+    "author": "Joe McMullen",
+    "license": "MIT",
+    "origin": "Community",
+    "description": "Eighteen key-relative voicings descending by thirds with strong voice leading.",
+    "chords": [
+      {
+        "id": "iv-six-nine",
+        "name": "iv 6/9",
+        "voices": [
+          500,
+          1200,
+          1900,
+          2600
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "ii-dim-7-sus4",
+        "name": "iiø 7sus4",
+        "voices": [
+          1400,
+          800,
+          1900,
+          2400
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "vii-six",
+        "name": "VII 6",
+        "voices": [
+          1000,
+          1700,
+          1900,
+          2600
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "v-minor-11",
+        "name": "v m11",
+        "voices": [
+          700,
+          1400,
+          2200,
+          2400
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "iii-add4",
+        "name": "III add4",
+        "voices": [
+          1500,
+          1000,
+          1900,
+          2000
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "i-add-flat-13",
+        "name": "i add♭13",
+        "voices": [
+          1200,
+          1900,
+          2000,
+          2700
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "vi-add-sharp-11",
+        "name": "VI add♯11",
+        "voices": [
+          800,
+          1500,
+          2400,
+          2600
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "iv-minor-6",
+        "name": "iv m6",
+        "voices": [
+          1700,
+          1200,
+          2000,
+          2600
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "ii-diminished",
+        "name": "ii°",
+        "voices": [
+          1400,
+          1700,
+          2000,
+          2300
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "vii-diminished",
+        "name": "vii°",
+        "voices": [
+          1100,
+          1400,
+          1700,
+          2000
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "v-dominant-7",
+        "name": "V7",
+        "voices": [
+          700,
+          1400,
+          1700,
+          2300
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "iii-add-flat-9",
+        "name": "iii add♭9",
+        "voices": [
+          400,
+          700,
+          1700,
+          2300
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "i-major-7",
+        "name": "I maj7",
+        "voices": [
+          1200,
+          700,
+          1600,
+          2300
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "vi-minor-9",
+        "name": "vi m9",
+        "voices": [
+          900,
+          1200,
+          1600,
+          2300
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "iv-major-9",
+        "name": "IV maj9",
+        "voices": [
+          500,
+          1200,
+          1900,
+          2100
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "ii-minor-7",
+        "name": "ii m7",
+        "voices": [
+          1400,
+          900,
+          1700,
+          2400
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "i-major-7-sus4",
+        "name": "I maj7sus4/vii",
+        "voices": [
+          1100,
+          500,
+          1900,
+          2400
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "v-dominant-7-sus4",
+        "name": "V 7sus4",
+        "voices": [
+          700,
+          1400,
+          1700,
+          2400
+        ],
+        "arpLength": 4
+      }
+    ]
+  }
+}

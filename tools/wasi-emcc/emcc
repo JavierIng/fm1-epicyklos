@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Javier Sánchez
+# A minimal stand-in for Emscripten's emcc (un sustituto mínimo de emcc), for machines without Emscripten:
+# clang (>= 16, with the wasm32 target and wasm-ld) + wasi-sysroot, building a WASI "reactor" module.
+# Only what base/tools/build.py --web asks for: STANDALONE_WASM, no JS glue, no filesystem.
+#   WASI_SYSROOT  path to wasi-sysroot (wasi-sdk release asset wasi-sysroot-25.0.tar.gz)
+#   WASI_RT       path to libclang_rt.builtins-wasm32.a (libclang_rt.builtins-wasm32-wasi-25.0.tar.gz)
+#   tools/get_wasi.sh downloads both into tools/wasi-emcc/.cache
+import os, subprocess, sys
+here = os.path.dirname(os.path.abspath(__file__))
+cache = os.path.join(here, ".cache")
+sysroot = os.environ.get("WASI_SYSROOT", os.path.join(cache, "wasi-sysroot-25.0"))
+rt = os.environ.get("WASI_RT", os.path.join(cache, "libclang_rt.builtins-wasm32-wasi-25.0", "libclang_rt.builtins-wasm32.a"))
+args = sys.argv[1:]
+if args == ["--version"]:
+    print("emcc (clang + wasi-sysroot stand-in) 0.0.0")
+    sys.exit(0)
+link = "-c" not in args
+stack, memory, out = "1048576", "33554432", []
+for a in args:
+    if a.startswith("-s"):                                   # Emscripten settings
+        key, _, val = a[2:].partition("=")
+        if key == "STACK_SIZE": stack = val
+        elif key == "INITIAL_MEMORY": memory = val
+        continue
+    if a == "--no-entry":
+        continue
+    out.append(a)
+cmd = ["clang", "--target=wasm32-wasip1", f"--sysroot={sysroot}", "-D__EMSCRIPTEN__=0",
+       "-mbulk-memory", "-mnontrapping-fptoint", "-msign-ext", "-mmutable-globals", *out]
+if link:
+    cmd += ["-mexec-model=reactor", f"-Wl,-z,stack-size={stack}", f"-Wl,--initial-memory={memory}",
+            "-Wl,--export-dynamic", "-Wl,--strip-all", "-nodefaultlibs", "-lc", "-lm", rt]
+sys.exit(subprocess.call(cmd))

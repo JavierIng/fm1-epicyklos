@@ -1,0 +1,281 @@
+{
+  "format": "rubato-plaits-chord-table",
+  "version": 1,
+  "table": {
+    "id": "neo-riemannian",
+    "packageId": "local/neo-riemannian",
+    "version": "draft",
+    "digest": null,
+    "name": "Tonnetz Walk",
+    "author": "Rubato Audio",
+    "license": "MIT",
+    "origin": "Local",
+    "description": "The complete L/R cycle: all 24 major and minor triads, voice-led, each sharing two pitches with its neighbors — the names turn flats to sharps at E♭m → B, where that pair reads E♭/D♯ and G♭/F♯. Position 24 wraps to 1. Labels assume root C.",
+    "chords": [
+      {
+        "id": "nr-c",
+        "name": "C",
+        "voices": [
+          1200,
+          1600,
+          1900,
+          2400
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-am",
+        "name": "Am",
+        "voices": [
+          2100,
+          1200,
+          1600,
+          2400
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-f",
+        "name": "F",
+        "voices": [
+          1700,
+          1200,
+          2100,
+          2400
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-dm",
+        "name": "Dm",
+        "voices": [
+          1400,
+          1700,
+          2100,
+          2600
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-bb",
+        "name": "B♭",
+        "voices": [
+          2200,
+          1400,
+          1700,
+          2600
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-gm",
+        "name": "Gm",
+        "voices": [
+          1900,
+          1400,
+          2200,
+          2600
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-eb",
+        "name": "E♭",
+        "voices": [
+          1500,
+          1900,
+          2200,
+          2700
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-cm",
+        "name": "Cm",
+        "voices": [
+          2400,
+          1500,
+          1900,
+          2700
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-ab",
+        "name": "A♭",
+        "voices": [
+          2000,
+          1500,
+          2400,
+          2700
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-fm",
+        "name": "Fm",
+        "voices": [
+          1700,
+          2000,
+          2400,
+          2900
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-db",
+        "name": "D♭",
+        "voices": [
+          2500,
+          1700,
+          2000,
+          2900
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-bbm",
+        "name": "B♭m",
+        "voices": [
+          2200,
+          1700,
+          2500,
+          2900
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-gb",
+        "name": "G♭",
+        "voices": [
+          1800,
+          2200,
+          2500,
+          3000
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-ebm",
+        "name": "E♭m",
+        "voices": [
+          2700,
+          1800,
+          2200,
+          3000
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-b",
+        "name": "B",
+        "voices": [
+          2300,
+          1800,
+          2700,
+          3000
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-gsm",
+        "name": "G♯m",
+        "voices": [
+          2000,
+          2300,
+          2700,
+          3200
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-e",
+        "name": "E",
+        "voices": [
+          2800,
+          2000,
+          2300,
+          3200
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-csm",
+        "name": "C♯m",
+        "voices": [
+          2500,
+          2000,
+          2800,
+          3200
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-a",
+        "name": "A",
+        "voices": [
+          2100,
+          2500,
+          2800,
+          3300
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-fsm",
+        "name": "F♯m",
+        "voices": [
+          3000,
+          2100,
+          2500,
+          3300
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-d",
+        "name": "D",
+        "voices": [
+          2600,
+          2100,
+          3000,
+          3300
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-bm",
+        "name": "Bm",
+        "voices": [
+          2300,
+          2600,
+          3000,
+          3500
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-g",
+        "name": "G",
+        "voices": [
+          3100,
+          2300,
+          2600,
+          3500
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "nr-em",
+        "name": "Em",
+        "voices": [
+          2800,
+          2300,
+          3100,
+          3500
+        ],
+        "arpLength": 3
+      }
+    ]
+  }
+}

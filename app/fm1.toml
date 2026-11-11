@@ -1,0 +1,23 @@
+# EPICYKLOS build settings (base/tools/build.py)
+name = "EPICYKLOS"            # APP_NAME is in app.h; this names the build's files
+id_prefix = "FM-1_57"          # package identity (provisional: check it is free before the first release)
+title = "EPICYKLOS"            # the name people see (firmware hubs)
+usb_manufacturer = "Cyklos"
+usb_product = "EPICYKLOS FM-1"
+o2 = []                        # separate units compiled at -O2 (an app's DSP)
+words = "words.tsv"
+ble = true                     # Bluetooth MIDI (--no-ble builds without it)
+ble_central = true             # and the FM-1 connects to Bluetooth MIDI devices too
+ble_stack = "own"              # fm1-base's own Bluetooth stack: no JieLi binaries linked (required for GPL-3.0)
+# the site (tools/make_site.py, tools/publish_site.sh)
+tagline = "dub techno, ambient and drone instrument for the FM-1"
+repo = "https://github.com/JavierIng/fm1-epicyklos"
+licence = "GPL-3.0-only"
+credits = "Built on fm1-base (Charles Vestal) and felucca-bsp (Leo Kuroshita, Hügelton Instruments)."
+# firmware.json, for firmware hubs (docs/FIRMWARE-JSON.md): the build writes it from these and the keys above
+author = "Javier Sánchez (Cyklos)"
+description = "Work in progress: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Phase 0: the fm1-base template, renamed."
+tags = ["groovebox", "ambient", "generative", "sequencer"]
+install = ""
+site = ""
+screenshot = "docs/img/screen-playing.png"   # for the hubs' cards: a square PNG, at least 240 x 240, in your repository

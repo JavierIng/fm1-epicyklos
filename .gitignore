@@ -1,0 +1,5 @@
+app/build/
+build/
+tools/wasi-emcc/.cache/
+__pycache__/
+.DS_Store

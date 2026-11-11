@@ -1,0 +1,138 @@
+{
+  "format": "rubato-plaits-chord-table",
+  "version": 1,
+  "table": {
+    "id": "original",
+    "packageId": "mutable-instruments/original-chords",
+    "version": "1.0.0",
+    "digest": "sha256:042e540f57efed394b7e034c64217cf0d73e06eb04c135e51e935bf94d2419ca",
+    "name": "Original",
+    "author": "Mutable Instruments",
+    "license": "MIT",
+    "origin": "Mutable Instruments",
+    "description": "The classic eleven Plaits chord positions in their original knob order.",
+    "chords": [
+      {
+        "id": "octave",
+        "name": "Octave",
+        "voices": [
+          0,
+          1,
+          1199,
+          1200
+        ],
+        "arpLength": 1
+      },
+      {
+        "id": "fifth",
+        "name": "Fifth",
+        "voices": [
+          0,
+          700,
+          701,
+          1200
+        ],
+        "arpLength": 2
+      },
+      {
+        "id": "sus4",
+        "name": "Sus4",
+        "voices": [
+          0,
+          500,
+          700,
+          1200
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "minor",
+        "name": "Minor",
+        "voices": [
+          0,
+          300,
+          700,
+          1200
+        ],
+        "arpLength": 3
+      },
+      {
+        "id": "minor-7",
+        "name": "Minor 7th",
+        "voices": [
+          0,
+          300,
+          700,
+          1000
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "minor-9",
+        "name": "Minor 9th",
+        "voices": [
+          0,
+          300,
+          1000,
+          1400
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "minor-11",
+        "name": "Minor 11th",
+        "voices": [
+          0,
+          300,
+          1000,
+          1700
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "six-nine",
+        "name": "6/9",
+        "voices": [
+          0,
+          200,
+          900,
+          1600
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "major-9",
+        "name": "Major 9th",
+        "voices": [
+          0,
+          400,
+          1100,
+          1400
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "major-7",
+        "name": "Major 7th",
+        "voices": [
+          0,
+          400,
+          700,
+          1100
+        ],
+        "arpLength": 4
+      },
+      {
+        "id": "major",
+        "name": "Major",
+        "voices": [
+          0,
+          400,
+          700,
+          1200
+        ],
+        "arpLength": 3
+      }
+    ]
+  }
+}
