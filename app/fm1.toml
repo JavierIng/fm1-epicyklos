@@ -4,10 +4,11 @@ id_prefix = "FM-1_57"          # package identity (provisional: check it is free
 title = "EPICYKLOS"            # the name people see (firmware hubs)
 usb_manufacturer = "Cyklos"
 usb_product = "EPICYKLOS FM-1"
-o2 = []                        # separate units compiled at -O2 (an app's DSP)
 words = "words.tsv"
+o2 = ["dsp/*.cpp"]             # the DSP core (núcleo DSP): C++, compiled apart at -O2
+o2_cflags = ["-std=c++14", "-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics", "-fno-use-cxa-atexit"]
 ble = true                     # Bluetooth MIDI (--no-ble builds without it)
-ble_central = true             # and the FM-1 connects to Bluetooth MIDI devices too
+ble_central = false            # Bluetooth MIDI devices (the FM-1 as central): phase 6
 ble_stack = "own"              # fm1-base's own Bluetooth stack: no JieLi binaries linked (required for GPL-3.0)
 # the site (tools/make_site.py, tools/publish_site.sh)
 tagline = "dub techno, ambient and drone instrument for the FM-1"
@@ -16,7 +17,7 @@ licence = "GPL-3.0-only"
 credits = "Built on fm1-base (Charles Vestal) and felucca-bsp (Leo Kuroshita, Hügelton Instruments)."
 # firmware.json, for firmware hubs (docs/FIRMWARE-JSON.md): the build writes it from these and the keys above
 author = "Javier Sánchez (Cyklos)"
-description = "Work in progress: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Phase 0: the fm1-base template, renamed."
+description = "Work in progress: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Phase 1: six tracks of a test voice on an euclidean sequencer, the orbit and mixer views."
 tags = ["groovebox", "ambient", "generative", "sequencer"]
 install = ""
 site = ""

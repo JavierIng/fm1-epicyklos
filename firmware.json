@@ -5,13 +5,14 @@
   "author": "Javier Sánchez (Cyklos)",
   "license": "GPL-3.0-only",
   "tagline": "dub techno, ambient and drone instrument for the FM-1",
-  "description": "Work in progress: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Phase 0: the fm1-base template, renamed.",
+  "description": "Work in progress: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Phase 1: six tracks of a test voice on an euclidean sequencer, the orbit and mixer views.",
   "tags": ["groovebox", "ambient", "generative", "sequencer"],
   "source": "https://github.com/JavierIng/fm1-epicyklos",
+  "screenshot": "app/docs/img/screen-playing.png",
   "hardware": {
     "models": ["FM-1"],
     "flash": ["856014", "B36014"],
-    "features": ["bluetooth-midi", "bluetooth-midi-devices", "usb-audio-in", "usb-audio-out", "velocity", "pressure", "screen-reader"]
+    "features": ["bluetooth-midi", "usb-audio-in", "usb-audio-out", "velocity", "pressure", "screen-reader"]
   },
   "credits": "Built on fm1-base (Charles Vestal) and felucca-bsp (Leo Kuroshita, Hügelton Instruments)."
 }
