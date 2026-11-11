@@ -39,7 +39,8 @@
   rotación, no la longitud; MEZCLA solo pan y envíos, nunca el nivel). HOME+ARP deshace. ARP + ALGORITHM = cuánto.
   ARP + girar un knob = bloquear ese parámetro.
 - **Mute y solo por pista** (ya en la Fase 1): en todas las vistas HOME+pista = mute; en MEZCLA pista = mute y
-  HOME+pista = solo. Mute y solo son de la actuación: no se guardan en el patrón.
+  HOME+pista = solo. **Mute y solo son del proyecto, no del patrón:** al cambiar de patrón se mantienen (si
+  silencias el bombo, sigue silenciado). El mute se guarda con el proyecto; el solo no (al cargar, nada en solo).
 - Fases: patrones en memoria, cambio en cola y aleatorio en la **Fase 2**; guardado en flash y nombres en la **Fase 6**.
 
 ## Mapa del panel (cambia por las 6 pistas)
