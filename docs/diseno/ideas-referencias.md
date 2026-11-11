@@ -30,7 +30,7 @@ Consecuencias concretas:
 
 Envío A: delay dub → (opcional) envío a B. Envío B: **PLACA**. Inserto del master: **MAREA** u otro filtro. Por pista: inserto opcional **RESONADOR**.
 
-Sin medir en el chip no se puede tener todo a la vez: MAREA (16 bandas) + PLACA + delay + 6 motores + 6 compresores probablemente supera el presupuesto de un núcleo. Por eso habrá un **medidor de CPU** y los efectos pesados se elegirán uno a uno.
+Sin medir en el chip no se puede tener todo a la vez: MAREA (16 bandas) + PLACA + delay + 6 motores probablemente supera el presupuesto de un núcleo. Por eso habrá un **medidor de CPU** y los efectos pesados se elegirán uno a uno.
 
 ## Delay: tipos y lo que lo saca de lo normal
 

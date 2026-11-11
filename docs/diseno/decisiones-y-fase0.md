@@ -15,7 +15,7 @@
 | Velocidad/presión en teclas | Sí (experimental en la base). *Pendiente en el dispositivo* |
 | USB audio multipista | Sí: 6 pistas + mezcla (8 canales). *Pendiente en el dispositivo* |
 | Estética | Punto de partida "Nebulosa": fondo casi negro azulado, un color por pista, vista orbital, popup grande al girar un knob con explicación |
-| Nombre | **EPICYKLOS** (provisional; epi + Cyklos = "epiciclo"). Repo previsto: `JavierIng/fm1-epicyklos` |
+| Nombre | **EPICYKLOS** (provisional; epi + Cyklos = "epiciclo"). Repo: `JavierIng/fm1-epicyklos` |
 
 ## Mezclador y cadena master (revisado 11 nov, 12:30)
 
