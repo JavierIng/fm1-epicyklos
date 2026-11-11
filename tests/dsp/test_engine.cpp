@@ -3,6 +3,7 @@
 // Host tests of the DSP core (pruebas del núcleo DSP en el ordenador): timing to the sample, trigger counts,
 // mute/solo, no NaN, levels. Writes tests/dsp/out/groove.wav to listen to.
 //   c++ -std=c++14 -O2 -I app/dsp -I base/include tests/dsp/test_engine.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_engine
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -46,7 +47,7 @@ static std::vector<long> trigger_times(int track, float seconds) {
 int main() {
     // 1. Timing: track 1, 1/16 at 124 BPM, 4 euclidean hits in 16 -> one hit every 4 steps = one beat
     epk_init(SR);
-    epk_pattern_select(3);                                       // ORBITA: kick 4 in 16, stab 3 in 12
+    epk_pattern_select(0, 3);                                       // ORBITA: kick 4 in 16, stab 3 in 12
     epk_play(1);
     std::vector<long> t = trigger_times(0, 4.0f);
     const double beat = 60.0 / 124.0 * SR;                       // samples per beat
@@ -59,7 +60,7 @@ int main() {
 
     // 2. Polymetry: track 3 has 12 steps, track 1 has 16; after 48 steps both are back at step 0 together
     epk_init(SR);
-    epk_pattern_select(3);
+    epk_pattern_select(0, 3);
     epk_play(1);
     float l[256], r[256];
     const long steps48 = (long)std::lround(48.0 * 60.0 / 124.0 / 4.0 * SR);
@@ -84,7 +85,7 @@ int main() {
 
     // 4. A groove, 8 s: no NaN, a sane level; written out to listen to (para escuchar)
     epk_init(SR);
-    epk_pattern_select(3);
+    epk_pattern_select(0, 3);
     epk_play(1);
     std::vector<float> L, R;
     float peak = 0.0f, sum2 = 0.0f;
@@ -119,14 +120,14 @@ int main() {
 
     // 6. Patterns (patrones): a change waits for the bar; mutes stay; edits stay in their pattern
     epk_init(SR);
-    epk_pattern_select(3);
+    epk_pattern_select(0, 3);
     epk_play(1);
     epk_render(l, r, 1);
     CHECK(epk_pattern_current() == 3, "stopped then play: pattern 4 now (got %d)", epk_pattern_current() + 1);
     const long sixteenth = (long)std::lround(60.0 / 124.0 / 4.0 * SR);
     for (long i = 1; i < 5 * sixteenth; i++) epk_render(l, r, 1);  // five sixteenths into the bar
     epk_mute(0, 1);
-    epk_pattern_select(7);                                       // APOGEO: no kick
+    epk_pattern_select(0, 7);                                       // APOGEO: no kick
     long switched = -1;
     for (long i = 5 * sixteenth; i < 20 * sixteenth; i++) {
         epk_render(l, r, 1);
@@ -139,19 +140,19 @@ int main() {
     CHECK(epk_step(2) >= 0 && epk_step(2) <= 4, "the new pattern restarted its steps (track 3 at %d)", epk_step(2));
     epk_param_set(2, EPK_P_TONE, 0.123f);                        // an edit on APOGEO
     epk_play(0);
-    epk_pattern_select(4);
+    epk_pattern_select(0, 4);
     epk_render(l, r, 1);
     CHECK(epk_pattern_current() == 4, "stopped: the change is immediate");
-    epk_pattern_select(7);
+    epk_pattern_select(0, 7);
     epk_render(l, r, 1);
     CHECK(std::fabs(epk_param_get(2, EPK_P_TONE) - 0.123f) < 1e-6f, "the edit stayed in its pattern (%.3f)",
           epk_param_get(2, EPK_P_TONE));
-    CHECK(std::strcmp(epk_pattern_name(0), "NEBULA") == 0, "pattern names");
+    CHECK(std::strcmp(epk_pattern_name(0, 0), "NEBULA") == 0, "pattern names");
 
     // 7. Every factory pattern plays without NaN or overload (los 16 patrones suenan)
     for (int pt = 0; pt < EPK_PATTERNS; pt++) {
         epk_init(SR);
-        epk_pattern_select(pt);
+        epk_pattern_select(0, pt);
         epk_play(1);
         float pk = 0.0f;
         int bad = 0;
@@ -162,8 +163,121 @@ int main() {
                 pk = std::fmax(pk, std::fabs(l[i]));
             }
         }
-        CHECK(bad == 0 && pk > 0.05f && pk < 1.0f, "pattern %d %s: peak %.3f, %d bad", pt + 1, epk_pattern_name(pt),
+        CHECK(bad == 0 && pk > 0.05f && pk < 1.0f, "pattern %d %s: peak %.3f, %d bad", pt + 1, epk_pattern_name(0, pt),
               pk, bad);
+    }
+
+    // 8. Steps by hand (pasos a mano): a toggle makes the track manual; ROTATE still turns it; euclid comes back
+    epk_init(SR);
+    epk_pattern_select(0, 3);
+    epk_render(l, r, 1);
+    const uint32_t eu = epk_pattern(0);                           // kick: 4 in 16 -> steps 0 4 8 12
+    CHECK(eu == 0x1111u, "kick mask %x (expected 1111)", eu);
+    epk_step_toggle(0, 2);
+    epk_step_toggle(0, 4);
+    epk_render(l, r, 1);
+    CHECK(epk_steps_manual(0) && epk_pattern(0) == 0x1105u, "after toggles: manual %d mask %x (expected 1105)",
+          epk_steps_manual(0), epk_pattern(0));
+    epk_param_set(0, EPK_P_ROTATE, 1.0f / 31.0f);
+    CHECK(epk_pattern(0) == 0x220Au, "rotated by one: %x (expected 220a)", epk_pattern(0));
+    epk_step_set(0, 3, EPK_PROB_50, EPK_COND_1_2);                // step 3 as it plays = index 2 before rotation
+    epk_render(l, r, 1);
+    CHECK(epk_step_prob(0, 3) == EPK_PROB_50 && epk_step_cond(0, 3) == EPK_COND_1_2, "step chance and condition");
+    epk_param_set(0, EPK_P_ROTATE, 0.0f);
+    CHECK(epk_step_prob(0, 2) == EPK_PROB_50, "the step's chance turns with the pattern");
+    epk_steps_euclid(0);
+    epk_render(l, r, 1);
+    CHECK(!epk_steps_manual(0) && epk_pattern(0) == 0x1111u, "back to euclid: %x", epk_pattern(0));
+
+    // 9. Conditions and chance (condiciones y azar): track 1 alone, one hit on step 0, 16 cycles
+    {
+        const long cyc = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
+        struct { int prob, cond; unsigned lo, hi; } cases[] = {
+            {EPK_PROB_100, EPK_COND_NONE, 16, 16}, {EPK_PROB_100, EPK_COND_1_2, 8, 8}, {EPK_PROB_100, EPK_COND_2_2, 8, 8},
+            {EPK_PROB_100, EPK_COND_3_4, 4, 4}, {EPK_PROB_50, EPK_COND_NONE, 3, 13}, {EPK_PROB_25, EPK_COND_NONE, 1, 9}};
+        for (auto &c : cases) {
+            epk_init(SR);
+            epk_pattern_select(0, 3);
+            epk_render(l, r, 1);
+            epk_param_set(0, EPK_P_HITS, 1.0f / 16.0f);
+            epk_step_set(0, 0, c.prob, c.cond);
+            epk_play(1);
+            for (long i = 0; i + 256 < 16 * cyc; i += 256) epk_render(l, r, 256);
+            const unsigned n = epk_triggers(0);
+            CHECK(n >= c.lo && n <= c.hi, "prob %d cond %d: %u triggers in 16 cycles (expected %u..%u)", c.prob,
+                  c.cond, n, c.lo, c.hi);
+        }
+    }
+
+    // 10. Random and undo (aleatorio y deshacer); banks (bancos)
+    epk_init(SR);
+    epk_pattern_select(0, 3);
+    epk_render(l, r, 1);
+    float before[EPK_TRACKS][EPK_P_PATTERN_COUNT];
+    for (int t = 0; t < EPK_TRACKS; t++) for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) before[t][q] = epk_param_get(t, q);
+    epk_undo_save();
+    epk_pattern_randomize(12345);
+    epk_render(l, r, 1);
+    int changed = 0;
+    for (int t = 0; t < EPK_TRACKS; t++) for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) changed += epk_param_get(t, q) != before[t][q];
+    CHECK(changed > 20, "the random pattern changed %d parameters", changed);
+    CHECK(epk_engine(0) == EPK_ENG_GRAVE && epk_engine(1) == EPK_ENG_METAL, "the tracks keep their engines");
+    CHECK(epk_undo_ready(), "undo is ready");
+    epk_undo_restore();
+    epk_render(l, r, 1);
+    changed = 0;
+    for (int t = 0; t < EPK_TRACKS; t++) for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) changed += epk_param_get(t, q) != before[t][q];
+    CHECK(changed == 0 && !epk_undo_ready(), "undo brought the pattern back (%d differ)", changed);
+    epk_mute(0, 1);
+    epk_pattern_select(3, 6);                                    // bank D, pattern 7
+    epk_render(l, r, 1);
+    CHECK(epk_bank_current() == 3 && epk_pattern_current() == 6 && epk_muted(0), "bank D pattern 7, mute kept");
+    CHECK(std::strcmp(epk_pattern_name(3, 6), "GEN D07") == 0, "generated name: %s", epk_pattern_name(3, 6));
+    const float d7 = epk_param_get(2, EPK_P_NOTE);
+    epk_pattern_select(0, 3);
+    epk_render(l, r, 1);
+    epk_pattern_select(3, 6);
+    epk_render(l, r, 1);
+    CHECK(epk_param_get(2, EPK_P_NOTE) == d7, "a generated bank is the same every time");
+    // every generated pattern plays clean (los 160 generados suenan limpios)
+    {
+        int bad = 0, quiet = 0;
+        float worst = 0.0f;
+        for (int b = 1; b < EPK_BANKS; b++)
+            for (int pt = 0; pt < EPK_PATTERNS; pt++) {
+                epk_init(SR);
+                epk_pattern_select(b, pt);
+                epk_play(1);
+                float pk = 0.0f;
+                for (int k = 0; k < (int)(2.0f * SR / 256); k++) {
+                    epk_render(l, r, 256);
+                    for (int i = 0; i < 256; i++) { if (!std::isfinite(l[i])) bad++; pk = std::fmax(pk, std::fabs(l[i])); }
+                }
+                quiet += pk < 0.03f;
+                worst = std::fmax(worst, pk);
+            }
+        CHECK(bad == 0 && quiet == 0 && worst < 1.0f, "generated banks: %d bad samples, %d silent patterns, peak %.3f",
+              bad, quiet, worst);
+    }
+
+    // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
+    {
+        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL"};
+        double base = 0.0;
+        for (int e = 0; e < EPK_ENG_COUNT; e++) {
+            epk_init(SR);
+            for (int t = 0; t < EPK_TRACKS; t++) {
+                epk_param_set(t, EPK_P_ENGINE, (float)e / (float)(EPK_ENG_COUNT - 1));
+                epk_param_set(t, EPK_P_HITS, 0.5f);
+            }
+            epk_play(1);
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int k = 0; k < (int)(20.0f * SR / 256); k++) epk_render(l, r, 256);
+            const double ns = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - t0).count() /
+                              (20.0 * SR) / EPK_TRACKS;
+            if (e == 0) base = ns;
+            std::printf("cost %-5s %6.1f ns per sample per voice on this machine, x%.2f of TEST\n", kName[e], ns, ns / base);
+        }
     }
 
     std::printf(failures ? "dsp: %d FAILED\n" : "dsp: all passed\n", failures);
