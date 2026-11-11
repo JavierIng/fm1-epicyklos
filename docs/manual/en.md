@@ -39,6 +39,8 @@ Each track has a sound engine (ENGINE page [MOTOR], K1). So far:
   ring [ANILLO], variation [VARÍA].
 - **GOLPE** (track 6): clap, snare or rim. Tune [AFINA], type [TIPO: PALMA → CAJA → ARO], brightness, decay,
   body [CUERPO], tail [COLA].
+- **TAMBOR** (chosen in ENGINE; the default on track 6 in some patterns): toms, congas and metallic
+  percussion. Tune, timbre (round tom to metallic), FM (how bright the attack is), decay, sweep, click.
 - **PRUEBA** (tracks 3-5): a placeholder voice until the engines of phases 4 and 5 arrive. It has attack
   [ATAQUE] (ENGINE page, K4): the sound comes in at once or slowly.
 

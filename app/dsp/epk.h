@@ -41,7 +41,7 @@ enum {
 };
 
 /* engines (motores) */
-enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_COUNT };
+enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_COUNT };
 
 /* a step's chance (probabilidad) and condition (condición): N:M plays on the Nth of every M cycles */
 enum { EPK_PROB_100, EPK_PROB_75, EPK_PROB_50, EPK_PROB_25, EPK_PROB_COUNT };

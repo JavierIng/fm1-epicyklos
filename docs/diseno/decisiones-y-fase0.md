@@ -151,3 +151,9 @@
 - **ATAQUE** en la voz de prueba (MOTOR, K4): 1 ms a ~1,4 s; la caída empieza al terminar el ataque. Los motores de percusión no lo usan.
 - Páginas: SONIDO · MOTOR · RITMO · GROOVE · MEZCLA.
 - Validación: pruebas DSP (13 bloques), 62 comprobaciones en el simulador, emulador sin interfaz. Nada instalado en el FM-1.
+
+## Fase 2d (2026-11-11, noche)
+
+- **GOLPE corregido** tras la prueba de Javier ("los knobs cambian poco"): rangos más anchos (BRILLO 350 Hz–8,5 kHz, CAÍDA hasta ~2 s), AFINA mueve también la banda de ruido, CUERPO actúa en los tres tipos. Hay una prueba que exige que cada knob cambie la energía o el brillo al menos un 25 % en palma, caja y aro.
+- **Knobs más rápidos:** 40 clics de punta a punta en los parámetros continuos (antes 64); HOME sigue dando el ajuste fino.
+- **TAMBOR** (toms, congas, percusión metálica; 2 operadores FM). Se elige en MOTOR; por defecto en la pista 6 de PULSAR, PERIGEO, FOSFORO y CUASAR, y en parte de los patrones generados.

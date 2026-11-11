@@ -139,7 +139,7 @@ void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1
     b[EPK_P_CHARACTER] = ch;
     b[EPK_P_TONE] = tone;
     b[EPK_P_DECAY] = dec;
-    b[EPK_P_ENGINE] = (float)kEngine[i] / (float)(EPK_ENG_COUNT - 1);
+    b[EPK_P_ENGINE] = (float)kEngine[i] / (float)(EPK_ENG_COUNT - 1);   // set_engine() changes it afterwards
     b[EPK_P_EXTRA1] = e1;
     b[EPK_P_EXTRA2] = e2;
     b[EPK_P_ATTACK] = 0.0f;
@@ -154,6 +154,8 @@ void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1
     for (uint8_t &m : s.meta) m = 0;
 }
 
+inline void set_engine(int pt, int i, int eng) { g.bank[pt][i][EPK_P_ENGINE] = (float)eng / (float)(EPK_ENG_COUNT - 1); }
+
 void fill_factory(int pt) {
     for (int i = 0; i < EPK_TRACKS; i++) {
         const TrackSpec &k = kFactory[pt][i];
@@ -162,6 +164,12 @@ void fill_factory(int pt) {
         if (i == 0 && pt == 8) e2 = 0.75f;                           // ECLIPSE: more rumble (más rumble)
         if (i == 0 && pt == 13) e2 = 0.85f;                          // NADIR
         if (kEngine[i] == EPK_ENG_GOLPE) {                           // rim at the start, clap, snare at the peak
+            if (pt == 4 || pt == 6 || pt == 10 || pt == 11) {        // PULSAR, PERIGEO, FOSFORO, CUASAR: a tom / conga
+                set_spec(pt, i, pt == 10 ? 57 : 50, pt == 11 ? 0.55f : 0.15f, 0.35f, 0.40f, 0.35f, 0.30f, k.length, k.hits,
+                         k.rotate, k.division);
+                set_engine(pt, i, EPK_ENG_TAMBOR);
+                continue;
+            }
             const float type = pt < 3 ? 0.95f : pt >= 8 && pt < 12 ? 0.50f : 0.05f;
             set_spec(pt, i, 52, type, k.tone, k.decay, 0.5f, 0.4f, k.length, k.hits, k.rotate, k.division);
             continue;
@@ -224,7 +232,12 @@ void generate(int pt, uint32_t seed) {
         const float body = rr(r, 0.30f, 0.80f), tail = rr(r, 0.20f, 0.70f);
         const int back = r.unipolar() < 0.45f;
         const int len = back ? 16 : kLen[ri(r, 12)], hits = back ? 2 : 1 + ri(r, len * 3 / 10 + 1);
-        set_spec(pt, 5, 48 + ri(r, 10), type, tone, dec, body, tail, len, hits, back ? 4 : ri(r, len), EPK_DIV_1_16);
+        if (!back && r.unipolar() < 0.5f) {                          // or a tom / conga / metallic hit (TAMBOR)
+            set_spec(pt, 5, 43 + ri(r, 24), r.unipolar(), rr(r, 0.10f, 0.70f), rr(r, 0.20f, 0.60f), rr(r, 0.0f, 0.60f),
+                     rr(r, 0.0f, 0.50f), len, hits, ri(r, len), EPK_DIV_1_16);
+            set_engine(pt, 5, EPK_ENG_TAMBOR);
+        } else
+            set_spec(pt, 5, 48 + ri(r, 10), type, tone, dec, body, tail, len, hits, back ? 4 : ri(r, len), EPK_DIV_1_16);
     }
     for (int i = 2; i < EPK_TRACKS; i++)                             // now and then a track rests (descansa)
         if (r.unipolar() < 0.10f) g.bank[pt][i][EPK_P_HITS] = 0.0f;

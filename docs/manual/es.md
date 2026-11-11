@@ -36,6 +36,8 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 - **GRAVE** (pista 1): bombo. NOTA, DRIVE (de limpio a industrial), CLICK, CAÍDA, BARRIDO, RUMBLE (cola grave).
 - **METAL** (pista 2): platos tipo 808/909. AFINA, METAL (de ruido a metálico), BRILLO, CAÍDA, ANILLO, VARÍA.
 - **GOLPE** (pista 6): palma, caja o aro. AFINA, TIPO (PALMA → CAJA → ARO), BRILLO, CAÍDA, CUERPO, COLA.
+- **TAMBOR** (se elige en MOTOR; por defecto en la pista 6 de algunos patrones): toms, congas y percusión
+  metálica. AFINA, TIMBRE (de tom redondo a metálico), FM (brillo del ataque), CAÍDA, BARRIDO, CLICK.
 - **PRUEBA** (pistas 3-5): voz provisional hasta que lleguen los motores de las fases 4 y 5. Tiene ATAQUE
   (página MOTOR, K4): el sonido entra de golpe o poco a poco.
 

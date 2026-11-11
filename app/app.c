@@ -46,13 +46,14 @@ static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_SWING, EPK_P_SHIFT, SLOT_NONE, SLOT_NONE},
     {EPK_P_LEVEL, EPK_P_PAN, SLOT_LATER, SLOT_LATER},   /* delay / reverb sends: phase 3 (fase 3) */
 };
-static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE"};
+static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR"};
 /* what NOTE, CHARACTER, TONE, DECAY, EXTRA1, EXTRA2, ATTACK are in each engine (0 = unused) */
 static const char *const SND_NAME[EPK_ENG_COUNT][7] = {
     {"NOTA", "CARACTER", "TONO", "CAIDA", 0, 0, "ATAQUE"},
     {"NOTA", "DRIVE", "CLICK", "CAIDA", "BARRIDO", "RUMBLE", 0},
     {"AFINA", "METAL", "BRILLO", "CAIDA", "ANILLO", "VARIA", 0},
     {"AFINA", "TIPO", "BRILLO", "CAIDA", "CUERPO", "COLA", 0},
+    {"AFINA", "TIMBRE", "FM", "CAIDA", "BARRIDO", "CLICK", 0},
 };
 static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
     {"La nota de la secuencia", "Seno con caida, sierra, ruido", "Hasta donde se abre el filtro",
@@ -62,7 +63,9 @@ static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
     {"Afinacion del metal", "De ruido (909) a metal (808)", "Mas oscuro o mas brillante", "Cerrado o abierto",
      "Resonancia: mas campana", "Cada golpe dura distinto", 0},
     {"Afinacion del cuerpo", "Palma, caja o aro", "Mas oscuro o mas brillante", "Cuanto dura el golpe",
-     "Cuanto cuerpo afinado lleva", "Cola de ruido; abre la palma", 0},
+     "Cuerpo afinado; en palma, un golpe grave", "Cola de ruido; abre la palma", 0},
+    {"Afinacion del tambor", "De tom redondo a metalico", "Brillo del ataque", "Cuanto dura el golpe",
+     "Cuanto cae el tono al golpear", "El chasquido del ataque", 0},
 };
 static const char *const SLOT_LATER_NAME[2] = {"ENVIO A", "ENVIO B"};   /* MIX page, phase 3 */
 static const char *const DIV_NAME[EPK_DIV_COUNT] = {"1/32", "1/16T", "1/16", "1/8T", "1/8", "1/4"};
@@ -407,7 +410,7 @@ static void turn_param(int page, int slot, int32_t detents, int fine)
     } else if (steps)
         v += (float)detents / (float)(steps - 1);
     else
-        v += (float)detents / (fine ? 400.0f : 64.0f);
+        v += (float)detents / (fine ? 400.0f : 40.0f);   /* 40 clicks end to end (de punta a punta) */
     epk_param_set(ui.track, p, fm_clampf(v, 0.0f, 1.0f));
     ui.pop_param = p;
     ui.pop_until = ui.view == VIEW_STEPS ? 0u : plat_ms() + 1000u;   /* the steps stay in sight (a la vista) */

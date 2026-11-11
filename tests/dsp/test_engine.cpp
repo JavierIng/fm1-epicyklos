@@ -325,9 +325,45 @@ int main() {
         std::printf("GOLPE type %.1f: peak %.3f\n", type, pk);
     }
 
+    // 14. GOLPE's knobs change the sound (los knobs cambian el sonido), and TAMBOR sounds: the energy of a hit
+    // must move by at least 25 % between a knob's ends, for each type.
+    {
+        auto energy = [&](int eng, float type, int param, float v) {
+            epk_init(SR);
+            for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
+            epk_param_set(5, EPK_P_ENGINE, (float)eng / (float)(EPK_ENG_COUNT - 1));
+            epk_param_set(5, EPK_P_CHARACTER, type);
+            if (param >= 0) epk_param_set(5, param, v);
+            epk_note_on(5, 52, 1.0f);
+            double e = 0.0, hi = 0.0;
+            float prev = 0.0f;
+            for (int k = 0; k < 120; k++) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) { e += (double)l[i] * l[i]; hi += (double)(l[i] - prev) * (l[i] - prev); prev = l[i]; }
+            }
+            return std::make_pair(e, hi / (e + 1e-12));              // energy, and how bright (brillo)
+        };
+        static const int kKnob[4] = {EPK_P_TONE, EPK_P_DECAY, EPK_P_EXTRA1, EPK_P_EXTRA2};
+        static const char *const kKnobName[4] = {"TONE", "DECAY", "EXTRA1", "EXTRA2"};
+        for (float type : {0.0f, 0.5f, 1.0f})
+            for (int k = 0; k < 4; k++) {
+                const auto a = energy(EPK_ENG_GOLPE, type, kKnob[k], 0.05f), b = energy(EPK_ENG_GOLPE, type, kKnob[k], 0.95f);
+                const double de = std::fabs(a.first - b.first) / std::fmax(a.first, b.first);
+                const double db = std::fabs(a.second - b.second) / std::fmax(a.second, b.second);
+                std::printf("GOLPE type %.1f %-6s: energy moves %3.0f %%, brightness %3.0f %%\n", type, kKnobName[k], de * 100, db * 100);
+                CHECK(de > 0.25 || db > 0.25, "GOLPE type %.1f: %s changes the sound by %.0f %% / %.0f %%", type,
+                      kKnobName[k], de * 100, db * 100);
+            }
+        for (float type : {0.0f, 0.5f, 1.0f}) {
+            const auto t0 = energy(EPK_ENG_TAMBOR, type, -1, 0.0f);
+            CHECK(epk_engine(5) == EPK_ENG_TAMBOR && t0.first > 1.0 && std::isfinite(t0.first), "TAMBOR type %.1f: energy %.2f",
+                  type, t0.first);
+        }
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
-        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE"};
+        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR"};
         double base = 0.0;
         for (int e = 0; e < EPK_ENG_COUNT; e++) {
             epk_init(SR);
