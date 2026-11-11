@@ -60,13 +60,13 @@ jobs:
       - run: sudo apt-get install -y -qq libfribidi0
       - run: pip install -q pillow fonttools
       - run: sh base/tools/get_toolchain.sh "$HOME/.jieli"
-      - name: JieLi AC79 SDK (the three files a package needs)
+      - name: JieLi AC79 SDK (fetched at the tested revision and checked by hash: base/bsp/tools/get_sdk.sh)
         run: |
-          git clone -q --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
+          sh base/bsp/tools/get_sdk.sh "$HOME/.jieli/ac79-sdk"
+          echo "AC79_SDK=$HOME/.jieli/ac79-sdk" >> "$GITHUB_ENV"
       - run: ./build.sh
       - name: Size report (memoria usada)
-        run: ls -l app/build/*.fwsc app/build/*.bin; cat app/build/*.map 2>/dev/null | head -0 || true
+        run: ls -l app/build/*.fwsc app/build/*.bin; ls app/build
       - uses: actions/upload-artifact@v4
         with:
           name: firmware-dev
