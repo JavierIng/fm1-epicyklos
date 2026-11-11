@@ -60,7 +60,7 @@ jobs:
       - run: sudo apt-get install -y -qq libfribidi0
       - run: pip install -q pillow fonttools
       - run: sh base/tools/get_toolchain.sh "$HOME/.jieli"
-      - name: JieLi AC79 SDK (fetched at the tested revision and checked by hash: base/bsp/tools/get_sdk.sh)
+      - name: "JieLi AC79 SDK (tested revision, checked by hash; base/bsp/tools/get_sdk.sh)"
         run: |
           sh base/bsp/tools/get_sdk.sh "$HOME/.jieli/ac79-sdk"
           echo "AC79_SDK=$HOME/.jieli/ac79-sdk" >> "$GITHUB_ENV"
