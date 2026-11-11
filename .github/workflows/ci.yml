@@ -59,7 +59,10 @@ jobs:
           submodules: recursive
       - run: sudo apt-get install -y -qq libfribidi0
       - run: pip install -q pillow fonttools
-      - run: sh base/tools/get_toolchain.sh "$HOME/.jieli"
+      - name: JieLi toolchain
+        run: |
+          sh base/tools/get_toolchain.sh "$HOME/.jieli"
+          echo "JIELI_TOOLCHAIN=$(readlink -f "$HOME/.jieli/toolchain")" >> "$GITHUB_ENV"
       - name: JieLi AC79 SDK (gitee, fixed tag, as zvenson/fm1-build does)
         run: |
           for i in 1 2 3; do
