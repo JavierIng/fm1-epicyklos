@@ -70,9 +70,24 @@
   - Cómo: clang 18 + wasi-sysroot 25 + un sustituto de `emcc`.
   - Prueba headless en Node: arranca, responde a teclas, dibuja la pantalla y suena (pico 0,09).
   - Publicada como página de prueba.
-- **Repo:** `JavierIng/fm1-epicyklos`, primer commit subido el 11 nov (esqueleto de la Fase 0, CI en GitHub Actions).
+- **Repo:** `JavierIng/fm1-epicyklos`. CI en GitHub Actions en verde (11 nov): pruebas, emulador, prueba de C++ y firmware.
+- **Prueba de C++ con el compilador del FM-1 (clang 4.0.1 de JieLi, pi32v2): OK.** Compila el subconjunto
+  (clases con init(), plantillas, constexpr, float), sin runtime de C++ ni constructores globales. Falta enlazarlo
+  dentro del firmware (Fase 1).
+- **Firmware de la plantilla compilado** (`epicyklos.fwsc`, 614.938 B, identidad FM-1_5700, Bluetooth con pila propia).
+  Memoria medida por el build:
+
+  | Recurso | Usado | Total | Libre |
+  |---|---:|---:|---:|
+  | Código en flash (imagen) | 147.092 B | ~573.000 B | ~426.000 B |
+  | Código en RAM (.ram_text) | 5.576 B | 32.768 B | 27.192 B |
+  | RAM .data + .bss | 40.216 B | 98.304 B | 58.088 B |
+  | Pool de RAM | 69.384 B | 344.064 B | 274.680 B |
+
+  → Quedan **~330 KB de RAM** para la app (antes estimábamos 150–250 KB). Comprobaciones del build: sin
+  multiplicaciones de 64 bit junto a lecturas, sin double por software, sin nada de JieLi en Bluetooth.
 - **Pendiente:**
-  - comprobar que la página suena en el navegador de Javier;
-  - prueba de C++ con el toolchain de JieLi en GitHub Actions;
-  - mapa real de RAM y flash de la plantilla.
+  - comprobar que la página del emulador suena en el navegador de Javier;
+  - enlazar código C++ dentro del firmware (Fase 1);
+  - CPU real: solo en el dispositivo (Fase 7).
 - **No disponible:** el shell del Mac (una VM Linux) no tiene salida a internet. Desde ahí no se instala nada, pero sirve para dejar y leer archivos en `~/Documents/FM1`.
