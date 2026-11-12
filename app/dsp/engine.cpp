@@ -501,9 +501,10 @@ void epk_init(float sample_rate) {
                                             0.72f, 0.45f, 0.40f, 0.75f, 0.35f,
                                             0.5f, 0.30f, 0.0f, 0.30f, 0.15f,    // master: open, glue, a little tape
                                             0.0f,                               // the DJ filter
-                                            // MAREA on track 3: slow, forwards, two cycles, a little ripple and pull
-                                            3.0f / 6.0f, 0.75f, 0.62f, 0.0f, 0.25f, 0.30f, 0.0f, 1.0f, 0.30f,
-                                            0.22f, 0.93f, 0.45f, 0.80f};
+                                            // MAREA on track 3, to be heard: all wet, ~3 s a cycle forwards, two
+                                            // cycles, some ripple and pull, narrowish bands, full width
+                                            3.0f / 6.0f, 1.0f, 0.75f, 0.0f, 0.25f, 0.35f, 0.0f, 1.0f, 0.35f,
+                                            0.22f, 0.93f, 0.60f, 1.0f};
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();

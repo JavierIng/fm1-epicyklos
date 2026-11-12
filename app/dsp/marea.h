@@ -33,7 +33,7 @@ inline float marea_speed_hz(float v, int sync, float bpm) {
         const int i = (int)((a - 0.04f) / 0.96f * 7.99f);
         return sign * bpm / (240.0f * kBars[i]);
     }
-    return sign * 0.01f * fm_exp2f((a - 0.04f) / 0.96f * 9.0f);  // 0.01 .. 5 Hz
+    return sign * 0.03f * fm_exp2f((a - 0.04f) / 0.96f * 7.0f);  // 0.03 .. 3.8 Hz: the middle of each half ~0.3 Hz
 }
 
 struct Marea {
@@ -41,12 +41,12 @@ struct Marea {
     SvfCoef coef[kMareaBands];
     float gain[kMareaBands];                     // each band's level now (nivel de cada banda)
     float phase;
-    float reso_set;
+    float reso_set, makeup;
     int sub;
 
     void init() {
         for (int b = 0; b < kMareaBands; b++) { band[b].clear(); gain[b] = 1.0f; }
-        phase = 0.0f; reso_set = -1.0f; sub = 0;
+        phase = 0.0f; reso_set = -1.0f; makeup = 0.8f; sub = 0;
     }
     void clear() { for (int b = 0; b < kMareaBands; b++) band[b].clear(); }
 
@@ -78,6 +78,7 @@ struct Marea {
             reso_set = reso;
             const float k = 0.9f - 0.84f * reso;
             for (int b = 0; b < kMareaBands; b++) coef[b].set(marea_band_hz(b), k, sr);
+            makeup = 0.8f * fm_powf(0.41f / k, 0.75f);                 // narrow bands keep the level (mismo nivel)
         }
         // the bands split between the sides at fixed frequencies; WIDTH 0 = mono (ancho)
         const float near = 1.0f + width, far = 1.0f - width;
@@ -95,9 +96,8 @@ struct Marea {
                 const float y = bb * coef[b].k * gain[b];                // unity at the peak
                 if (b & 1) { yl += y * far; yr += y * near; } else { yl += y * near; yr += y * far; }
             }
-            const float wet = 0.8f;                                      // the bank's make-up (compensación)
-            out_l[i] = in[i] + (yl * wet - in[i]) * mix;
-            out_r[i] = in[i] + (yr * wet - in[i]) * mix;
+            out_l[i] = in[i] + (yl * makeup - in[i]) * mix;
+            out_r[i] = in[i] + (yr * makeup - in[i]) * mix;
         }
     }
 };

@@ -128,7 +128,7 @@ what its manual describes, but the algorithm is our own and does not sound the s
   < back; yellow when locked to the tempo).
 - It comes out in stereo: that track's PAN works as a balance. Sends A and B already get the sound with MAREA.
 - Modulation destinations: MAR VELOC, MAR MULTI, MAR RIZO, MAR DESFASE, MAR GRAVEDAD and MAR MEZCLA.
-- By default it sits on track 3 with mix 75.
+- By default it sits on track 3, fully wet (mix 100), travelling forwards at about 3 s a cycle, full width.
 
 ### Dub gestures (REC)
 - **Hold REC:** throw. The selected track goes to the delay at full while you hold it, even with its send at 0.

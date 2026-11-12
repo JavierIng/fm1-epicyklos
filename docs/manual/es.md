@@ -122,7 +122,7 @@ controles hacen lo que su manual describe, pero el algoritmo es propio y no suen
   la velocidad (> avanza, < vuelve; en amarillo si va al tempo).
 - Sale en estéreo: el PAN de esa pista funciona como balance. Los envíos A y B reciben ya el sonido con MAREA.
 - Destinos de modulación: MAR VELOC, MAR MULTI, MAR RIZO, MAR DESFASE, MAR GRAVEDAD y MAR MEZCLA.
-- De inicio está en la pista 3 con MEZCLA 75.
+- De inicio está en la pista 3, toda mojada (MEZCLA 100), avanzando a unos 3 s por vuelta y con ANCHO a tope.
 
 ### Gestos de dub (REC)
 - **Mantener REC:** throw. La pista elegida va al eco a tope mientras lo mantienes, aunque su envío esté a 0.

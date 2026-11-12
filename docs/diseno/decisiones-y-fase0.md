@@ -206,3 +206,12 @@
 - Supuestos propios (el manual no da la fórmula): la ola es un seno con un segundo seno de rizo a 3,3× y −1,7× de velocidad; GRAVEDAD eleva la altura a una potencia (1–9); la pendiente y la ganancia del área no se pueden ajustar. Los LFO/SEQ/envolvente propios de Slink no se copian: se usa la vista MOD.
 - Pantalla: la curva de la ola sobre las frecuencias, bordes del área punteados y velocidad arriba.
 - Validación: MEZCLA 0 = seco; en otra pista no toca la 3; quieta no cambia el color (x1,04), en marcha sí (x2,1); ANCHO 0 es mono exacto; VELOC centro = 0, por debajo negativa, con TEMPO arriba = 1/4 de compás por ciclo; INVIERTE al centro deja todo plano; una banda fuera del área no se mueve y una dentro sí; mojado ~88 % de la energía seca. 99 comprobaciones en el simulador.
+
+## MAREA más audible (2026-11-12)
+
+- Javier: "las funciones parecen correctas pero no se nota el cambio". Medido: la causa principal era la **velocidad** (la de inicio daba ~1 ciclo cada 27 s y el knob dedicaba casi todo su recorrido a velocidades lentísimas). Nueva curva: 0,03–3,8 Hz, con ~0,3 Hz en el centro de cada mitad.
+- Bandas finas mueven más el color pero bajaban el nivel (RESO 0,9 dejaba un 18 % de la energía): ahora una compensación según el ancho de banda mantiene el nivel (99–116 % del seco en todo el recorrido).
+- Inicio pensado para oírse: MEZCLA 100, VELOC ~3 s por ciclo, RESO 0,60, ANCHO 100, GRAVEDAD 0,35.
+- Resultado medido sobre una sierra sostenida: el cambio de color pasa de x1,22 a x3,08 con los valores de inicio.
+- MAREA ya iba antes del eco y la reverb (inserto de pista; los envíos reciben la señal procesada).
+- Pendiente de decidir: vista FLOW (cadena de efectos con activar/desactivar y, quizá, orden) y adelantar los motores de síntesis (ACORDE DUB, DRONE) para juzgar MAREA con pads reales.
