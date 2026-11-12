@@ -17,8 +17,8 @@ licence = "GPL-3.0-only"
 credits = "Built on fm1-base (Charles Vestal) and felucca-bsp (Leo Kuroshita, Hügelton Instruments)."
 # firmware.json, for firmware hubs (docs/FIRMWARE-JSON.md): the build writes it from these and the keys above
 author = "Javier Sánchez (Cyklos)"
-description = "Work in progress: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Phase 1: six tracks of a test voice on an euclidean sequencer, the orbit and mixer views."
+description = "Work in progress, a test release: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Euclidean sequencer with evolving patterns, tape delay, a Plateau-style plate with shimmer, a granular cloud, scenes. Screen text in Spanish."
 tags = ["groovebox", "ambient", "generative", "sequencer"]
-install = ""
-site = ""
+install = "https://javiering.github.io/fm1-epicyklos/install/"
+site = "https://javiering.github.io/fm1-epicyklos/"
 screenshot = "app/docs/img/screen-playing.png"   # for the hubs' cards: a square PNG, at least 240 x 240, in your repository

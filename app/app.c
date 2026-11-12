@@ -1975,6 +1975,18 @@ static void draw_foot(void)                       /* the page tabs and the four 
     cv_rect(0, 0, 240, 1, C_RULE);
     if (ui.btn >> B_HOME & 1u) {              /* HOME held: what it does with the rest (chuleta de HOME) */
         cv_text(6, 4, &FONT_XS, "HOME +", c);
+        {                                  /* the CPU (carga del audio) and the dropouts since it started (cortes) */
+            const uint32_t pct = plat_cpu_pct(), xr = plat_xruns();
+            char m[32], n[12];
+            m[0] = 0;
+            str_cat(m, "CPU ");
+            int_str((int32_t)pct, n);
+            str_cat(m, n);
+            str_cat(m, "%  CORTES ");
+            int_str((int32_t)xr, n);
+            str_cat(m, n);
+            cv_text(234 - text_w(&FONT_XS, m), 4, &FONT_XS, m, xr ? C_MUTE : pct >= 85u ? C_SOLO : C_LABEL);
+        }
         if (ui.view == VIEW_PATTERNS) {      /* in PATTERNS a white key saves (guarda) */
             cv_text(6, 19, &FONT_XS, "Blanca: guardar el patron como suena", C_TEXT);
             cv_text(6, 32, &FONT_XS, "en esa ranura del banco elegido.", C_TEXT);
@@ -2218,6 +2230,13 @@ void app_frame(void)
         if (ui.scene_held >= 0 && now - scenes_at >= 40u) {
             scenes_at = now;
             ui.dirty_main = 1;
+        }
+    }
+    if (ui.btn >> B_HOME & 1u) {              /* HOME held: the CPU meter refreshes (medidor de CPU) */
+        static uint32_t cpu_at;
+        if (now - cpu_at >= 300u) {
+            cpu_at = now;
+            ui.dirty_foot = 1;
         }
     }
         if (ui.view == VIEW_MOD && now - ui.meter_at >= 40u) {   /* the sources move (las fuentes se mueven) */

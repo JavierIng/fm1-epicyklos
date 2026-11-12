@@ -604,3 +604,8 @@ tap SEQ
 wait 30
 release HOME
 expect scenemode 0
+press HOME
+wait 400
+shot cpu.png
+release HOME
+wait 30

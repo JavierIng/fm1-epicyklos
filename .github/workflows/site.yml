@@ -1,0 +1,57 @@
+# Release build and site (versión de prueba + web del instalador) on GitHub Pages.
+# Started by hand (Actions > Site > Run workflow) with a version; nothing is installed on any FM-1 by this.
+name: Site
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version X.Y.Z (versión)"
+        required: true
+        default: "0.1.0"
+permissions:
+  contents: write
+jobs:
+  site:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Packages (paquetes), best effort
+        continue-on-error: true
+        run: sudo apt-get install -y -qq libfribidi0
+      - run: pip install -q pillow fonttools markdown
+      - name: JieLi toolchain
+        run: |
+          sh base/tools/get_toolchain.sh "$HOME/.jieli"
+          echo "JIELI_TOOLCHAIN=$(readlink -f "$HOME/.jieli/toolchain")" >> "$GITHUB_ENV"
+      - name: JieLi AC79 SDK
+        run: |
+          for i in 1 2 3; do
+            git clone -q --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+                https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK" && break
+            rm -rf "$HOME/fw-AC79_AIoT_SDK"; sleep 20
+          done
+          test -f "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/uboot.boot"
+          echo "AC79_SDK=$HOME/fw-AC79_AIoT_SDK" >> "$GITHUB_ENV"
+      - name: Release build (firmware)
+        run: ./build.sh --release "${{ inputs.version }}"
+      - name: Emulator (release)
+        run: |
+          sh tools/get_wasi.sh >/dev/null
+          PATH="$PWD/tools/wasi-emcc:$PATH" python3 base/tools/build.py app --web --release "${{ inputs.version }}"
+      - name: Site
+        run: python3 base/tools/make_site.py app "app/build/epicyklos-${{ inputs.version }}.fwsc" "${{ inputs.version }}" app/build/site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.version }}
+          path: app/build/epicyklos-${{ inputs.version }}.fwsc
+      - name: Push the site to gh-pages
+        run: |
+          cd app/build/site
+          git init -q -b gh-pages
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Site for EPICYKLOS ${{ inputs.version }} (from ${GITHUB_SHA::7})"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
