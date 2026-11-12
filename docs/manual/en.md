@@ -20,14 +20,14 @@ techno, hypnotic techno, ambient and drone.
 | FX SCL ENV LFO EDIT GLO | select track 1-6 | mute the track |
 | (in the MIX view) | mute the track | solo the track |
 | HOME | tap: ORBIT → MIX → EFFECTS → MOD [ÓRBITA / MEZCLA / EFECTOS / MOD] | the shift key |
-| PLAY | start / stop | — |
+| PLAY | start / stop | **freeze the evolution** of every track |
 | SELECT | change page | **tempo** (1 BPM per click) |
 | PRESETS | track level | the track's send to the delay |
 | K1-K4 | the page's 4 parameters | fine adjust |
 | OCT- / OCT+ | keyboard octave | — |
 | SAVE | PATTERNS view [PATRONES] | in PATTERNS, HOME + white key: **save** |
 | SEQ | STEPS view [PASOS] | — |
-| ARP | random | **undo** |
+| ARP | random; held + track: evolution on / off | **undo** |
 | REC | hold: **throw** the track to the delay | **freeze** the delay (on / off) |
 | ALGORITHM | a later phase | **master filter**, from any view |
 
@@ -60,25 +60,34 @@ Each track has a sound engine (ENGINE page [MOTOR], K1). So far:
 
 ## 5. Pages (SELECT)
 SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, division) · GROOVE (swing, shift
-[DESPLAZA]) · EVOLUTION [EVOLUCION] (mutate [MUTAR], every [CADA], return [VUELTA], absence [AUSENCIA]) · MIX [MEZCLA]
+[DESPLAZA], absence [AUSENCIA]) · EVOLUTION [EVOLUCION] (mutate [MUTAR], what [QUE], every [CADA], return [VUELTA]) · MIX [MEZCLA]
 (level, pan, A delay [A ECO], B reverb). They do not all fit, so the top line shows the previous, current and next
 page, with the page number.
 
 ### EVOLUTION: the pattern changes by itself
-Each track can drift little by little without you touching anything. The written pattern is not modified: an
-offset over it changes, and a pattern change or PLAY starts again from what is written.
+**It is per track:** the knobs show and change the selected track; each of the six has its own, saved with the
+pattern. Each track can drift little by little without you touching anything. The written pattern is not modified:
+an offset over it changes, and a pattern change or PLAY starts again from what is written.
 - **MUTATE [MUTAR]:** how much it changes each time. What changes: hits (one more or one fewer), rotation, tone,
   decay, character (in ACORDE, the chord) and, in ACORDE, DRONE and TEST, the note (a fourth, fifth or octave). It
   never leaves the track without hits: that is ABSENCE's job.
+- **What [QUE]:** what may change: all [TODO], rhythm [RITMO] (hits and rotation), sound [SONIDO] (tone, decay,
+  character/chord) or note [NOTA]. For example, hats on SOUND change colour without moving the groove; ACORDE on
+  SOUND changes chord in place.
 - **EVERY [CADA]:** every how many bars it changes: 1, 2, 4, 8 or 16. The first stretch always plays as written.
 - **RETURN [VUELTA]:** how much it goes back towards the written pattern each time. High: it strays a little and
   comes back. Low: it wanders far.
-- **ABSENCE [AUSENCIA]:** the chance that the track rests for that whole stretch. In dub, what you take out counts
-  as much as what plays.
+- **ABSENCE [AUSENCIA]** (on the GROOVE page, since it decides whether the track plays): the chance that it rests
+  for each stretch of EVERY bars. In dub, what you take out counts as much as what plays.
 - **Freeze:** MUTATE 0 and RETURN 0 leave the track as it is at that moment. If you like it, save it (section 6).
-- Bank A's patterns already evolve: hats every 2 bars, chord and bass every 4, drone every 8, percussion every 2 and
-  resting now and then. The kick does not move. Generated banks evolve too, in different amounts.
-- ARP on this page randomizes it within limits: ABSENCE at most 25 %.
+- **ARP held + a track button:** turns that track's evolution off or on. Off, it goes back to what is written at
+  the next bar and stays there; its knobs are kept for when you turn it on.
+- **HOME + PLAY:** freezes every track's evolution as it is now (shows CONGELADA); again, releases it.
+- On the EVOLUTION page, top right, six squares: bright = the track evolves; dim = MUTATE and ABSENCE at 0; grey =
+  turned off with ARP. The line marks the selected track.
+- In bank A, by default, **only the synths evolve** (chord and bass every 4 bars, drone every 8). Kick, hats and
+  percussion come still. Generated banks do the same, in different amounts.
+- ARP on these pages randomizes MUTATE, EVERY, RETURN and ABSENCE (ABSENCE at most 25 %); it leaves WHAT alone.
 
 ## 6. Patterns and banks (SAVE)
 - **Black keys = banks A to K. White keys = the bank's 16 patterns.**

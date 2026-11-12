@@ -62,6 +62,7 @@ struct Track {
     float m_tone, m_decay, m_char;
     int m_note, m_hits, m_rot;             // semitones, hits, steps
     int absent;                            // resting this stretch (en ausencia)
+    int evo_off;                           // evolution off for this track (apagada; del proyecto)
     uint32_t bars;                         // bars since play (compases desde PLAY)
     Rng evo;
     int thrown;                            // a dub throw to the delay (throw al eco)
@@ -93,6 +94,7 @@ struct Engine {
     int pattern, queued;                   // current, queued (-1 none)
     int bank_id, queued_bank;              // the bank in memory (banco en memoria), the queued pattern's
     uint16_t user_mask;                    // the current bank's slots that come from the store (guardados)
+    int evo_hold;                          // every track's evolution frozen (todo congelado)
     // what the store holds for the bank about to load (lo guardado del banco que va a cargar): written by the main
     // loop before the change, read when it loads. stage_bank -1 while it is being written
     volatile int stage_bank;
@@ -194,6 +196,7 @@ void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1
     b[EPK_P_EVERY] = 0.5f;                                           // 4 bars
     b[EPK_P_RETURN] = 0.3f;
     b[EPK_P_ABSENCE] = 0.0f;
+    b[EPK_P_SCOPE] = 0.0f;                                           // everything (todo)
     Steps &s = g.bank_steps[pt][i];
     s.mask = 0; s.manual = 0;
     for (uint8_t &m : s.meta) m = 0;
@@ -233,11 +236,11 @@ void fill_factory(int pt) {
         }
         set_spec(pt, i, k.note, k.character, k.tone, k.decay, e1, e2, k.length, k.hits, k.rotate, k.division);
     }
-    // the factory patterns move by themselves (se mueven solos), the kick holds the floor: hats every 2 bars, the
-    // chord every 4, the bass every 4, the drone every 8, the percussion every 2 and now and then resting
-    static const float kEvo[EPK_TRACKS][4] = {{0.0f, 0.5f, 0.3f, 0.0f},   {0.35f, 0.25f, 0.35f, 0.0f},
+    // the synths move by themselves (los sintes se mueven solos), the drums hold the groove: the chord every 4 bars,
+    // the bass every 4, the drone every 8; kick, hats and percussion still (quietos: MUTAR 0)
+    static const float kEvo[EPK_TRACKS][4] = {{0.0f, 0.5f, 0.3f, 0.0f},   {0.0f, 0.25f, 0.35f, 0.0f},
                                               {0.30f, 0.5f, 0.25f, 0.0f}, {0.20f, 0.5f, 0.30f, 0.0f},
-                                              {0.25f, 0.75f, 0.20f, 0.0f}, {0.20f, 0.25f, 0.30f, 0.15f}};
+                                              {0.25f, 0.75f, 0.20f, 0.0f}, {0.0f, 0.25f, 0.30f, 0.0f}};
     for (int i = 0; i < EPK_TRACKS; i++)
         for (int q = 0; q < 4; q++) g.bank[pt][i][EPK_P_MUTATE + q] = kEvo[i][q];
 }
@@ -311,14 +314,15 @@ void generate(int pt, uint32_t seed) {
     for (int i = 1; i < EPK_TRACKS; i++)                             // some steps by chance (pasos con azar)
         for (uint8_t &m : g.bank_steps[pt][i].meta)
             if (r.unipolar() < 0.12f) m = r.unipolar() < 0.5f ? EPK_PROB_50 : EPK_PROB_75;
-    for (int i = 1; i < EPK_TRACKS; i++) {                           // most tracks evolve (evolucionan)
+    for (int i = 1; i < EPK_TRACKS; i++) {                           // the synths evolve, the drums seldom
         float *b = g.bank[pt][i];
-        if (r.unipolar() < 0.65f) {
+        const int synth = i >= 2 && i <= 4;
+        if (r.unipolar() < (synth ? 0.75f : 0.0f)) {
             b[EPK_P_MUTATE] = rr(r, 0.10f, 0.45f);
             b[EPK_P_EVERY] = (float)(1 + ri(r, 3)) / 4.0f;              // 2, 4 or 8 bars
             b[EPK_P_RETURN] = rr(r, 0.15f, 0.45f);
         }
-        if (i >= 2 && r.unipolar() < 0.3f) b[EPK_P_ABSENCE] = rr(r, 0.05f, 0.25f);
+        if (synth && r.unipolar() < 0.3f) b[EPK_P_ABSENCE] = rr(r, 0.05f, 0.25f);
     }
 }
 
@@ -399,23 +403,40 @@ inline int melodic(const Track &t) {
 // A bar starts (empieza un compás): every EVERY bars each track pulls back towards its pattern by RETURN, changes by
 // MUTATE, and rests or not by ABSENCE.
 void evolve(Track &t) {
+    if (g.evo_hold) return;                                          // all frozen (todo congelado)
     const int every = every_bars(t);
     const uint32_t bar = t.bars++;
+    if (t.evo_off) {                                                 // off: the written pattern (lo escrito)
+        const uint32_t keep_bars = t.bars;
+        evo_reset(t);
+        t.bars = keep_bars;
+        return;
+    }
     if (bar == 0 || bar % (uint32_t)every) return;                 // the first stretch is the pattern as written
     const float a = t.p[EPK_P_MUTATE], back = t.p[EPK_P_RETURN];
+    const int scope = clampi((int)(t.p[EPK_P_SCOPE] * (EPK_SCOPE_COUNT - 1) + 0.5f), 0, EPK_SCOPE_COUNT - 1);
+    const int rhythm = scope == EPK_SCOPE_ALL || scope == EPK_SCOPE_RHYTHM;
+    const int sound = scope == EPK_SCOPE_ALL || scope == EPK_SCOPE_SOUND;
+    const int note = scope == EPK_SCOPE_ALL || scope == EPK_SCOPE_NOTE;
     const float keep = 1.0f - back;
     t.m_tone *= keep; t.m_decay *= keep; t.m_char *= keep;
     if (t.evo.unipolar() < back) t.m_hits = toward0(t.m_hits);
     if (t.evo.unipolar() < back) t.m_rot = toward0(t.m_rot);
     if (t.evo.unipolar() < back) t.m_note = 0;
+    if (!sound) t.m_tone = t.m_decay = t.m_char = 0.0f;              // what is out of scope is the pattern
+    if (!rhythm) t.m_hits = t.m_rot = 0;
+    if (!note) t.m_note = 0;
     if (a > 0.0f) {
         const int len = param_int(t, EPK_P_LENGTH), span = 1 + (int)(a * 3.0f);
-        t.m_tone = clamp_off(t.p[EPK_P_TONE], t.m_tone + a * 0.30f * t.evo.bipolar());
-        t.m_decay = clamp_off(t.p[EPK_P_DECAY], t.m_decay + a * 0.25f * t.evo.bipolar());
-        t.m_char = clamp_off(t.p[EPK_P_CHARACTER], t.m_char + a * 0.20f * t.evo.bipolar());
-        if (t.evo.unipolar() < a * 0.7f) t.m_hits = clampi(t.m_hits + (t.evo.bipolar() < 0.0f ? -1 : 1), -span, span);
-        if (t.evo.unipolar() < a * 0.6f) t.m_rot = (t.m_rot + (t.evo.bipolar() < 0.0f ? -1 : 1)) % len;
-        if (melodic(t) && t.evo.unipolar() < a * 0.5f) {             // a fourth, a fifth, an octave (cuarta, quinta)
+        if (sound) {
+            t.m_tone = clamp_off(t.p[EPK_P_TONE], t.m_tone + a * 0.30f * t.evo.bipolar());
+            t.m_decay = clamp_off(t.p[EPK_P_DECAY], t.m_decay + a * 0.25f * t.evo.bipolar());
+            t.m_char = clamp_off(t.p[EPK_P_CHARACTER], t.m_char + a * 0.20f * t.evo.bipolar());
+        }
+        if (rhythm && t.evo.unipolar() < a * 0.7f)
+            t.m_hits = clampi(t.m_hits + (t.evo.bipolar() < 0.0f ? -1 : 1), -span, span);
+        if (rhythm && t.evo.unipolar() < a * 0.6f) t.m_rot = (t.m_rot + (t.evo.bipolar() < 0.0f ? -1 : 1)) % len;
+        if (note && melodic(t) && t.evo.unipolar() < a * 0.5f) {    // a fourth, a fifth, an octave (cuarta, quinta)
             static const int8_t kMove[8] = {0, 5, 7, -5, -7, 12, -12, 3};
             t.m_note = kMove[clampi((int)(t.evo.unipolar() * 8.0f), 0, 7)];
         }
@@ -679,6 +700,7 @@ void epk_init(float sample_rate) {
     g.undo.ready = 0;
     g.queued_bank = 0;
     g.stage_bank = -1;
+    g.evo_hold = 0;
     load_bank(0);
     for (int i = 0; i < EPK_TRACKS; i++) {
         Track &t = g.tr[i];
@@ -696,6 +718,7 @@ void epk_init(float sample_rate) {
         t.gain = 1.0f; t.meter = 0.0f; t.triggers = 0; t.key_note = -1;
         t.chance.init(0x2545F491u * (uint32_t)(i + 1));
         t.evo.init(0x6C8E9CF5u * (uint32_t)(i + 3));
+        t.evo_off = 0;
         evo_reset(t);
         t.voice.init(param_int(t, EPK_P_ENGINE), 0x1234567u * (uint32_t)(i + 1));
     }
@@ -850,6 +873,7 @@ int epk_param_steps(int param) {
     case EPK_P_HITS: return 33;
     case EPK_P_DIVISION: return EPK_DIV_COUNT;
     case EPK_P_EVERY: return 5;
+    case EPK_P_SCOPE: return EPK_SCOPE_COUNT;
     case EPK_P_ENGINE: return EPK_ENG_COUNT;
     default: return 0;
     }
@@ -940,6 +964,27 @@ const char *epk_pattern_name(int bank, int pattern) {
 }
 int epk_every_bars(int track) { return valid(track) ? every_bars(g.tr[track]) : 1; }
 int epk_absent(int track) { return valid(track) && g.playing ? g.tr[track].absent : 0; }
+void epk_evolve_enable(int track, int on) { if (valid(track)) g.tr[track].evo_off = on ? 0 : 1; }
+int epk_evolve_enabled(int track) { return valid(track) ? !g.tr[track].evo_off : 0; }
+void epk_evolve_hold(int on) { g.evo_hold = on ? 1 : 0; }
+int epk_evolve_held(void) { return g.evo_hold; }
+// Version 1 had one parameter fewer per track (sin QUÉ): each record grows by a zero (TODO) after ABSENCE
+int epk_bank_upgrade(const uint8_t *in, int len, uint8_t *out, int max) {
+    const int n1 = EPK_P_PATTERN_COUNT - 1, rec1 = (n1 * 2 + 37) * EPK_TRACKS, size1 = EPK_BANK_HEAD + 8 * rec1;
+    if (len < size1 || max < EPK_BANK_OBJ_BYTES || in[0] != 'E' || in[1] != 'P' || in[2] != 'K' || in[3] != 'B' ||
+        in[4] != 1)
+        return 0;
+    for (int i = 0; i < EPK_BANK_HEAD; i++) out[i] = in[i];
+    out[4] = EPK_BANK_VERSION;
+    const uint8_t *src = in + EPK_BANK_HEAD;
+    uint8_t *dst = out + EPK_BANK_HEAD;
+    for (int r = 0; r < 8 * EPK_TRACKS; r++) {
+        for (int i = 0; i < n1 * 2; i++) *dst++ = *src++;
+        *dst++ = 0; *dst++ = 0;
+        for (int i = 0; i < 37; i++) *dst++ = *src++;
+    }
+    return EPK_BANK_OBJ_BYTES;
+}
 
 void epk_pattern_pack_live(uint8_t *out) {
     float b[EPK_P_PATTERN_COUNT];

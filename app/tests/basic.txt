@@ -427,3 +427,34 @@ wait 2500
 expect pattern 2
 expect saved 1
 shot guardado_b02.png
+# ARP held + a track button: that track's evolution off / on; HOME+PLAY freezes every track's
+tap SAVE
+wait 30
+expect view 0
+tap GLO
+wait 30
+press ARP
+tap ENV
+wait 30
+release ARP
+wait 30
+expect evo3 0
+expect track 5
+press ARP
+tap ENV
+wait 30
+release ARP
+wait 30
+expect evo3 1
+press HOME
+tap PLAY
+wait 30
+release HOME
+wait 30
+expect evohold 1
+shot evolucion_congelada.png
+press HOME
+tap PLAY
+wait 30
+release HOME
+expect evohold 0

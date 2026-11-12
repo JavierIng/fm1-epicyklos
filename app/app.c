@@ -49,8 +49,8 @@ static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_NOTE, EPK_P_CHARACTER, EPK_P_TONE, EPK_P_DECAY},
     {EPK_P_ENGINE, EPK_P_EXTRA1, EPK_P_EXTRA2, EPK_P_ATTACK},
     {EPK_P_LENGTH, EPK_P_HITS, EPK_P_ROTATE, EPK_P_DIVISION},
-    {EPK_P_SWING, EPK_P_SHIFT, SLOT_NONE, SLOT_NONE},
-    {EPK_P_MUTATE, EPK_P_EVERY, EPK_P_RETURN, EPK_P_ABSENCE},   /* evolution (evolución) */
+    {EPK_P_SWING, EPK_P_SHIFT, EPK_P_ABSENCE, SLOT_NONE},     /* ABSENCE: when it rests (cuándo descansa) */
+    {EPK_P_MUTATE, EPK_P_SCOPE, EPK_P_EVERY, EPK_P_RETURN},   /* evolution (evolución) */
     {EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B},   /* sends: A the delay, B the reverb */
 };
 static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};
@@ -102,6 +102,7 @@ static const char *param_name(int track, int p)
     case EPK_P_EVERY: return "CADA";
     case EPK_P_RETURN: return "VUELTA";
     case EPK_P_ABSENCE: return "AUSENCIA";
+    case EPK_P_SCOPE: return "QUE";
     case EPK_P_LEVEL: return "NIVEL";
     case EPK_P_PAN: return "PAN";
     case EPK_P_SEND_A: return "A ECO";
@@ -122,7 +123,8 @@ static const char *param_hint(int track, int p)
     case EPK_P_MUTATE: return "Cuanto cambia cada vez";
     case EPK_P_EVERY: return "Cada cuantos compases cambia";
     case EPK_P_RETURN: return "Cuanto vuelve al patron";
-    case EPK_P_ABSENCE: return "Probabilidad de que descanse";
+    case EPK_P_ABSENCE: return "Que descanse cada CADA compases";
+    case EPK_P_SCOPE: return "Ritmo, sonido, nota o todo";
     case EPK_P_LEVEL: return "Volumen de la pista";
     case EPK_P_PAN: return "Izquierda o derecha";
     case EPK_P_SEND_A: return "Cuanto va al eco";
@@ -473,6 +475,11 @@ static void param_str(int track, int p, char *b)
     }
     case EPK_P_ROTATE: int_str(i, b); break;
     case EPK_P_DIVISION: str_cat(b, DIV_NAME[i]); break;
+    case EPK_P_SCOPE: {
+        static const char *const SC[EPK_SCOPE_COUNT] = {"TODO", "RITMO", "SONIDO", "NOTA"};
+        str_cat(b, SC[i]);
+        break;
+    }
     case EPK_P_EVERY:                      /* bars (compases) */
         int_str(epk_every_bars(track), b);
         str_cat(b, epk_every_bars(track) == 1 ? " COMP" : " COMPS");
@@ -602,14 +609,31 @@ static uint8_t obj_buf[PLAT_STORE_MAX];
 static uint8_t obj_buf[PLAT_STORE_MAX] __attribute__((section(".pool")));   /* the device's spare RAM (pool) */
 #endif
 
+/* obj_buf holds an older layout: rewritten in place as the current one (por la cola, sin otro búfer grande) */
+static int upgrade_buf(int n)
+{
+    static uint8_t tmp[EPK_BANK_OBJ_BYTES]
+#ifndef PLAT_HOST
+        __attribute__((section(".pool")))
+#endif
+        ;
+    int m = epk_bank_upgrade(obj_buf, n, tmp, (int)sizeof tmp), i;
+    for (i = 0; i < m; i++)
+        obj_buf[i] = tmp[i];
+    return m;
+}
+
 /* What the store holds for a bank, handed to the core before the bank loads (antes de cargar el banco) */
 static void stage_bank(int bank)
 {
     int half, n;
     epk_bank_stage_begin(bank);
     for (half = 0; half < 2; half++)
-        if ((n = plat_store_load(OBJ_BANK0 + (uint32_t)(bank * 2 + half), obj_buf, sizeof obj_buf)) > 0)
+        if ((n = plat_store_load(OBJ_BANK0 + (uint32_t)(bank * 2 + half), obj_buf, sizeof obj_buf)) > 0) {
+            if (n >= 5 && obj_buf[4] < EPK_BANK_VERSION)   /* an older layout: converted (convertido) */
+                n = upgrade_buf(n);
             epk_bank_stage_half(bank, half, obj_buf, n);
+        }
 }
 
 /* The pattern as it sounds now into a slot of a bank (a una ranura), kept in the store; in the current bank also
@@ -619,6 +643,8 @@ static int save_pattern(int bank, int slot)
     const uint32_t obj = OBJ_BANK0 + (uint32_t)(bank * 2 + slot / 8);
     const int half = slot / 8;
     int n = plat_store_load(obj, obj_buf, sizeof obj_buf);
+    if (n >= 5 && obj_buf[4] < EPK_BANK_VERSION)
+        n = upgrade_buf(n);
     if (n < EPK_BANK_OBJ_BYTES || obj_buf[0] != 'E' || obj_buf[1] != 'P' || obj_buf[2] != 'K' || obj_buf[3] != 'B' ||
         obj_buf[4] != EPK_BANK_VERSION) {  /* nothing there yet, or another layout: a fresh half (vacío) */
         for (n = 0; n < EPK_BANK_OBJ_BYTES; n++)
@@ -816,7 +842,7 @@ static void random_page(void)
         const int p = slot_param(ui.track, ui.page, slot);
         float v, target;
         if (p < 0 || (ui.locked >> p & 1u) || p == EPK_P_ENGINE || p == EPK_P_LENGTH || p == EPK_P_DIVISION ||
-            p == EPK_P_LEVEL)
+            p == EPK_P_LEVEL || p == EPK_P_SCOPE)   /* what evolves is the player's choice (lo eliges tú) */
             continue;
         v = epk_param_get(ui.track, p);
         if (p == EPK_P_NOTE) {
@@ -971,7 +997,15 @@ static void input(void)
             ui.home_used = 1;
         if (k <= B_GLO) {                  /* FX SCL ENV LFO EDIT GLO: the six tracks */
             int t = (int)k;
-            if ((btn >> B_REC & 1u) && !shift) {   /* REC held: throw this one too (throw también esta) */
+            if (arp) {                     /* ARP held + track: its evolution on / off (evolución sí / no) */
+                char n[8];
+                ui.arp_used = 1;
+                epk_evolve_enable(t, !epk_evolve_enabled(t));
+                int_str(t + 1, n);
+                str_cat(n, epk_evolve_enabled(t) ? " SI" : " NO");
+                app_say("EVOLUCION", n);
+                ui.dirty_main = ui.dirty_foot = 1;
+            } else if ((btn >> B_REC & 1u) && !shift) {   /* REC held: throw this one too (throw también esta) */
                 char n[8];
                 epk_throw(t, 1);
                 int_str(t + 1, n);
@@ -983,8 +1017,11 @@ static void input(void)
         } else if (k == B_HOME) {
             ui.home_used = 0;
         } else if (k == B_PLAY) {
-            if (shift)
-                say_later("FILL", "FASE 4");
+            if (shift) {                   /* HOME+PLAY: every track's evolution frozen / free (congelar) */
+                epk_evolve_hold(!epk_evolve_held());
+                app_say("EVOLUCION", epk_evolve_held() ? "CONGELADA" : "LIBRE");
+                ui.dirty_main = ui.dirty_foot = 1;
+            }
             else {
                 epk_play(!epk_playing());
                 app_say(epk_playing() ? "STOP" : "PLAY", "");
@@ -1663,7 +1700,22 @@ static void draw_foot(void)                       /* the page tabs and the four 
                     n++;
                 int_str(NPAGES, pg + n);
             }
-            cv_text(236 - text_w(&FONT_XS, pg), 3, &FONT_XS, pg, C_LABEL);
+            if (ui.page == PAGE_EVOL) {      /* which tracks evolve, instead of the number (qué pistas evolucionan) */
+                if (epk_evolve_held())
+                    cv_text(236 - text_w(&FONT_XS, "CONGELADA"), 3, &FONT_XS, "CONGELADA", C_SOLO);
+                else {
+                    int k;
+                    for (k = 0; k < EPK_TRACKS; k++) {
+                        const int on = epk_evolve_enabled(k), moving = epk_param_get(k, EPK_P_MUTATE) > 0.0f ||
+                                                                         epk_param_get(k, EPK_P_ABSENCE) > 0.0f;
+                        const int32_t sx = 190 + k * 8;
+                        cv_rect(sx, 5, 6, 8, !on ? C_RULE : moving ? TRACK_C[k] : dim_colour(TRACK_C[k]));
+                        if (k == ui.track)
+                            cv_rect(sx, 14, 6, 1, C_TEXT);
+                    }
+                }
+            } else
+                cv_text(236 - text_w(&FONT_XS, pg), 3, &FONT_XS, pg, C_LABEL);
         }
     }
     for (i = 0; i < 4; i++) {
@@ -1770,6 +1822,10 @@ int app_expect(const char *what, int *got)
         *got = ui.view;
     else if (!strcmp(what, "page"))
         *got = ui.page;
+    else if (!strncmp(what, "evo", 3) && what[3] >= '1' && what[3] <= '6' && !what[4])   /* evolution on (evoN) */
+        *got = epk_evolve_enabled(what[3] - '1');
+    else if (!strcmp(what, "evohold"))
+        *got = epk_evolve_held();
     else if (!strcmp(what, "saves"))           /* saves done (guardados) */
         *got = ui.saves;
     else if (!strcmp(what, "saved")) {         /* 1: the current pattern was saved (lleva '*') */

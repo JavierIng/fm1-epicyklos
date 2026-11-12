@@ -19,14 +19,14 @@ para dub techno, techno hipnótico, ambient y drone.
 | FX SCL ENV LFO EDIT GLO | elegir pista 1-6 | mute de la pista |
 | (en vista MEZCLA) | mute de la pista | solo de la pista |
 | HOME | toque: ÓRBITA → MEZCLA → EFECTOS → MOD | es la tecla de función |
-| PLAY | arrancar / parar | — |
+| PLAY | arrancar / parar | **congelar la evolución** de todas las pistas |
 | SELECT | cambiar de página | **tempo** (1 BPM por clic) |
 | PRESETS | nivel de la pista | envío de la pista al eco |
 | K1-K4 | los 4 parámetros de la página | ajuste fino |
 | OCT- / OCT+ | octava del teclado | — |
 | SAVE | vista PATRONES | en PATRONES, HOME + tecla blanca: **guardar** |
 | SEQ | vista PASOS | — |
-| ARP | aleatorio | **deshacer** |
+| ARP | aleatorio; mantenido + pista: evolución sí / no | **deshacer** |
 | REC | mantener: **throw** de la pista al eco | **freeze** del eco (activa / quita) |
 | ALGORITHM | fase siguiente | **filtro del master**, desde cualquier vista |
 
@@ -56,26 +56,34 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 - **PRUEBA** (pista 4, el bajo): voz provisional hasta que llegue un motor de bajo. Tiene ATAQUE (página MOTOR, K4).
 
 ## 5. Páginas (SELECT)
-SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA) · EVOLUCIÓN (MUTAR, CADA,
-VUELTA, AUSENCIA) · MEZCLA (NIVEL, PAN, A ECO, B REVERB). Como no caben todas, arriba se ven la anterior, la actual y
+SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA, AUSENCIA) · EVOLUCIÓN (MUTAR,
+QUÉ, CADA, VUELTA) · MEZCLA (NIVEL, PAN, A ECO, B REVERB). Como no caben todas, arriba se ven la anterior, la actual y
 la siguiente, con el número de página.
 
 ### EVOLUCIÓN: que el patrón cambie solo
-Cada pista puede ir cambiando poco a poco sin que toques nada. El patrón escrito no se modifica: lo que cambia es
-un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vuelve a empezar desde lo escrito.
+**Es por pista:** los knobs muestran y cambian la pista elegida; cada una de las seis tiene los suyos y se guardan
+con el patrón. Cada pista puede ir cambiando poco a poco sin que toques nada. El patrón escrito no se modifica: lo
+que cambia es un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vuelve a empezar desde lo escrito.
 - **MUTAR:** cuánto cambia cada vez. Lo que cambia: golpes (uno más o uno menos), rotación, tono, caída, carácter
   (en ACORDE, el acorde) y, en ACORDE, DRONE y PRUEBA, la nota (cuarta, quinta, octava). Nunca deja la pista sin
   golpes: eso es cosa de AUSENCIA.
+- **QUÉ:** qué puede cambiar. TODO, RITMO (golpes y rotación), SONIDO (tono, caída, carácter/acorde) o NOTA. Por
+  ejemplo, platos en SONIDO cambian de color sin mover el groove; ACORDE en SONIDO cambia de acorde en su sitio.
 - **CADA:** cada cuántos compases cambia: 1, 2, 4, 8 o 16. El primer tramo suena siempre tal como está escrito.
 - **VUELTA:** cuánto vuelve hacia lo escrito cada vez. Con VUELTA alta se aleja poco y regresa; con VUELTA baja se
   va lejos.
-- **AUSENCIA:** probabilidad de que la pista descanse ese tramo entero. En dub, lo que quitas cuenta tanto como lo
-  que suena.
+- **AUSENCIA** (está en la página GROOVE, porque decide si la pista suena): probabilidad de que descanse cada
+  tramo de CADA compases. En dub, lo que quitas cuenta tanto como lo que suena.
 - **Congelar:** MUTAR 0 y VUELTA 0 dejan la pista como está en ese momento. Si te gusta, guárdala (sección 6).
-- Los patrones del banco A ya traen evolución: platos cada 2 compases, acorde y bajo cada 4, dron cada 8,
-  percusión cada 2 y a veces descansa. El bombo no se mueve. Los bancos generados también la traen, en dosis
-  distintas.
-- ARP en esta página la cambia al azar, con límites: AUSENCIA como mucho 25 %.
+- **ARP mantenido + botón de pista:** apaga o enciende la evolución de esa pista. Apagada, vuelve a lo escrito en el
+  siguiente compás y se queda ahí; sus knobs se conservan para cuando la enciendas.
+- **HOME + PLAY:** congela la evolución de todas las pistas tal como están ahora (pone CONGELADA); otra vez, la
+  suelta.
+- En la página EVOLUCIÓN, arriba a la derecha, seis cuadrados: color vivo = la pista evoluciona; apagado = tiene
+  MUTAR y AUSENCIA a 0; gris = apagada con ARP. La raya marca la pista elegida.
+- De fábrica, en el banco A **solo evolucionan los sintes** (acorde y bajo cada 4 compases, dron cada 8). Bombo,
+  platos y percusión vienen quietos. En los bancos generados pasa lo mismo, en dosis distintas.
+- ARP en estas páginas cambia MUTAR, CADA, VUELTA y AUSENCIA al azar (AUSENCIA como mucho 25 %); QUÉ no lo toca.
 
 ## 6. Patrones y bancos (SAVE)
 - **Teclas negras = bancos A a K. Teclas blancas = los 16 patrones del banco.**

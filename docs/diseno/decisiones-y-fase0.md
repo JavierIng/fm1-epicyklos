@@ -238,3 +238,13 @@
   - Supuesto propio: los golpes nunca bajan a 0 por mutación (eso lo hace AUSENCIA); en pistas hechas a mano no se mutan los golpes, solo la rotación.
 - Validación: MUTAR 0 deja el patrón idéntico 16 compases; MUTAR 1 cambia el ritmo 28 veces en 32 compases sin vaciar la pista; VUELTA 1 vuelve al patrón; congelado se mantiene; AUSENCIA 1 no dispara; CYKLOS difiere del primer compás en 22 pista-compases de 32 con el bombo fijo; un patrón guardado en D13 se carga idéntico (tono, nota, carácter, pasos), con `*`, y se rechaza otra versión. El gesto de guardar (incluido que una sola pulsación no guarda) probado en el simulador: 109 comprobaciones.
 - **Sin probar:** no se ha escuchado; la persistencia del emulador tras recargar no se ha comprobado en un navegador real (el mecanismo es el de fm1-base); en el aparato, nada.
+
+## EVOLUCIÓN: qué, por pista y congelar (2026-11-12)
+
+- Javier: "no quiero que varíe el groove pero sí los sintes" y pidió decidir por pista qué se deja afectar. La evolución ya era por pista; faltaba control rápido y elegir qué varía.
+- **QUÉ** (por pista, se guarda con el patrón): TODO, RITMO (golpes, rotación), SONIDO (tono, caída, carácter/acorde), NOTA. Lo que queda fuera vuelve a lo escrito. AUSENCIA pasa a la página GROOVE para dejar sitio (decide si la pista suena).
+- **ARP mantenido + pista** = evolución sí/no por pista (del proyecto, como el mute; conserva los knobs). Se descartó HOME + pista porque ya es mute en todas las vistas: en directo se habría silenciado una pista sin querer.
+- **HOME + PLAY** = congelar la evolución de todo (estaba reservado para FILL, que queda sin sitio por ahora).
+- De fábrica solo evolucionan los sintes (pistas 3-5); antes también platos y percusión, y eso movía el groove sin pedirlo.
+- Formato de guardado versión 2 (un parámetro más por pista). Lo guardado en versión 1 se convierte al leerlo (QUÉ = TODO), no se pierde.
+- Validación: RITMO mueve el ritmo y no el tono; SONIDO al revés; apagada vuelve al patrón y se queda; congelado no cambia en 8 compases y al soltar vuelve a moverse; los 16 patrones del banco A sin evolución en la batería; un objeto de versión 1 se convierte con sus valores. Gestos ARP + pista y HOME + PLAY probados en el simulador.

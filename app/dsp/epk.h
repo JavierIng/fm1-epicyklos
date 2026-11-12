@@ -41,6 +41,7 @@ enum {
     EPK_P_EVERY,      /* every 1, 2, 4, 8 or 16 bars (cada cuántos compases) */
     EPK_P_RETURN,     /* how much it goes back towards the pattern each time (vuelta): 0 with MUTATE 0 = frozen */
     EPK_P_ABSENCE,    /* the chance that it rests for that stretch (ausencia) */
+    EPK_P_SCOPE,      /* what MUTATE moves (qué muta): EPK_SCOPE_* */
     EPK_P_PATTERN_COUNT, /* the parameters above belong to the pattern (al patrón); the ones below, to the project */
     EPK_P_LEVEL = EPK_P_PATTERN_COUNT,   /* level (nivel) */
     EPK_P_PAN,        /* pan (panorama): 0 left, 0.5 centre, 1 right */
@@ -48,6 +49,10 @@ enum {
     EPK_P_SEND_B,     /* send to the reverb (envío B), after the fader */
     EPK_P_COUNT
 };
+
+/* what the evolution moves (qué mueve la evolución): everything, the rhythm (hits, rotation), the sound (tone, decay,
+ * character: in ACORDE the chord), the note */
+enum { EPK_SCOPE_ALL, EPK_SCOPE_RHYTHM, EPK_SCOPE_SOUND, EPK_SCOPE_NOTE, EPK_SCOPE_COUNT };
 
 /* engines (motores) */
 enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_ACORDE, EPK_ENG_DRONE,
@@ -194,6 +199,12 @@ int epk_bank_queued(void);                     /* the queued pattern's bank, -1 
 const char *epk_pattern_name(int bank, int pattern);   /* main loop only (a static buffer); a saved one ends in '*' */
 int epk_every_bars(int track);                 /* EVERY in bars (compases) */
 int epk_absent(int track);                     /* resting this stretch (en ausencia) */
+/* evolution on or off per track (the project's, like mute): off, the track goes back to its pattern at the next bar
+ * and stays there; its knobs are kept. Hold: every track stays as it is now (congelar todo) until released */
+void epk_evolve_enable(int track, int on);
+int epk_evolve_enabled(int track);
+void epk_evolve_hold(int on);
+int epk_evolve_held(void);
 
 /* Saving (guardar): a pattern as it sounds now (with its evolution) goes to a slot of any bank. The core packs it;
  * the UI keeps it in the store (plat_store_*: the flash on the device, the page's storage in the emulator) as two
@@ -202,7 +213,9 @@ int epk_absent(int track);                     /* resting this stretch (en ausen
 #define EPK_PATTERN_BYTES ((EPK_P_PATTERN_COUNT * 2 + 37) * EPK_TRACKS)
 #define EPK_BANK_HEAD 8                        /* "EPKB", version, bank, half, slot mask */
 #define EPK_BANK_OBJ_BYTES (EPK_BANK_HEAD + 8 * EPK_PATTERN_BYTES)
-#define EPK_BANK_VERSION 1
+#define EPK_BANK_VERSION 2                      /* 1: without SCOPE (sin QUÉ); still read, converted */
+/* an object of an older version, rewritten as this one (convertido): bytes written to out, 0 if not convertible */
+int epk_bank_upgrade(const uint8_t *in, int len, uint8_t *out, int max);
 void epk_pattern_pack_live(uint8_t *out);      /* EPK_PATTERN_BYTES: what plays now, its evolution included */
 void epk_pattern_keep(int pattern);            /* the same, into that slot of the current bank (en memoria) */
 /* before a bank loads: what the store holds for it. stage_begin, then each half's object as loaded, then the

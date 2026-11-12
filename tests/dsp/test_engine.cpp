@@ -912,6 +912,102 @@ int main() {
         std::printf("evolution: %d rhythm changes in 32 bars at MUTATE 1; CYKLOS %d track-bars differ\n", changes, differ);
     }
 
+    // 24. What evolves (qué evoluciona): SCOPE RHYTHM keeps the sound, SOUND keeps the rhythm; a track turned off
+    //     goes back to its pattern and stays; HOLD freezes every track; in bank A the drums do not evolve
+    {
+        const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
+        auto run_bars = [&](int bars) { for (long d = 0; d < bars * bar; d += 256) epk_render(l, r, 256); };
+        epk_init(SR);
+        epk_pattern_select(0, 0);
+        epk_play(1);
+        epk_render(l, r, 256);
+        for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_MUTATE, 0.0f);
+        const uint32_t m1 = epk_pattern(1);
+        const float tone1 = epk_param_get(1, EPK_P_TONE);
+        epk_param_set(1, EPK_P_MUTATE, 1.0f);
+        epk_param_set(1, EPK_P_EVERY, 0.0f);
+        epk_param_set(1, EPK_P_RETURN, 0.1f);
+        epk_param_set(1, EPK_P_SCOPE, (float)EPK_SCOPE_RHYTHM / (EPK_SCOPE_COUNT - 1));
+        int rh = 0, tn = 0;
+        for (int b = 0; b < 16; b++) {
+            run_bars(1);
+            rh += epk_pattern(1) != m1;
+            tn += std::fabs(epk_param_live(1, EPK_P_TONE) - tone1) > 1e-5f;
+        }
+        CHECK(rh >= 4 && tn == 0, "SCOPE RITMO: rhythm moved %d bars, tone %d (expected >=4 and 0)", rh, tn);
+        epk_param_set(1, EPK_P_SCOPE, (float)EPK_SCOPE_SOUND / (EPK_SCOPE_COUNT - 1));
+        run_bars(1);                                                 // out of scope goes back to the pattern
+        rh = 0; tn = 0;
+        for (int b = 0; b < 16; b++) {
+            run_bars(1);
+            rh += epk_pattern(1) != m1;
+            tn += std::fabs(epk_param_live(1, EPK_P_TONE) - tone1) > 0.02f;
+        }
+        CHECK(rh == 0 && tn >= 4, "SCOPE SONIDO: rhythm moved %d bars (expected 0), tone %d", rh, tn);
+        // off (apagada): next bar the pattern, and it stays; the knobs are kept
+        epk_param_set(1, EPK_P_SCOPE, 0.0f);
+        run_bars(4);
+        epk_evolve_enable(1, 0);
+        run_bars(1);
+        int moved = 0;
+        for (int b = 0; b < 8; b++) {
+            run_bars(1);
+            moved += epk_pattern(1) != m1 || std::fabs(epk_param_live(1, EPK_P_TONE) - tone1) > 1e-5f;
+        }
+        CHECK(!epk_evolve_enabled(1) && moved == 0, "evolution off: moved %d bars", moved);
+        CHECK(epk_param_get(1, EPK_P_MUTATE) == 1.0f, "off keeps MUTATE as it was");
+        epk_evolve_enable(1, 1);
+        // hold (congelar todo): two tracks moving, then held: nothing changes for 8 bars; released, it moves again
+        epk_param_set(2, EPK_P_MUTATE, 1.0f);
+        epk_param_set(2, EPK_P_EVERY, 0.0f);
+        run_bars(4);
+        epk_evolve_hold(1);
+        const uint32_t h1 = epk_pattern(1), h2 = epk_pattern(2);
+        const float ht = epk_param_live(2, EPK_P_TONE);
+        moved = 0;
+        for (int b = 0; b < 8; b++) {
+            run_bars(1);
+            moved += epk_pattern(1) != h1 || epk_pattern(2) != h2 || epk_param_live(2, EPK_P_TONE) != ht;
+        }
+        CHECK(moved == 0, "HOLD: moved %d bars", moved);
+        epk_evolve_hold(0);
+        moved = 0;
+        for (int b = 0; b < 8; b++) {
+            run_bars(1);
+            moved += epk_param_live(2, EPK_P_TONE) != ht;
+        }
+        CHECK(moved > 0, "released, it moves again");
+        // bank A: the drums hold (la batería quieta), the synths move
+        for (int pt = 0; pt < EPK_PATTERNS; pt++) {
+            epk_init(SR);
+            epk_pattern_select(0, pt);
+            epk_render(l, r, 256);
+            CHECK(epk_param_get(0, EPK_P_MUTATE) == 0.0f && epk_param_get(1, EPK_P_MUTATE) == 0.0f &&
+                  epk_param_get(5, EPK_P_MUTATE) == 0.0f && epk_param_get(5, EPK_P_ABSENCE) == 0.0f,
+                  "pattern %d: the drums evolve by default", pt + 1);
+            CHECK(epk_param_get(2, EPK_P_MUTATE) > 0.0f, "pattern %d: the chord does not evolve by default", pt + 1);
+        }
+        // an object of version 1 (sin QUÉ) converts: same values, SCOPE TODO
+        static uint8_t v1[EPK_BANK_HEAD + 8 * ((EPK_P_PATTERN_COUNT - 1) * 2 + 37) * EPK_TRACKS], v2[EPK_BANK_OBJ_BYTES];
+        std::memset(v1, 0, sizeof v1);
+        v1[0] = 'E'; v1[1] = 'P'; v1[2] = 'K'; v1[3] = 'B'; v1[4] = 1; v1[5] = 2; v1[6] = 0; v1[7] = 1;
+        uint8_t *rec = v1 + EPK_BANK_HEAD;
+        for (int t = 0; t < EPK_TRACKS; t++) {
+            for (int q = 0; q < EPK_P_PATTERN_COUNT - 1; q++) { *rec++ = 0x00; *rec++ = 0x80; }   // 0.5 everywhere
+            *rec++ = 0xFF; rec += 36;                                // mask byte 0, the rest zero
+        }
+        const int n2 = epk_bank_upgrade(v1, (int)sizeof v1, v2, (int)sizeof v2);
+        CHECK(n2 == EPK_BANK_OBJ_BYTES && v2[4] == EPK_BANK_VERSION, "version 1 converts (%d bytes)", n2);
+        epk_init(SR);
+        epk_bank_stage_begin(2);
+        epk_bank_stage_half(2, 0, v2, n2);
+        epk_pattern_select(2, 0);
+        epk_render(l, r, 256);
+        CHECK(std::fabs(epk_param_get(3, EPK_P_TONE) - 0.5f) < 1e-3f && std::fabs(epk_param_get(3, EPK_P_ABSENCE) - 0.5f) < 1e-3f &&
+              epk_param_get(3, EPK_P_SCOPE) == 0.0f, "converted values: tone %.3f absence %.3f scope %.3f",
+              epk_param_get(3, EPK_P_TONE), epk_param_get(3, EPK_P_ABSENCE), epk_param_get(3, EPK_P_SCOPE));
+    }
+
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {
