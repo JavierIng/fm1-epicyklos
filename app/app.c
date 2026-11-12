@@ -18,7 +18,7 @@
  *          HOME+ARP undo (deshacer). ARP held + ALGORITHM: how much (cantidad). ARP held + a knob: lock it (bloquear)
  *   REC    held: THROW, the selected track to the delay at full; REC held + a track button throws that one too.
  *          HOME+REC: FREEZE the delay (congelar) on / off
- *   ALGORITHM: a later phase (fase siguiente), it says which */
+ *   ALGORITHM: a later phase (fase siguiente); HOME+ALGORITHM the master filter (filtro del master), from any view */
 #include "fastmath.h"
 #include "dsp/epk.h"
 
@@ -123,20 +123,24 @@ static int slot_param(int track, int page, int slot)
 }
 
 /* ------------------------------------------------------------------ the effects' pages (páginas de EFECTOS) */
-enum { NFXPAGES = 3 };
-static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB"};
+enum { NFXPAGES = 5 };
+static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "FILTRO", "MASTER"};
 static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
     {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, EPK_FX_DUCK},
     {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
+    {EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_FLT_DOUBLE, SLOT_NONE},
+    {EPK_FX_COMP, EPK_FX_SAT, SLOT_NONE, SLOT_NONE},
 };
 static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "TONO", "DESGASTE", "A REVERB", "NIVEL",
-                                                  "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK"};
+                                                  "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK",
+                                                  "FILTRO", "RESO", "DOBLE", "COMP", "SATURA"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
     "Cuanto dura la cola", "Oscura o brillante", "Movimiento dentro de la placa", "Retorno de la reverb",
-    "El bombo aparta eco y reverb"};
+    "El bombo aparta eco y reverb", "Izquierda cierra, derecha adelgaza", "Resonancia del filtro",
+    "Un segundo pico sobre el corte", "Pega la mezcla; mas es mas bombeo", "Cinta: calor y redondez"};
 static const char *const DLY_NAME[EPK_DLY_COUNT] = {"TAPE", "BBD", "PINGPONG"};
 
 /* ------------------------------------------------------------------ state (estado) */
@@ -168,7 +172,7 @@ static struct {
     int bank;                              /* the bank shown in the PATTERNS view (banco a la vista) */
     int step_page, hold_step, hold_edited; /* STEPS view: which 16, the step held (-1), a knob turned meanwhile */
     int fx_page, pop_fx;                   /* EFFECTS view: its page; the popup is an effect's knob (-1 a track's) */
-    float fx_meter;
+    float fx_meter, comp_gr;
     int amount;                            /* random: how much, 1..10 (cantidad) */
     uint32_t locked;                       /* random: parameters it leaves alone, a bit each (bloqueados) */
     uint32_t rng;
@@ -249,7 +253,29 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
     b[0] = 0;
     if (p == EPK_FX_DLY_TYPE)
         str_cat(b, DLY_NAME[(int)(v * (float)(EPK_DLY_COUNT - 1) + 0.5f)]);
-    else if (p == EPK_FX_DLY_TIME) {
+    else if (p == EPK_FX_FLT) {                       /* LP 1.2k / HP 300 / ABIERTO */
+        float hz;
+        const int mode = epk_master_filter(&hz);
+        if (!mode)
+            str_cat(b, "ABIERTO");
+        else {
+            char n[8];
+            str_cat(b, mode == 1 ? "LP " : "HP ");
+            if (hz >= 1000.0f) {
+                const int d = (int)(hz / 100.0f + 0.5f);
+                int_str(d / 10, n);
+                str_cat(b, n);
+                if (d < 100) {
+                    n[0] = '.'; n[1] = (char)('0' + d % 10); n[2] = 0;
+                    str_cat(b, n);
+                }
+                str_cat(b, "k");
+            } else {
+                int_str((int32_t)(hz + 0.5f), n);
+                str_cat(b, n);
+            }
+        }
+    } else if (p == EPK_FX_DLY_TIME) {
         int_str(1 + (int)(v * 15.0f + 0.5f), b);
         str_cat(b, "/16");
     } else
@@ -756,6 +782,12 @@ static void input(void)
                 app_say("PAGINA", PAGE_NAME[ui.page]);
                 ui.dirty_foot = 1;
             }
+        } else if (k == EN_ALGO && shift) {   /* HOME+ALGORITHM: the master filter, from anywhere */
+            char v[16];
+            epk_fx_set(EPK_FX_FLT, epk_fx_get(EPK_FX_FLT) + (float)e / 40.0f);
+            fx_str(EPK_FX_FLT, v);
+            app_say("FILTRO", v);
+            ui.dirty_main = ui.dirty_foot = 1;
         } else if (k == EN_ALGO) {
             say_later("MUTAR", "FASE 4");
         } else if (k == EN_PRESET) {
@@ -1018,6 +1050,27 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     char v[16];
     int t;
     const int32_t m = (int32_t)(fm_minf(ui.fx_meter * 1.5f, 1.0f) * 76.0f + 0.5f);
+    if (ui.fx_page >= 3) {                                            /* the master: filter and compressor */
+        const int32_t gr = (int32_t)(fm_minf(ui.comp_gr / 12.0f, 1.0f) * 96.0f + 0.5f);
+        float hz;
+        cv_rect(4, 4, 112, 80, C_PANEL);
+        cv_rect(4, 4, 112, 1, ui.fx_page == 3 ? C_FX : C_RULE);
+        cv_text(10, 8, &FONT_XS, "FILTRO", ui.fx_page == 3 ? C_FX : C_LABEL);
+        fx_str(EPK_FX_FLT, v);
+        cv_text(10, 24, text_w(&FONT_M, v) > 100 ? &FONT_S : &FONT_M, v, epk_master_filter(&hz) ? C_TEXT : C_LABEL);
+        cv_rect(10, 74, 100, 3, C_RULE);                              /* the knob: the middle is open */
+        cv_rect(59, 70, 2, 11, C_LABEL);
+        cv_rect(10 + (int32_t)(epk_fx_get(EPK_FX_FLT) * 96.0f), 71, 4, 9, C_FX);
+        cv_rect(120, 4, 108, 80, C_PANEL);
+        cv_rect(120, 4, 108, 1, ui.fx_page == 4 ? C_FX : C_RULE);
+        cv_text(126, 8, &FONT_XS, "COMP", ui.fx_page == 4 ? C_FX : C_LABEL);
+        int_str((int32_t)(ui.comp_gr + 0.5f), v);
+        str_cat(v, " dB");
+        cv_text(126, 24, &FONT_M, v, C_TEXT);
+        cv_text(126, 52, &FONT_XS, "REDUCCION", C_LABEL);
+        cv_rect(126, 74, 96, 3, C_RULE);
+        cv_rect(126, 74, gr, 3, C_MUTE);
+    } else {
     cv_rect(4, 4, 112, 80, C_PANEL);                                  /* the delay (eco) */
     cv_rect(4, 4, 112, 1, ui.fx_page < 2 ? C_FX : C_RULE);
     cv_text(10, 8, &FONT_XS, "A  ECO", ui.fx_page < 2 ? C_FX : C_LABEL);
@@ -1038,6 +1091,7 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     cv_text(126, 52, &FONT_XS, "CAIDA", C_LABEL);
     cv_rect(126, 74, 96, 3, C_RULE);
     cv_rect(126, 74, (int32_t)(epk_fx_get(EPK_FX_REV_DECAY) * 96.0f + 0.5f), 3, C_FX);
+    }
     cv_rect(232, 6, 4, 76, C_PANEL);                                  /* the returns' meter (medidor) */
     cv_rect(232, 6 + 76 - m, 4, m, C_TEXT);
     cv_text(4, 90, &FONT_XS, "ENVIOS", C_LABEL);                      /* each track's sends: A then B */
@@ -1098,7 +1152,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
     if (ui.btn >> B_HOME & 1u) {              /* HOME held: what it does with the rest (chuleta de HOME) */
         cv_text(6, 4, &FONT_XS, "HOME +", c);
         cv_text(6, 19, &FONT_XS, "SELECT: tempo        PISTA: mute", C_TEXT);
-        cv_text(6, 32, &FONT_XS, "ARP: deshacer        K1-K4: ajuste fino", C_TEXT);
+        cv_text(6, 32, &FONT_XS, "ARP: deshacer  K: fino  ALGO: filtro", C_TEXT);
         cv_text(6, 45, &FONT_XS, "PRESETS: envio al eco   En MEZCLA, PISTA: solo", C_TEXT);
         cv_text(6, 58, &FONT_XS, "REC: freeze   Soltar solo: cambia de vista", C_LABEL);
         cv_blit(0, 168);
@@ -1121,8 +1175,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
     }
     if (ui.view == VIEW_FX) {                 /* the effects' pages and knobs (páginas y knobs de EFECTOS) */
         for (i = 0; i < NFXPAGES; i++)
-            x = cv_text(x, 3, &FONT_XS, FX_PAGE_NAME[i], i == ui.fx_page ? C_FX : C_LABEL) + 10;
-        cv_text(236 - text_w(&FONT_XS, "PRESETS+HOME: ENVIO"), 3, &FONT_XS, "PRESETS+HOME: ENVIO", C_RULE);
+            x = cv_text(x, 3, &FONT_XS, FX_PAGE_NAME[i], i == ui.fx_page ? C_FX : C_LABEL) + 8;
         for (i = 0; i < 4; i++) {
             const int p = FX_PAGE_PARAM[ui.fx_page][i];
             const int32_t cx = i * 60 + 2;
@@ -1211,6 +1264,7 @@ void app_frame(void)
     if (ui.view == VIEW_FX && now - ui.meter_at >= 50u) {    /* the returns' meter (medidor de los retornos) */
         ui.meter_at = now;
         ui.fx_meter = ui.fx_meter * 0.6f + epk_fx_meter();
+        ui.comp_gr = fm_maxf(ui.comp_gr * 0.8f, epk_comp_reduction());
         ui.dirty_main = 1;
     }
     if (ui.view == VIEW_MIX && now - ui.meter_at >= 50u) {   /* the meters at 20 fps (medidores) */

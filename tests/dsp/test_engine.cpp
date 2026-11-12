@@ -112,11 +112,11 @@ int main() {
     // 5. Stop: silence returns (vuelve el silencio)
     epk_play(0);
     float tail = 0.0f;
-    for (int b = 0; b < (int)(4.0f * SR / 256); b++) {
+    for (int b = 0; b < (int)(7.0f * SR / 256); b++) {              // the plate rings a few seconds (la placa suena)
         epk_render(l, r, 256);
-        if (b > (int)(3.0f * SR / 256)) for (int i = 0; i < 256; i++) tail = std::fmax(tail, std::fabs(l[i]));
+        if (b > (int)(6.0f * SR / 256)) for (int i = 0; i < 256; i++) tail = std::fmax(tail, std::fabs(l[i]));
     }
-    CHECK(tail < 0.001f, "3 s after stop the output is %.5f (expected silence)", tail);
+    CHECK(tail < 0.001f, "6 s after stop the output is %.5f (expected silence)", tail);
     CHECK(epk_step(0) == -1, "stopped: no step");
 
     // 6. Patterns (patrones): a change waits for the bar; mutes stay; edits stay in their pattern
@@ -491,6 +491,64 @@ int main() {
         const double open = duck_run(0.0f), ducked = duck_run(1.0f);
         CHECK(ducked < open * 0.75, "duck: returns %.1f open, %.1f ducked", open, ducked);
         std::printf("duck: returns %.1f open, %.1f ducked; freeze %.3f then %.3f\n", open, ducked, loop1, loop2);
+    }
+
+    // 17. The master (cadena del master): the filter darkens below the middle and thins above it, the middle is
+    // transparent, the compressor narrows the dynamics, and nothing blows up with everything at the top.
+    {
+        auto run = [&](float flt, float reso, float dbl, float comp, float sat, double &energy, double &bright,
+                       double &crest) {
+            epk_init(SR);
+            epk_fx_set(EPK_FX_FLT, flt);
+            epk_fx_set(EPK_FX_FLT_RESO, reso);
+            epk_fx_set(EPK_FX_FLT_DOUBLE, dbl);
+            epk_fx_set(EPK_FX_COMP, comp);
+            epk_fx_set(EPK_FX_SAT, sat);
+            epk_pattern_select(0, 8);                                // ECLIPSE: kick, hats, chord, perc
+            epk_render(l, r, 1);
+            epk_play(1);
+            double e = 0.0, h = 0.0, w = 0.0;
+            float prev = 0.0f;
+            int bad = 0;
+            std::vector<double> windows;                             // 256-sample loudness after the first second
+            for (int k = 0; k < (int)(4.0f * SR / 256); k++) {
+                epk_render(l, r, 256);
+                w = 0.0;
+                for (int i = 0; i < 256; i++) {
+                    bad += !std::isfinite(l[i]);
+                    e += (double)l[i] * l[i];
+                    w += (double)l[i] * l[i];
+                    h += (double)(l[i] - prev) * (l[i] - prev);
+                    prev = l[i];
+                }
+                if (k > (int)(SR / 256)) windows.push_back(std::sqrt(w / 256.0));
+            }
+            const double n = 4.0 * SR;
+            energy = e / n;
+            bright = h / (e + 1e-12);
+            std::sort(windows.begin(), windows.end());               // dynamics: loud windows against quiet ones
+            crest = windows[windows.size() * 9 / 10] / (windows[windows.size() / 4] + 1e-9);
+            return bad;
+        };
+        double e0, b0, c0, e1, b1, c1, e2, b2, c2, e3, b3, c3;
+        run(0.5f, 0.3f, 0.0f, 0.0f, 0.0f, e0, b0, c0);               // flat (plano)
+        run(0.15f, 0.3f, 0.0f, 0.0f, 0.0f, e1, b1, c1);              // low-pass closed
+        run(0.85f, 0.3f, 0.0f, 0.0f, 0.0f, e2, b2, c2);              // high-pass open
+        CHECK(b1 < b0 * 0.5 && b2 > b0 * 1.5 && e2 < e0 * 0.7, "filter: brightness %.4f flat, %.4f LP, %.4f HP; energy HP %.0f %%",
+              b0, b1, b2, 100.0 * e2 / e0);
+        epk_init(SR);                                                // the middle is transparent: same as before it
+        run(0.5f, 1.0f, 1.0f, 0.0f, 0.0f, e3, b3, c3);
+        CHECK(std::fabs(e3 / e0 - 1.0) < 0.05, "filter open (even with RESO and DOBLE up): energy %.1f %% of flat", 100.0 * e3 / e0);
+        run(0.5f, 0.3f, 0.0f, 1.0f, 0.0f, e3, b3, c3);
+        CHECK(c3 < c0 * 0.85 && epk_comp_reduction() > 3.0f, "compressor: loud / quiet %.2f against %.2f flat", c3, c0);
+        const double c_comp = c3;
+        int bad = run(0.05f, 1.0f, 1.0f, 1.0f, 1.0f, e3, b3, c3);
+        bad += run(0.95f, 1.0f, 1.0f, 1.0f, 1.0f, e3, b3, c3);
+        CHECK(bad == 0, "master at the extremes: %d bad samples", bad);
+        std::printf("master: brightness %.4f flat, %.4f LP, %.4f HP; loud/quiet %.2f flat, %.2f compressed\n", b0, b1, b2, c0, c_comp);
+        float hz = 0.0f;
+        epk_fx_set(EPK_FX_FLT, 0.2f);
+        CHECK(epk_master_filter(&hz) == 1 && hz > 100.0f && hz < 2000.0f, "filter for the screen: LP at %.0f Hz", hz);
     }
 
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare

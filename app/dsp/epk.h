@@ -59,6 +59,12 @@ enum {
     EPK_FX_REV_MOD,       /* movement inside the tank (movimiento) */
     EPK_FX_REV_LEVEL,     /* return level (retorno) */
     EPK_FX_DUCK,          /* the kick (track 1) pushes both returns down (el bombo aparta eco y reverb) */
+    /* the master (cadena del master), after the returns */
+    EPK_FX_FLT,           /* DJ filter: < 0.5 low-pass closing, > 0.5 high-pass opening, 0.5 open (abierto) */
+    EPK_FX_FLT_RESO,      /* its resonance */
+    EPK_FX_FLT_DOUBLE,    /* a second, parallel peak above the cutoff (doble pico, como un filtro doble) */
+    EPK_FX_COMP,          /* bus compressor amount: threshold, ratio and makeup in one (compresor) */
+    EPK_FX_SAT,           /* tape saturation (saturación de cinta) */
     EPK_FX_COUNT
 };
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
@@ -99,6 +105,9 @@ int epk_fx_steps(int param);                   /* >0: stepped (por pasos) */
 float epk_fx_meter(void);                      /* the returns' peak since the last call (medidor de los retornos) */
 /* dub gestures (gestos de dub). THROW: the track's send to the delay goes to full while on. FREEZE: the delay stops
  * listening and loops what it holds, without losing it (congelar). Both are the project's and are not saved. */
+float epk_comp_reduction(void);                /* the compressor's deepest reduction in dB since the last call */
+/* the master filter's state for the screen: 0 open, 1 low-pass, 2 high-pass; *hz its cutoff */
+int epk_master_filter(float *hz);
 void epk_throw(int track, int on);
 int epk_thrown(int track);
 void epk_freeze(int on);

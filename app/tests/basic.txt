@@ -277,3 +277,27 @@ tap REC
 release HOME
 wait 30
 expect freeze 0
+# the master (master): HOME+ALGORITHM moves the filter from any view; the EFFECTS view's FILTRO and MASTER pages
+press HOME
+turn ALGO -8
+release HOME
+wait 30
+expect fx12 30
+expect view 2
+turn SELECT 1
+wait 30
+expect fxpage 3
+turn K2 10
+wait 30
+expect fx13 55
+turn SELECT 1
+wait 30
+expect fxpage 4
+tap PLAY
+wait 1500
+shot master.png
+turn SELECT -1
+wait 30
+shot filter.png
+tap PLAY
+wait 30

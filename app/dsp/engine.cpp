@@ -9,6 +9,7 @@
 #include "factory.h"
 #include "voices.h"
 #include "fx.h"
+#include "master.h"
 
 namespace epk {
 
@@ -89,6 +90,7 @@ struct Engine {
     float meter_master, meter_fx;
     float fx[EPK_FX_COUNT];                // the send effects' parameters (del proyecto)
     Fx sends;
+    Master master;
     float buf[kBlock], bus_a[kBlock], bus_b[kBlock], kick[kBlock], fx_l[kBlock], fx_r[kBlock];
 };
 
@@ -472,9 +474,11 @@ void epk_init(float sample_rate) {
                                               {0.50f, 0.36f, 0.40f, 0.70f}, {0.60f, 0.57f, 0.40f, 0.50f}};
     // the send effects (efectos): a dotted-eighth tape echo into a long, dark plate
     static const float kFx[EPK_FX_COUNT] = {0.0f, 2.0f / 15.0f, 0.50f, 0.45f, 0.35f, 0.25f, 0.75f,
-                                            0.72f, 0.45f, 0.40f, 0.75f, 0.35f};
+                                            0.72f, 0.45f, 0.40f, 0.75f, 0.35f,
+                                            0.5f, 0.30f, 0.0f, 0.30f, 0.15f};   // master: open, glue, a little tape
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
+    g.master.init();
     g.meter_fx = 0.0f;
     g.sr = sample_rate;
     g.bpm = 124.0f;
@@ -539,6 +543,7 @@ void epk_render(float *left, float *right, uint32_t frames) {
             if (n == until) g.bar_fire = 1;
         }
     }
+    g.master.process(left, right, frames, g.fx, g.sr);              // filter, compressor, tape (filtro, comp, cinta)
     float peak = g.meter_master;
     for (uint32_t i = 0; i < frames; i++) {                           // the master (salida): a soft clip
         left[i] = fm_tanhf(left[i] * 0.9f);
@@ -551,12 +556,21 @@ void epk_render(float *left, float *right, uint32_t frames) {
 void epk_panic(void) {
     for (Track &t : g.tr) t.voice.init(t.voice.engine, t.voice.seed);
     g.sends.clear();                                                 // and the echoes and the tail (ecos y cola)
+    g.master.init();
 }
 
 void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COUNT) g.fx[param] = clamp01(value01); }
 float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
 int epk_fx_steps(int param) { return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : 0; }
 float epk_fx_meter(void) { float m = g.meter_fx; g.meter_fx = 0.0f; return m; }
+float epk_comp_reduction(void) { const float r = g.master.gr_max; g.master.gr_max = 0.0f; return r; }
+int epk_master_filter(float *hz) {
+    const float v = g.fx[EPK_FX_FLT];
+    if (v < 0.47f) { *hz = filter_lp_hz(v); return 1; }
+    if (v > 0.53f) { *hz = filter_hp_hz(v); return 2; }
+    *hz = 0.0f;
+    return 0;
+}
 void epk_throw(int track, int on) { if (valid(track)) g.tr[track].thrown = on ? 1 : 0; }
 int epk_thrown(int track) { return valid(track) ? g.tr[track].thrown : 0; }
 void epk_freeze(int on) { g.sends.freeze = on ? 1 : 0; }
