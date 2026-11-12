@@ -988,12 +988,12 @@ int main() {
             CHECK(epk_param_get(2, EPK_P_MUTATE) > 0.0f, "pattern %d: the chord does not evolve by default", pt + 1);
         }
         // an object of version 1 (sin QUÉ) converts: same values, SCOPE TODO
-        static uint8_t v1[EPK_BANK_HEAD + 8 * ((EPK_P_PATTERN_COUNT - 1) * 2 + 37) * EPK_TRACKS], v2[EPK_BANK_OBJ_BYTES];
+        static uint8_t v1[EPK_BANK_HEAD + 8 * ((EPK_P_PATTERN_COUNT - 5) * 2 + 37) * EPK_TRACKS], v2[EPK_BANK_OBJ_BYTES];
         std::memset(v1, 0, sizeof v1);
         v1[0] = 'E'; v1[1] = 'P'; v1[2] = 'K'; v1[3] = 'B'; v1[4] = 1; v1[5] = 2; v1[6] = 0; v1[7] = 1;
         uint8_t *rec = v1 + EPK_BANK_HEAD;
         for (int t = 0; t < EPK_TRACKS; t++) {
-            for (int q = 0; q < EPK_P_PATTERN_COUNT - 1; q++) { *rec++ = 0x00; *rec++ = 0x80; }   // 0.5 everywhere
+            for (int q = 0; q < EPK_P_PATTERN_COUNT - 5; q++) { *rec++ = 0x00; *rec++ = 0x80; }   // 0.5 everywhere
             *rec++ = 0xFF; rec += 36;                                // mask byte 0, the rest zero
         }
         const int n2 = epk_bank_upgrade(v1, (int)sizeof v1, v2, (int)sizeof v2);
@@ -1047,6 +1047,110 @@ int main() {
         std::printf("random: %d kicks, four on the floor %d/200, %d keys\n", nk, four, nkeys);
     }
 
+    // 26. The track LFO (LFO de pista, página MOVIMIENTO): amount 0 changes nothing; a 1-bar sine on TONE peaks at a
+    //     quarter bar; a negative amount turns it upside down; HITS and ROTATE move the rhythm; DRIFT wanders
+    //     within its range without repeating; a version-2 save converts with the LFO still
+    {
+        const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
+        auto setup = [&]() {
+            epk_init(SR);
+            epk_pattern_select(0, 0);
+            epk_render(l, r, 256);
+            for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_LFO_AMT, 0.5f); epk_param_set(t, EPK_P_MUTATE, 0.0f); }
+            epk_play(1);
+        };
+        setup();
+        epk_param_set(2, EPK_P_TONE, 0.5f);
+        float diff = 0.0f;
+        for (long d = 0; d < 2 * bar; d += 256) {
+            epk_render(l, r, 256);
+            diff = std::fmax(diff, std::fabs(epk_param_live(2, EPK_P_TONE) - 0.5f));
+        }
+        CHECK(diff < 1e-6f, "amount 0: the tone moved %.4f", diff);
+        // a 1-bar sine to TONE at +100: near 1.0 at a quarter bar, near 0.0 at three quarters
+        setup();
+        epk_param_set(2, EPK_P_TONE, 0.5f);
+        epk_param_set(2, EPK_P_LFO_SHAPE, 0.0f);
+        epk_param_set(2, EPK_P_LFO_RATE, 4.0f / 9.0f);               // 1 bar
+        epk_param_set(2, EPK_P_LFO_DEST, (float)EPK_TLFO_TONE / (EPK_TLFO_DEST_COUNT - 1));
+        epk_param_set(2, EPK_P_LFO_AMT, 1.0f);
+        for (long d = 0; d < bar / 4; d += 256) epk_render(l, r, 256);
+        const float q1 = epk_param_live(2, EPK_P_TONE);
+        for (long d = 0; d < bar / 2; d += 256) epk_render(l, r, 256);
+        const float q3 = epk_param_live(2, EPK_P_TONE);
+        CHECK(q1 > 0.95f && q3 < 0.05f, "sine to TONE: %.3f at 1/4 bar, %.3f at 3/4 (expected ~1 and ~0)", q1, q3);
+        epk_param_set(2, EPK_P_LFO_AMT, 0.0f);                       // -100: upside down (al revés)
+        for (long d = 0; d < bar; d += 256) epk_render(l, r, 256);
+        const float q3n = epk_param_live(2, EPK_P_TONE);
+        CHECK(q3n > 0.95f, "amount -100 turns it over: %.3f at 3/4 bar", q3n);
+        // HITS and ROTATE (golpes y rotación): the rhythm breathes
+        setup();
+        epk_param_set(1, EPK_P_LFO_RATE, 4.0f / 9.0f);
+        epk_param_set(1, EPK_P_LFO_DEST, (float)EPK_TLFO_HITS / (EPK_TLFO_DEST_COUNT - 1));
+        epk_param_set(1, EPK_P_LFO_AMT, 1.0f);
+        uint32_t seen[16];
+        int ns = 0;
+        for (long d = 0; d < 2 * bar; d += 256) {
+            epk_render(l, r, 256);
+            const uint32_t m = epk_pattern(1);
+            int k = 0;
+            while (k < ns && seen[k] != m) k++;
+            if (k == ns && ns < 16) seen[ns++] = m;
+        }
+        CHECK(ns >= 4, "LFO to HITS: only %d rhythms in 2 bars", ns);
+        epk_param_set(1, EPK_P_LFO_DEST, (float)EPK_TLFO_ROTATE / (EPK_TLFO_DEST_COUNT - 1));
+        ns = 0;
+        for (long d = 0; d < 2 * bar; d += 256) {
+            epk_render(l, r, 256);
+            const uint32_t m = epk_pattern(1);
+            int k = 0;
+            while (k < ns && seen[k] != m) k++;
+            if (k == ns && ns < 16) seen[ns++] = m;
+        }
+        CHECK(ns >= 4, "LFO to ROTATE: only %d rhythms in 2 bars", ns);
+        // DRIFT (deriva): moves, stays inside, not the same over two cycles
+        setup();
+        epk_param_set(3, EPK_P_LFO_SHAPE, 1.0f);
+        epk_param_set(3, EPK_P_LFO_RATE, 4.0f / 9.0f);
+        epk_param_set(3, EPK_P_LFO_AMT, 1.0f);
+        float lo = 9.0f, hi = -9.0f, a1[16], a2[16];
+        for (int c = 0; c < 2; c++)
+            for (int k = 0; k < 16; k++) {
+                for (long d = 0; d < bar / 16; d += 256) epk_render(l, r, 256);
+                const float v = epk_track_lfo(3);
+                (c ? a2 : a1)[k] = v;
+                lo = std::fmin(lo, v); hi = std::fmax(hi, v);
+            }
+        float same = 0.0f;
+        for (int k = 0; k < 16; k++) same += std::fabs(a1[k] - a2[k]);
+        CHECK(lo >= -1.0f && hi <= 1.0f && hi - lo > 0.3f, "DRIFT: range %.2f..%.2f", lo, hi);
+        CHECK(same > 0.5f, "DRIFT repeats itself every cycle (diff %.3f)", same);
+        // a version-2 save (sin LFO): converts, the LFO still (amount 0), SCOPE kept
+        static uint8_t v2[EPK_BANK_HEAD + 8 * ((EPK_P_PATTERN_COUNT - 4) * 2 + 37) * EPK_TRACKS], v3[EPK_BANK_OBJ_BYTES];
+        std::memset(v2, 0, sizeof v2);
+        v2[0] = 'E'; v2[1] = 'P'; v2[2] = 'K'; v2[3] = 'B'; v2[4] = 2; v2[5] = 5; v2[6] = 0; v2[7] = 1;
+        uint8_t *rec = v2 + EPK_BANK_HEAD;
+        for (int t = 0; t < EPK_TRACKS; t++) {
+            for (int q = 0; q < EPK_P_PATTERN_COUNT - 4; q++) {
+                const uint32_t v = q == EPK_P_SCOPE ? 65535u : 21845u;  // SCOPE NOTE (1.0), the rest 1/3
+                *rec++ = (uint8_t)v; *rec++ = (uint8_t)(v >> 8);
+            }
+            rec += 37;
+        }
+        const int n3 = epk_bank_upgrade(v2, (int)sizeof v2, v3, (int)sizeof v3);
+        CHECK(n3 == EPK_BANK_OBJ_BYTES, "version 2 converts (%d bytes)", n3);
+        epk_init(SR);
+        epk_bank_stage_begin(5);
+        epk_bank_stage_half(5, 0, v3, n3);
+        epk_pattern_select(5, 0);
+        epk_render(l, r, 256);
+        CHECK(epk_param_get(2, EPK_P_LFO_AMT) > 0.49f && epk_param_get(2, EPK_P_LFO_AMT) < 0.51f &&
+              epk_param_get(2, EPK_P_SCOPE) > 0.99f && std::fabs(epk_param_get(2, EPK_P_TONE) - 1.0f / 3.0f) < 1e-3f,
+              "version 2: LFO amount %.3f, scope %.3f, tone %.3f", epk_param_get(2, EPK_P_LFO_AMT),
+              epk_param_get(2, EPK_P_SCOPE), epk_param_get(2, EPK_P_TONE));
+        std::printf("track LFO: sine %.2f/%.2f, drift %.2f..%.2f\n", q1, q3, lo, hi);
+    }
+
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {
@@ -1057,6 +1161,8 @@ int main() {
         epk_param_set(2, EPK_P_MUTATE, 1.0f);
         epk_param_set(2, EPK_P_EVERY, 0.0f);
         epk_param_set(2, EPK_P_RETURN, 0.0f);
+        epk_render(l, r, 256);                                       // the pattern in first (primero el patrón)
+        for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_LFO_AMT, 0.5f);   // live = saved (sin LFO)
         const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
         for (long d = 0; d < 6 * bar; d += 256) epk_render(l, r, 256);
         float live[EPK_TRACKS][3];
@@ -1085,7 +1191,8 @@ int main() {
         for (int t = 0; t < EPK_TRACKS; t++) {
             CHECK(std::fabs(epk_param_get(t, EPK_P_TONE) - live[t][0]) < 1e-4f, "track %d tone %.4f, saved %.4f", t + 1,
                   epk_param_get(t, EPK_P_TONE), live[t][0]);
-            CHECK(std::fabs(epk_param_get(t, EPK_P_NOTE) - live[t][1]) < 1e-4f, "track %d note", t + 1);
+            CHECK(std::lround(epk_param_get(t, EPK_P_NOTE) * 60.0f) == std::lround(live[t][1] * 60.0f), "track %d note",
+                  t + 1);                                            // one byte: the same note (la misma nota)
             CHECK(std::fabs(epk_param_get(t, EPK_P_CHARACTER) - live[t][2]) < 1e-4f, "track %d character", t + 1);
             CHECK(epk_pattern(t) == mask[t], "track %d steps %08x, saved %08x", t + 1, epk_pattern(t), mask[t]);
         }

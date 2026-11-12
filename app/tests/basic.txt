@@ -42,7 +42,7 @@ expect view 0
 tap HOME
 wait 30
 expect view 1
-expect page 5
+expect page 6
 shot mixer.png
 # in the mixer: track = mute, HOME+track = solo
 tap SEL
@@ -126,7 +126,7 @@ wait 30
 tap HOME
 wait 30
 expect view 0
-turn SELECT -2
+turn SELECT -3
 wait 30
 expect page 3
 turn K1 -3
@@ -376,7 +376,7 @@ wait 30
 expect view 0
 tap ENV
 wait 30
-turn SELECT -5
+turn SELECT -6
 wait 30
 expect page 0
 turn K2 3
@@ -473,3 +473,12 @@ turn K1 1
 wait 30
 release ARP
 expect keylock 0
+# MOVIMIENTO (the track LFO): page 6, after EVOLUCION
+tap SAVE
+wait 30
+tap ENV
+wait 30
+turn SELECT 1
+wait 30
+expect page 5
+shot movimiento.png

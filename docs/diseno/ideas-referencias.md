@@ -152,3 +152,10 @@ Viabilidad (análisis, nada probado):
 - **Seguidor → CV:** el seguidor de envolvente ya existe en MOD; añadir un destino "salida CV n". Funciona igual sobre audio interno o sobre el que vuelve del modular.
 - **Relación:** solapa con el proyecto de plugin MIDI de Javier (VST3/AU para ambient); valorar base común.
 - **Orden propuesto:** D1 núcleo a 48/96 kHz + plugin instrumento con sync al tempo del DAW · D2 8 pistas · D3 salida MIDI por pista (OXI One) · D4 CV por audio con calibración · D5 entradas de audio a los efectos · D6 seguidor y LFO → CV. Proyecto aparte del firmware; empezar cuando el firmware esté en fase 6.
+
+## Ableton Link por Wi-Fi (12 nov, 13:34; para después de la fase 6)
+
+- Link no funciona por Bluetooth (es un protocolo IP: Wi-Fi o cable de red).
+- El chip del FM-1 tiene Wi-Fi y fm1-base lo soporta (`wifi = true`, lwIP, ejemplo `examples/wifi`), pero **excluye el Bluetooth y el audio USB** y reduce el pool de RAM (304 KB frente a 336). Sería un modo o firmware aparte "Wi-Fi + Link".
+- La librería de Link (GPL-2.0+, compatible con GPL-3.0) tiene versión para ESP32; portarla a JieLi/lwIP no lo ha hecho nadie: trabajo y riesgo propios.
+- Para estudio con Ableton, lo práctico es un cable USB: audio multicanal (las 6 pistas + la mezcla) y MIDI con el clock (fase 6).

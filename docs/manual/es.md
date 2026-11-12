@@ -57,7 +57,7 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 
 ## 5. Páginas (SELECT)
 SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA, AUSENCIA) · EVOLUCIÓN (MUTAR,
-QUÉ, CADA, VUELTA) · MEZCLA (NIVEL, PAN, A ECO, B REVERB). Como no caben todas, arriba se ven la anterior, la actual y
+QUÉ, CADA, VUELTA) · MOVIMIENTO (FORMA, VELOC, DESTINO, CANT) · MEZCLA (NIVEL, PAN, A ECO, B REVERB). Como no caben todas, arriba se ven la anterior, la actual y
 la siguiente, con el número de página.
 
 ### EVOLUCIÓN: que el patrón cambie solo
@@ -84,6 +84,19 @@ que cambia es un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vue
 - De fábrica, en el banco A **solo evolucionan los sintes** (acorde y bajo cada 4 compases, dron cada 8). Bombo,
   platos y percusión vienen quietos. En los bancos generados pasa lo mismo, en dosis distintas.
 - ARP en estas páginas cambia MUTAR, CADA, VUELTA y AUSENCIA al azar (AUSENCIA como mucho 25 %); QUÉ no lo toca.
+
+### MOVIMIENTO: el LFO de cada pista
+Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciador en marcha va enganchado al compás.
+- **FORMA:** SENO, TRIANG, SIERRA, CUADRA, S&H (un valor nuevo cada ciclo), AZAR (de un valor al siguiente, suave) y
+  **DERIVA**: un paseo al azar, lento y sin ciclo, que nunca se repite. Es lo que hace "vivir" un sonido fijo.
+- **VELOC:** lo que dura un ciclo, de 1/16 a 32 compases. En DERIVA, cuánto vaga en ese tiempo.
+- **DESTINO:** TONO, CAÍDA, CARÁCTER, los dos knobs del motor (con su nombre: ENVOLV, DERIVA, CUERPO…), NIVEL, PAN,
+  ENVÍO A, ENVÍO B, **GOLPES** o **ROTAR**. Con GOLPES o ROTAR es el ritmo el que respira: la pista gana y pierde
+  golpes o los desplaza durante el ciclo.
+- **CANT:** cuánto, de −100 a +100. A +100 recorre medio knob arriba y abajo; en negativo, al revés. 0 = apagado.
+- No mueve el knob: se suma a lo que marque. Al guardar el patrón, el LFO se guarda con sus ajustes y sigue
+  moviéndose al cargarlo.
+- De fábrica, en el banco A, el acorde respira hacia el eco (ENVÍO A, 4 compases) y el tono del bajo hace DERIVA.
 
 ## 6. Patrones y bancos (SAVE)
 - **Teclas negras = bancos A a K. Teclas blancas = los 16 patrones del banco.**
@@ -206,6 +219,6 @@ muestra las cuatro moviéndose y a dónde van.
 - De inicio, el LFO 1 mueve el tono del eco (+25 %, 8 compases).
 
 ## 11. Pendiente
-Siguiente: LFO por pista y DERIVA, la vista FLOW (cadena de efectos), escenas. Después: más motores, guardado del
+Siguiente: la vista FLOW (cadena de efectos), escenas. Después: más motores, guardado del
 proyecto (mezcla, efectos, tempo), nombres, borrar un patrón guardado, reloj y MIDI (fase 6), prueba en el aparato
 (7, solo cuando se decida).

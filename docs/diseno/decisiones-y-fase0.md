@@ -255,3 +255,14 @@
 - Ahora: 8 familias de bombo (sin, negras 38 %, negras + fantasma, roto euclidiano, medio tiempo, 2-step, puntillo, ciclo propio 12/14/15) → 22 bombos distintos en 200 y negras en 74/200. Tonalidad menor nueva en cada aleatorio general (las 12 aparecen), con **ARP + K1 en PATRONES = tonalidad fija**. Cada ranura recuerda su tonalidad (también al deshacer y al guardar en memoria); cada banco tiene una (A en re).
 - Sigue igual a propósito: los papeles y motores por pista y la mezcla/efectos (del proyecto). El "estilo" del aleatorio por banco (A ambient/jungle, B deep/dub, C hipnótico raw) va con los bancos de muestra por estilo.
 - Supuesto: siempre menor (eólico). Modos (dórico, frigio) quedan para el estilo por banco.
+
+## LFO por pista y DERIVA: página MOVIMIENTO (2026-11-12)
+
+- Una página nueva por pista (la 6 de 7): FORMA, VELOC, DESTINO, CANT. Formas: las 6 del LFO global + **DERIVA** (paseo al azar que rebota en los bordes; VELOC dice cuánto vaga por ciclo). La DERIVA se hizo como forma del LFO y no como página aparte: un knob menos y vale para cualquier destino.
+- Destinos: TONO, CAÍDA, CARÁCTER, EXTRA 1 y 2 del motor (con su nombre), NIVEL, PAN, ENVÍO A, ENVÍO B, GOLPES, ROTAR. A +100 recorre ±media escala; GOLPES ±1/4 de la longitud, ROTAR ±1/2. Se calcula por bloque (≤ 256 muestras), enganchado al compás.
+- Sin destino de afinación continua: las voces fijan la frecuencia al disparar; un vibrato pediría cambiar los motores (el DRONE ya tiene su DERIVA de afinación).
+- Del patrón: se guarda con él. El LFO no se "hornea" al guardar (seguiría moviéndose encima). PAN y envíos pasan a leerse con modulación.
+- Guardado versión 3: los parámetros de pasos fijos (motor, longitud, golpes, forma, destino…) ocupan 1 byte y el resto 2; con 4 parámetros más, en 2 bytes cada uno, medio banco ya no cabía (3992 de 3840 bytes); ahora 3464. Las versiones 1 y 2 se convierten al leerlas (LFO a 0).
+- De fábrica (banco A): el acorde respira hacia el eco (seno, 4 compases, +30) y el bajo hace DERIVA de tono (+25).
+- Validación: CANT 0 no mueve nada en 2 compases; seno de 1 compás a TONO +100 da 1,00 a 1/4 y 0,00 a 3/4, y −100 lo invierte; GOLPES y ROTAR dan ≥ 4 ritmos distintos en 2 compases; DERIVA se queda en ±1, recorre más de 0,3 y no repite entre ciclos; un objeto de versión 2 se convierte con sus valores y el LFO a 0.
+- **Ableton Link (pregunta de Javier):** no va por Bluetooth (Link es IP). El chip del FM-1 tiene Wi-Fi y fm1-base lo soporta, pero el modo Wi-Fi excluye Bluetooth y audio USB y deja menos RAM; portar Link (GPL-2.0+, compatible) sería trabajo propio. Para Ableton: audio USB multicanal (hasta 10 canales en fm1-base) + MIDI USB para el clock, en la fase 6. Bluetooth audio (A2DP) solo va a auriculares/altavoces, con 150-200 ms: no sirve para un DAW.

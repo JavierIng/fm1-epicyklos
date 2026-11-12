@@ -63,6 +63,10 @@ struct Track {
     int m_note, m_hits, m_rot;             // semitones, hits, steps
     int absent;                            // resting this stretch (en ausencia)
     int evo_off;                           // evolution off for this track (apagada; del proyecto)
+    // the track's LFO (LFO de pista): its output with the amount, and what it does to the rhythm this block
+    float lfo_out, lfo_last_ph, lfo_from, lfo_to, lfo_walk;
+    int lfo_hits, lfo_rot;
+    Rng lfo_rng;
     uint32_t bars;                         // bars since play (compases desde PLAY)
     Rng evo;
     int thrown;                            // a dub throw to the delay (throw al eco)
@@ -141,12 +145,16 @@ inline int param_int(const Track &t, int param) {
 inline float note_hz(int note) { return 440.0f * fm_exp2f((float)(note - 69) * (1.0f / 12.0f)); }
 
 // With the evolution on (con la evolución): hits never go to 0 while the pattern has some (that is ABSENCE's job)
-inline int hits_live(const Track &t, int len) {
+// _evo: the evolution only (what is saved); _live: with the track LFO too (lo que suena)
+inline int hits_with(const Track &t, int len, int extra) {
     const int h = param_int(t, EPK_P_HITS);
     if (!h) return 0;
-    return clampi(h + t.m_hits, 1, len);
+    return clampi(h + t.m_hits + extra, 1, len);
 }
-inline int rot_live(const Track &t) { return param_int(t, EPK_P_ROTATE) + t.m_rot; }
+inline int hits_evo(const Track &t, int len) { return hits_with(t, len, 0); }
+inline int hits_live(const Track &t, int len) { return hits_with(t, len, t.lfo_hits); }
+inline int rot_evo(const Track &t) { return param_int(t, EPK_P_ROTATE) + t.m_rot; }
+inline int rot_live(const Track &t) { return rot_evo(t) + t.lfo_rot; }
 inline int note_live(const Track &t) { return clampi(param_int(t, EPK_P_NOTE) + t.m_note, 24, 84); }
 static const uint8_t kEveryBars[5] = {1, 2, 4, 8, 16};
 inline int every_bars(const Track &t) { return kEveryBars[clampi((int)(t.p[EPK_P_EVERY] * 4.0f + 0.5f), 0, 4)]; }
@@ -178,6 +186,9 @@ void push(uint8_t type, int track, int a, int b) {
 static const uint8_t kEngine[EPK_TRACKS] = {EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_ACORDE, EPK_ENG_TEST,
                                             EPK_ENG_DRONE, EPK_ENG_GOLPE};
 
+// The track LFO's defaults (por defecto): sine, 8 bars, to TONE, amount 0. Also what older saved patterns get
+static const float kLfoDefault[4] = {0.0f, 7.0f / 9.0f, 0.0f, 0.5f};
+
 void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1, float e2, int len, int hits,
               int rot, int div) {
     float *b = g.bank[pt][i];
@@ -200,6 +211,7 @@ void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1
     b[EPK_P_RETURN] = 0.3f;
     b[EPK_P_ABSENCE] = 0.0f;
     b[EPK_P_SCOPE] = 0.0f;                                           // everything (todo)
+    for (int q = 0; q < 4; q++) b[EPK_P_LFO_SHAPE + q] = kLfoDefault[q];   // still: amount 0 (quieto)
     Steps &s = g.bank_steps[pt][i];
     s.mask = 0; s.manual = 0;
     for (uint8_t &m : s.meta) m = 0;
@@ -246,6 +258,16 @@ void fill_factory(int pt) {
                                               {0.25f, 0.75f, 0.20f, 0.0f}, {0.0f, 0.25f, 0.30f, 0.0f}};
     for (int i = 0; i < EPK_TRACKS; i++)
         for (int q = 0; q < 4; q++) g.bank[pt][i][EPK_P_MUTATE + q] = kEvo[i][q];
+    // and the track LFOs: the chord breathes into the delay over 4 bars, the bass's tone drifts (deriva)
+    float *ch = g.bank[pt][2], *bs = g.bank[pt][3];
+    ch[EPK_P_LFO_SHAPE] = 0.0f;
+    ch[EPK_P_LFO_RATE] = 6.0f / 9.0f;
+    ch[EPK_P_LFO_DEST] = (float)EPK_TLFO_SEND_A / (EPK_TLFO_DEST_COUNT - 1);
+    ch[EPK_P_LFO_AMT] = 0.5f + 0.5f * 0.30f;
+    bs[EPK_P_LFO_SHAPE] = 1.0f;                                       // DRIFT, the last shape
+    bs[EPK_P_LFO_RATE] = 7.0f / 9.0f;
+    bs[EPK_P_LFO_DEST] = (float)EPK_TLFO_TONE / (EPK_TLFO_DEST_COUNT - 1);
+    bs[EPK_P_LFO_AMT] = 0.5f + 0.5f * 0.25f;
 }
 
 inline float rr(Rng &r, float lo, float hi) { return lo + (hi - lo) * r.unipolar(); }
@@ -362,11 +384,25 @@ void generate(int pt, uint32_t seed, int key) {
 
 // ------------------------------------------------------------------ saved patterns (patrones guardados)
 // A pattern's record (registro): see epk.h. Packed from parameters and steps, unpacked into a bank slot.
-void pack_track(const float *p, const Steps &st, uint8_t *&o) {
+// A parameter with fixed steps in one byte, the others in two (un byte o dos)
+constexpr int narrow(int q) {
+    return q == EPK_P_NOTE || q == EPK_P_ENGINE || q == EPK_P_LENGTH || q == EPK_P_HITS || q == EPK_P_ROTATE ||
+           q == EPK_P_DIVISION || q == EPK_P_EVERY || q == EPK_P_SCOPE || q == EPK_P_LFO_SHAPE || q == EPK_P_LFO_RATE ||
+           q == EPK_P_LFO_DEST;
+}
+constexpr int param_bytes(int q) { return q >= EPK_P_PATTERN_COUNT ? 0 : (narrow(q) ? 1 : 2) + param_bytes(q + 1); }
+static_assert(param_bytes(0) == EPK_PATTERN_PARAM_BYTES, "EPK_PATTERN_PARAM_BYTES out of step with the parameters");
+static_assert(EPK_BANK_OBJ_BYTES <= 3840, "half a bank must fit one store object (PLAT_STORE_MAX)");
+
+void pack_params(const float *p, uint8_t *&o) {
     for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) {
+        if (narrow(q)) { *o++ = (uint8_t)(clamp01(p[q]) * 255.0f + 0.5f); continue; }
         const uint32_t v = (uint32_t)(clamp01(p[q]) * 65535.0f + 0.5f);
         *o++ = (uint8_t)v; *o++ = (uint8_t)(v >> 8);
     }
+}
+void pack_track(const float *p, const Steps &st, uint8_t *&o) {
+    pack_params(p, o);
     for (int k = 0; k < 4; k++) *o++ = (uint8_t)(st.mask >> (8 * k));
     *o++ = st.manual;
     for (int k = 0; k < EPK_MAX_STEPS; k++) *o++ = st.meta[k];
@@ -374,7 +410,11 @@ void pack_track(const float *p, const Steps &st, uint8_t *&o) {
 void unpack_pattern(const uint8_t *in, int pt) {
     for (int i = 0; i < EPK_TRACKS; i++) {
         float *b = g.bank[pt][i];
-        for (int q = 0; q < EPK_P_PATTERN_COUNT; q++, in += 2) b[q] = (float)(in[0] | in[1] << 8) * (1.0f / 65535.0f);
+        for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) {
+            if (narrow(q)) { b[q] = (float)*in++ * (1.0f / 255.0f); continue; }
+            b[q] = (float)(in[0] | in[1] << 8) * (1.0f / 65535.0f);
+            in += 2;
+        }
         Steps &st = g.bank_steps[pt][i];
         st.mask = (uint32_t)in[0] | (uint32_t)in[1] << 8 | (uint32_t)in[2] << 16 | (uint32_t)in[3] << 24;
         in += 4;
@@ -393,8 +433,8 @@ void bake_track(int i, float *out, Steps &st) {
         out[EPK_P_TONE] = clamp01(t.p[EPK_P_TONE] + t.m_tone);
         out[EPK_P_DECAY] = clamp01(t.p[EPK_P_DECAY] + t.m_decay);
         out[EPK_P_CHARACTER] = clamp01(t.p[EPK_P_CHARACTER] + t.m_char);
-        out[EPK_P_HITS] = (float)hits_live(t, len) / (float)len;
-        out[EPK_P_ROTATE] = (float)((rot_live(t) % len + len) % len) / 31.0f;
+        out[EPK_P_HITS] = (float)hits_evo(t, len) / (float)len;     // the LFO keeps running in it: not baked
+        out[EPK_P_ROTATE] = (float)((rot_evo(t) % len + len) % len) / 31.0f;
         st = t.st;
         if (t.st.manual && t.m_rot) {                                // manual steps: the rotation into the steps
             const int rot = ((t.m_rot % len) + len) % len;
@@ -673,8 +713,8 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const float target = (t.muted || (solo && !t.soloed)) ? 0.0f : 1.0f;
     const float lvl = t.pm[EPK_P_LEVEL] * t.pm[EPK_P_LEVEL];        // a squared taper (curva cuadrática)
     if (t.lvl_s < 0.0f) t.lvl_s = lvl;
-    const float pan = t.p[EPK_P_PAN];
-    const float send_a = t.p[EPK_P_SEND_A] * t.p[EPK_P_SEND_A], send_b = t.p[EPK_P_SEND_B] * t.p[EPK_P_SEND_B];
+    const float pan = t.pm[EPK_P_PAN];                               // pm: the track LFO may move them (lo mueve)
+    const float send_a = t.pm[EPK_P_SEND_A] * t.pm[EPK_P_SEND_A], send_b = t.pm[EPK_P_SEND_B] * t.pm[EPK_P_SEND_B];
     const float throw_target = t.thrown ? 1.0f : 0.0f;
     const int is_kick = &t == &g.tr[0];
     const float gl = fm_cosf(pan * 1.5707963f), gr = fm_sinf(pan * 1.5707963f);   // equal power (potencia constante)
@@ -765,6 +805,9 @@ void epk_init(float sample_rate) {
         t.chance.init(0x2545F491u * (uint32_t)(i + 1));
         t.evo.init(0x6C8E9CF5u * (uint32_t)(i + 3));
         t.evo_off = 0;
+        t.lfo_out = t.lfo_last_ph = t.lfo_from = t.lfo_to = t.lfo_walk = 0.0f;
+        t.lfo_hits = t.lfo_rot = 0;
+        t.lfo_rng.init(0x51ED270Bu * (uint32_t)(i + 5));
         evo_reset(t);
         t.voice.init(param_int(t, EPK_P_ENGINE), 0x1234567u * (uint32_t)(i + 1));
     }
@@ -772,6 +815,41 @@ void epk_init(float sample_rate) {
 
 // The modulation for this block (la modulación de este bloque): the sources move, the effects and the tracks get
 // their offsets. The followers hear the previous block (≤ 6 ms late).
+// The track LFO over a block (un bloque): the global LFO's shapes, locked to the bar, and DRIFT, a slow random walk
+// that bounces off the edges; its speed: how much it wanders in one cycle of RATE
+inline void track_lfo(Track &t, float t16, uint32_t n) {
+    const float amt = (t.p[EPK_P_LFO_AMT] - 0.5f) * 2.0f;
+    const int shape = clampi((int)(t.p[EPK_P_LFO_SHAPE] * (EPK_TLFO_SHAPE_COUNT - 1) + 0.5f), 0, EPK_TLFO_SHAPE_COUNT - 1);
+    const float len = kLfoSixteenths[clampi((int)(t.p[EPK_P_LFO_RATE] * (EPK_LFO_RATE_COUNT - 1) + 0.5f), 0,
+                                            EPK_LFO_RATE_COUNT - 1)];
+    const float cyc = t16 / len, ph = cyc - fm_floorf(cyc);
+    const int fresh = ph < t.lfo_last_ph;
+    t.lfo_last_ph = ph;
+    float v;
+    switch (shape) {
+    case EPK_LFO_SINE: v = fm_sin_turns(ph); break;
+    case EPK_LFO_TRIANGLE: v = ph < 0.5f ? 4.0f * ph - 1.0f : 3.0f - 4.0f * ph; break;
+    case EPK_LFO_SAW: v = 1.0f - 2.0f * ph; break;
+    case EPK_LFO_SQUARE: v = ph < 0.5f ? 1.0f : -1.0f; break;
+    case EPK_LFO_SH:
+        if (fresh) t.lfo_from = t.lfo_rng.bipolar();
+        v = t.lfo_from;
+        break;
+    case EPK_LFO_RANDOM:
+        if (fresh) { t.lfo_from = t.lfo_to; t.lfo_to = t.lfo_rng.bipolar(); }
+        v = t.lfo_from + (t.lfo_to - t.lfo_from) * (ph * ph * (3.0f - 2.0f * ph));
+        break;
+    default: {                                                       // DRIFT (deriva)
+        const float blk16 = (float)n * g.bpm * (1.0f / 60.0f) * 4.0f / g.sr;   // this block in sixteenths
+        t.lfo_walk += t.lfo_rng.bipolar() * 1.7f * fm_sqrtf(blk16 / len);
+        if (t.lfo_walk > 1.0f) t.lfo_walk = 2.0f - t.lfo_walk;
+        if (t.lfo_walk < -1.0f) t.lfo_walk = -2.0f - t.lfo_walk;
+        v = t.lfo_walk;
+    }
+    }
+    t.lfo_out = v * amt;
+}
+
 void apply_mod(uint32_t n) {
     static const int8_t kFxOf[EPK_DEST_TONE1] = {-1, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK,
                                                  EPK_FX_DLY_TONE, EPK_FX_DLY_LEVEL, EPK_FX_REV_DECAY, EPK_FX_REV_LEVEL,
@@ -788,14 +866,28 @@ void apply_mod(uint32_t n) {
         const float o = g.mod.off[d];
         if (o != 0.0f) g.fx_live[kFxOf[d]] = clamp01(g.fx[kFxOf[d]] + o);
     }
+    const float t16 = g.playing && g.sixteenths >= 0 ? pos16 : g.mod.free_phase;
     for (int k = 0; k < EPK_TRACKS; k++) {
         Track &t = g.tr[k];
+        track_lfo(t, t16, n);
         for (int p = 0; p < EPK_P_COUNT; p++) t.pm[p] = t.p[p];
         t.pm[EPK_P_TONE] = clamp01(t.p[EPK_P_TONE] + t.m_tone + g.mod.off[EPK_DEST_TONE1 + k]);
         t.pm[EPK_P_DECAY] = clamp01(t.p[EPK_P_DECAY] + t.m_decay);
         t.pm[EPK_P_CHARACTER] = clamp01(t.p[EPK_P_CHARACTER] + t.m_char);
         t.pm[EPK_P_NOTE] = (float)(note_live(t) - 24) / 60.0f;
         t.pm[EPK_P_LEVEL] = clamp01(t.p[EPK_P_LEVEL] + g.mod.off[EPK_DEST_LEVEL1 + k]);
+        // the track LFO on top (encima): half the range at full amount; the rhythm in hits and steps
+        static const int8_t kParamOf[EPK_TLFO_DEST_COUNT] = {EPK_P_TONE, EPK_P_DECAY, EPK_P_CHARACTER, EPK_P_EXTRA1,
+                                                             EPK_P_EXTRA2, EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A,
+                                                             EPK_P_SEND_B, -1, -1};
+        const int dest = clampi((int)(t.p[EPK_P_LFO_DEST] * (EPK_TLFO_DEST_COUNT - 1) + 0.5f), 0, EPK_TLFO_DEST_COUNT - 1);
+        t.lfo_hits = t.lfo_rot = 0;
+        if (t.lfo_out != 0.0f) {
+            const int len = param_int(t, EPK_P_LENGTH);
+            if (dest == EPK_TLFO_HITS) t.lfo_hits = (int)fm_floorf(t.lfo_out * (float)len * 0.25f + 0.5f);
+            else if (dest == EPK_TLFO_ROTATE) t.lfo_rot = (int)fm_floorf(t.lfo_out * (float)len * 0.5f + 0.5f);
+            else t.pm[kParamOf[dest]] = clamp01(t.pm[kParamOf[dest]] + t.lfo_out * 0.5f);
+        }
     }
 }
 
@@ -920,6 +1012,9 @@ int epk_param_steps(int param) {
     case EPK_P_DIVISION: return EPK_DIV_COUNT;
     case EPK_P_EVERY: return 5;
     case EPK_P_SCOPE: return EPK_SCOPE_COUNT;
+    case EPK_P_LFO_SHAPE: return EPK_TLFO_SHAPE_COUNT;
+    case EPK_P_LFO_RATE: return EPK_LFO_RATE_COUNT;
+    case EPK_P_LFO_DEST: return EPK_TLFO_DEST_COUNT;
     case EPK_P_ENGINE: return EPK_ENG_COUNT;
     default: return 0;
     }
@@ -1013,24 +1108,33 @@ int epk_every_bars(int track) { return valid(track) ? every_bars(g.tr[track]) : 
 int epk_absent(int track) { return valid(track) && g.playing ? g.tr[track].absent : 0; }
 void epk_evolve_enable(int track, int on) { if (valid(track)) g.tr[track].evo_off = on ? 0 : 1; }
 int epk_evolve_enabled(int track) { return valid(track) ? !g.tr[track].evo_off : 0; }
+float epk_track_lfo(int track) { return valid(track) ? g.tr[track].lfo_out : 0.0f; }
 void epk_evolve_hold(int on) { g.evo_hold = on ? 1 : 0; }
 void epk_random_key_lock(int on) { g.key_lock = on ? 1 : 0; }
 int epk_random_key_locked(void) { return g.key_lock; }
 int epk_key(void) { return ((2 + g.key) % 12 + 12) % 12; }
 int epk_evolve_held(void) { return g.evo_hold; }
-// Version 1 had one parameter fewer per track (sin QUÉ): each record grows by a zero (TODO) after ABSENCE
+// Older versions had fewer parameters per track (menos parámetros), the newest last: 1 without SCOPE and the track
+// LFO, 2 without the track LFO. Each record grows by their defaults (sus valores de inicio)
 int epk_bank_upgrade(const uint8_t *in, int len, uint8_t *out, int max) {
-    const int n1 = EPK_P_PATTERN_COUNT - 1, rec1 = (n1 * 2 + 37) * EPK_TRACKS, size1 = EPK_BANK_HEAD + 8 * rec1;
-    if (len < size1 || max < EPK_BANK_OBJ_BYTES || in[0] != 'E' || in[1] != 'P' || in[2] != 'K' || in[3] != 'B' ||
-        in[4] != 1)
-        return 0;
+    if (len < 5 || max < EPK_BANK_OBJ_BYTES || in[0] != 'E' || in[1] != 'P' || in[2] != 'K' || in[3] != 'B') return 0;
+    const int missing = in[4] == 1 ? 5 : in[4] == 2 ? 4 : -1;
+    if (missing < 0) return 0;
+    const int n_old = EPK_P_PATTERN_COUNT - missing, rec_old = (n_old * 2 + 37) * EPK_TRACKS;
+    if (len < EPK_BANK_HEAD + 8 * rec_old) return 0;
+    float tail[5];
+    tail[0] = 0.0f;                                                  // SCOPE: all (todo)
+    for (int q = 0; q < 4; q++) tail[1 + q] = kLfoDefault[q];
+    const float *add = tail + (5 - missing);
     for (int i = 0; i < EPK_BANK_HEAD; i++) out[i] = in[i];
     out[4] = EPK_BANK_VERSION;
     const uint8_t *src = in + EPK_BANK_HEAD;
     uint8_t *dst = out + EPK_BANK_HEAD;
-    for (int r = 0; r < 8 * EPK_TRACKS; r++) {
-        for (int i = 0; i < n1 * 2; i++) *dst++ = *src++;
-        *dst++ = 0; *dst++ = 0;
+    for (int r = 0; r < 8 * EPK_TRACKS; r++) {                      // old: every parameter in two bytes
+        float p[EPK_P_PATTERN_COUNT];
+        for (int q = 0; q < n_old; q++, src += 2) p[q] = (float)(src[0] | src[1] << 8) * (1.0f / 65535.0f);
+        for (int q = 0; q < missing; q++) p[n_old + q] = add[q];
+        pack_params(p, dst);
         for (int i = 0; i < 37; i++) *dst++ = *src++;
     }
     return EPK_BANK_OBJ_BYTES;

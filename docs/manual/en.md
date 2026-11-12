@@ -60,7 +60,8 @@ Each track has a sound engine (ENGINE page [MOTOR], K1). So far:
 
 ## 5. Pages (SELECT)
 SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, division) · GROOVE (swing, shift
-[DESPLAZA], absence [AUSENCIA]) · EVOLUTION [EVOLUCION] (mutate [MUTAR], what [QUE], every [CADA], return [VUELTA]) · MIX [MEZCLA]
+[DESPLAZA], absence [AUSENCIA]) · EVOLUTION [EVOLUCION] (mutate [MUTAR], what [QUE], every [CADA], return [VUELTA]) ·
+MOVEMENT [MOVIMIENTO] (shape [FORMA], rate [VELOC], destination [DESTINO], amount [CANT]) · MIX [MEZCLA]
 (level, pan, A delay [A ECO], B reverb). They do not all fit, so the top line shows the previous, current and next
 page, with the page number.
 
@@ -88,6 +89,19 @@ an offset over it changes, and a pattern change or PLAY starts again from what i
 - In bank A, by default, **only the synths evolve** (chord and bass every 4 bars, drone every 8). Kick, hats and
   percussion come still. Generated banks do the same, in different amounts.
 - ARP on these pages randomizes MUTATE, EVERY, RETURN and ABSENCE (ABSENCE at most 25 %); it leaves WHAT alone.
+
+### MOVEMENT: each track's LFO
+Each track has its own LFO, saved with the pattern. While the sequencer runs it is locked to the bar.
+- **Shape [FORMA]:** sine, triangle, saw, square, S&H (a new value each cycle), smooth random [AZAR] and **DRIFT
+  [DERIVA]**: a slow random walk with no cycle that never repeats. It is what keeps a fixed sound alive.
+- **Rate [VELOC]:** how long a cycle lasts, 1/16 to 32 bars. In DRIFT, how far it wanders in that time.
+- **Destination [DESTINO]:** tone, decay, character, the engine's two knobs (by their name: ENVOLV, DERIVA,
+  CUERPO…), level, pan, send A, send B, **hits [GOLPES]** or **rotate [ROTAR]**. With hits or rotate the rhythm
+  breathes: the track gains and loses hits, or shifts them, across the cycle.
+- **Amount [CANT]:** −100 to +100. At +100 it travels half the knob up and down; negative, upside down. 0 = off.
+- It does not move the knob: it adds to its setting. A saved pattern keeps its LFO settings and the LFO keeps
+  moving when it loads.
+- In bank A by default the chord breathes into the delay (send A, 4 bars) and the bass's tone drifts.
 
 ## 6. Patterns and banks (SAVE)
 - **Black keys = banks A to K. White keys = the bank's 16 patterns.**
@@ -212,6 +226,6 @@ the screen shows all four moving and where they go.
 - By default LFO 1 moves the delay's tone (+25 %, 8 bars).
 
 ## 11. To come
-Next: per-track LFO and DRIFT, the FLOW view (effects chain), scenes. Then: more engines, saving the project (mix,
+Next: the FLOW view (effects chain), scenes. Then: more engines, saving the project (mix,
 effects, tempo), names, erasing a saved pattern, clock and MIDI (phase 6), testing on the device (7, only when
 decided).

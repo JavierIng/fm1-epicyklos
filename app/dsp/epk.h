@@ -42,6 +42,11 @@ enum {
     EPK_P_RETURN,     /* how much it goes back towards the pattern each time (vuelta): 0 with MUTATE 0 = frozen */
     EPK_P_ABSENCE,    /* the chance that it rests for that stretch (ausencia) */
     EPK_P_SCOPE,      /* what MUTATE moves (qué muta): EPK_SCOPE_* */
+    /* MOVEMENT (movimiento): the track's own LFO, locked to the bar while playing */
+    EPK_P_LFO_SHAPE,  /* EPK_TLFO_SHAPE_*: the global LFO's six and DRIFT (deriva: a slow random walk) */
+    EPK_P_LFO_RATE,   /* EPK_LFO_RATE_*: 1/16 .. 32 bars a cycle (DRIFT: how fast it wanders) */
+    EPK_P_LFO_DEST,   /* EPK_TLFO_*: where it goes (destino) */
+    EPK_P_LFO_AMT,    /* how much, 0.5 = none, below = upside down (cantidad bipolar) */
     EPK_P_PATTERN_COUNT, /* the parameters above belong to the pattern (al patrón); the ones below, to the project */
     EPK_P_LEVEL = EPK_P_PATTERN_COUNT,   /* level (nivel) */
     EPK_P_PAN,        /* pan (panorama): 0 left, 0.5 centre, 1 right */
@@ -163,6 +168,13 @@ enum {
 };
 enum { EPK_LFO_SINE, EPK_LFO_TRIANGLE, EPK_LFO_SAW, EPK_LFO_SQUARE, EPK_LFO_SH, EPK_LFO_RANDOM, EPK_LFO_SHAPE_COUNT };
 #define EPK_LFO_RATE_COUNT 10
+
+/* the track LFO (LFO de pista): its shapes, the global LFO's plus DRIFT, and its destinations */
+enum { EPK_TLFO_SHAPE_DRIFT = EPK_LFO_SHAPE_COUNT, EPK_TLFO_SHAPE_COUNT };
+enum { EPK_TLFO_TONE, EPK_TLFO_DECAY, EPK_TLFO_CHARACTER, EPK_TLFO_EXTRA1, EPK_TLFO_EXTRA2, EPK_TLFO_LEVEL,
+       EPK_TLFO_PAN, EPK_TLFO_SEND_A, EPK_TLFO_SEND_B, EPK_TLFO_HITS, EPK_TLFO_ROTATE, EPK_TLFO_DEST_COUNT };
+float epk_track_lfo(int track);                /* its output now with the amount, -1..1 (salida) */
+
 enum {
     EPK_DEST_NONE, EPK_DEST_FLT, EPK_DEST_FLT_RESO, EPK_DEST_DLY_TIME, EPK_DEST_DLY_FEEDBACK, EPK_DEST_DLY_TONE,
     EPK_DEST_DLY_LEVEL, EPK_DEST_REV_DECAY, EPK_DEST_REV_LEVEL,
@@ -213,11 +225,14 @@ int epk_evolve_held(void);
 /* Saving (guardar): a pattern as it sounds now (with its evolution) goes to a slot of any bank. The core packs it;
  * the UI keeps it in the store (plat_store_*: the flash on the device, the page's storage in the emulator) as two
  * objects a bank, eight slots each. A slot saved overrides the factory or generated one when its bank loads.
- * Record: per track the pattern's parameters (u16 LE) then steps: mask u32 LE, manual u8, meta u8 x 32 */
-#define EPK_PATTERN_BYTES ((EPK_P_PATTERN_COUNT * 2 + 37) * EPK_TRACKS)
+ * Record: per track the pattern's parameters (see below) then steps: mask u32 LE, manual u8, meta u8 x 32 */
+/* from version 3 a parameter with fixed steps takes one byte (u8 of 255), the rest two (u16 LE); versions 1-2: all
+ * two. EPK_PATTERN_PARAM_BYTES: their sum for a track (checked in the core) */
+#define EPK_PATTERN_PARAM_BYTES 35
+#define EPK_PATTERN_BYTES ((EPK_PATTERN_PARAM_BYTES + 37) * EPK_TRACKS)
 #define EPK_BANK_HEAD 8                        /* "EPKB", version, bank, half, slot mask */
 #define EPK_BANK_OBJ_BYTES (EPK_BANK_HEAD + 8 * EPK_PATTERN_BYTES)
-#define EPK_BANK_VERSION 2                      /* 1: without SCOPE (sin QUÉ); still read, converted */
+#define EPK_BANK_VERSION 3                      /* 1: without SCOPE; 2: without the track LFO; both still read */
 /* an object of an older version, rewritten as this one (convertido): bytes written to out, 0 if not convertible */
 int epk_bank_upgrade(const uint8_t *in, int len, uint8_t *out, int max);
 void epk_pattern_pack_live(uint8_t *out);      /* EPK_PATTERN_BYTES: what plays now, its evolution included */

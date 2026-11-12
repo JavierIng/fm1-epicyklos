@@ -42,15 +42,17 @@ static uint16_t dim_colour(uint16_t c)               /* a colour at ~35 % (apaga
 }
 
 /* ------------------------------------------------------------------ pages (páginas) */
-enum { PAGE_SOUND, PAGE_ENGINE, PAGE_RHYTHM, PAGE_GROOVE, PAGE_EVOL, PAGE_MIX, NPAGES };
+enum { PAGE_SOUND, PAGE_ENGINE, PAGE_RHYTHM, PAGE_GROOVE, PAGE_EVOL, PAGE_MOVE, PAGE_MIX, NPAGES };
 enum { SLOT_NONE = -1, SLOT_LATER = -2 };            /* nothing there / a later phase (fase siguiente) */
-static const char *const PAGE_NAME[NPAGES] = {"SONIDO", "MOTOR", "RITMO", "GROOVE", "EVOLUCION", "MEZCLA"};
+static const char *const PAGE_NAME[NPAGES] = {"SONIDO", "MOTOR", "RITMO", "GROOVE", "EVOLUCION", "MOVIMIENTO",
+                                               "MEZCLA"};
 static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_NOTE, EPK_P_CHARACTER, EPK_P_TONE, EPK_P_DECAY},
     {EPK_P_ENGINE, EPK_P_EXTRA1, EPK_P_EXTRA2, EPK_P_ATTACK},
     {EPK_P_LENGTH, EPK_P_HITS, EPK_P_ROTATE, EPK_P_DIVISION},
     {EPK_P_SWING, EPK_P_SHIFT, EPK_P_ABSENCE, SLOT_NONE},     /* ABSENCE: when it rests (cuándo descansa) */
     {EPK_P_MUTATE, EPK_P_SCOPE, EPK_P_EVERY, EPK_P_RETURN},   /* evolution (evolución) */
+    {EPK_P_LFO_SHAPE, EPK_P_LFO_RATE, EPK_P_LFO_DEST, EPK_P_LFO_AMT},   /* the track LFO (movimiento) */
     {EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B},   /* sends: A the delay, B the reverb */
 };
 static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};
@@ -103,6 +105,10 @@ static const char *param_name(int track, int p)
     case EPK_P_RETURN: return "VUELTA";
     case EPK_P_ABSENCE: return "AUSENCIA";
     case EPK_P_SCOPE: return "QUE";
+    case EPK_P_LFO_SHAPE: return "FORMA";
+    case EPK_P_LFO_RATE: return "VELOC";
+    case EPK_P_LFO_DEST: return "DESTINO";
+    case EPK_P_LFO_AMT: return "CANT";
     case EPK_P_LEVEL: return "NIVEL";
     case EPK_P_PAN: return "PAN";
     case EPK_P_SEND_A: return "A ECO";
@@ -125,6 +131,10 @@ static const char *param_hint(int track, int p)
     case EPK_P_RETURN: return "Cuanto vuelve al patron";
     case EPK_P_ABSENCE: return "Que descanse cada CADA compases";
     case EPK_P_SCOPE: return "Ritmo, sonido, nota o todo";
+    case EPK_P_LFO_SHAPE: return "La onda; DERIVA vaga sin ciclo";
+    case EPK_P_LFO_RATE: return "Lo que dura un ciclo";
+    case EPK_P_LFO_DEST: return "Que mueve el LFO de esta pista";
+    case EPK_P_LFO_AMT: return "Cuanto; negativo, al reves";
     case EPK_P_LEVEL: return "Volumen de la pista";
     case EPK_P_PAN: return "Izquierda o derecha";
     case EPK_P_SEND_A: return "Cuanto va al eco";
@@ -475,6 +485,25 @@ static void param_str(int track, int p, char *b)
     }
     case EPK_P_ROTATE: int_str(i, b); break;
     case EPK_P_DIVISION: str_cat(b, DIV_NAME[i]); break;
+    case EPK_P_LFO_SHAPE:
+        str_cat(b, i < EPK_LFO_SHAPE_COUNT ? LFO_SHAPE_NAME[i] : "DERIVA");
+        break;
+    case EPK_P_LFO_RATE: str_cat(b, LFO_RATE_NAME[i]); break;
+    case EPK_P_LFO_DEST: {                 /* the destination by its name on this engine (su nombre en el motor) */
+        static const int8_t P[EPK_TLFO_DEST_COUNT] = {EPK_P_TONE, EPK_P_DECAY, EPK_P_CHARACTER, EPK_P_EXTRA1,
+                                                      EPK_P_EXTRA2, EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B,
+                                                      EPK_P_HITS, EPK_P_ROTATE};
+        str_cat(b, param_name(track, P[i]));
+        break;
+    }
+    case EPK_P_LFO_AMT: {
+        const float a = epk_param_get(track, p);
+        const int c = (int)((a - 0.5f) * 200.0f + (a < 0.5f ? -0.5f : 0.5f));
+        if (c > 0)
+            str_cat(b, "+");
+        int_str(c, b + (c > 0));
+        break;
+    }
     case EPK_P_SCOPE: {
         static const char *const SC[EPK_SCOPE_COUNT] = {"TODO", "RITMO", "SONIDO", "NOTA"};
         str_cat(b, SC[i]);
@@ -842,7 +871,7 @@ static void random_page(void)
         const int p = slot_param(ui.track, ui.page, slot);
         float v, target;
         if (p < 0 || (ui.locked >> p & 1u) || p == EPK_P_ENGINE || p == EPK_P_LENGTH || p == EPK_P_DIVISION ||
-            p == EPK_P_LEVEL || p == EPK_P_SCOPE)   /* what evolves is the player's choice (lo eliges tú) */
+            p == EPK_P_LEVEL || p == EPK_P_SCOPE || p == EPK_P_LFO_DEST)   /* the player's choices (lo eliges tú) */
             continue;
         v = epk_param_get(ui.track, p);
         if (p == EPK_P_NOTE) {
