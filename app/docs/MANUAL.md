@@ -164,9 +164,9 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
   todo el eco se realimenta solo), TONO (cada repetición más oscura).
 - **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL,
   DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms).
-- **REVERB (PLACA):** CAÍDA, TONO (lo oscura que es la cola), MOVER (movimiento interno), NIVEL.
-- **REVERB 2** (la página siguiente): K1 **TIPO** elige **PLACA** o **NUBE**; los otros tres knobs dependen del tipo.
-  Al cambiar de tipo, la reverb empieza vacía. Solo suena una de las dos (comparten memoria).
+- **REVERB:** K1 **TIPO** elige **PLACA** o **NUBE**; los otros tres knobs dependen del tipo. Al cambiar de tipo,
+  la reverb empieza vacía. Solo suena una de las dos (comparten memoria).
+- **REVERB 2:** CAÍDA, TONO (lo oscura que es la cola), MOVER (movimiento interno), NIVEL. En NUBE cambia (ver abajo).
 - **PLACA**, a la manera de la reverb **Plateau** de Valley (sus controles; el código es propio): la placa clásica
   de Dattorro.
   - **PREDELAY:** silencio antes de la cola, de 0 a 500 ms (sale en ms). Separa el golpe de su reverb.
@@ -176,13 +176,13 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
   - **HOME + REC** congela también la placa: deja de entrar sonido y la cola se queda sonando.
 - **NUBE**: una nube de granos con la idea del módulo Clouds de Mutable Instruments (el código es propio). Escucha
   lo que le mandan los envíos B, guarda los últimos 2 segundos y los reparte en trocitos (granos) por el estéreo. En
-  REVERB 2:
+  REVERB:
   - **POSICIÓN:** de dónde salen los granos: de lo que acaba de sonar (0) a casi 2 segundos atrás (100).
   - **TAMAÑO:** granos cortos (~20 ms, chisporroteo) a largos (~1 s, nube).
   - **DENSIDAD:** en el centro, NADA (no salen granos nuevos); a la izquierda, granos regulares (REG); a la derecha,
     al azar (AZAR) y con la posición algo desordenada. Cuanto más lejos del centro, más granos (12 a la vez como
     máximo).
-  - En NUBE la página **REVERB** cambia: **REPITE** (los granos vuelven a entrar en la nube), **TEXTURA** (granos de
+  - En NUBE la página **REVERB 2** cambia: **REPITE** (los granos vuelven a entrar en la nube), **TEXTURA** (granos de
     borde duro a la izquierda, suaves a la derecha, y algo más oscuros), **AFINA** (de −24 a +24 semitonos, de uno en
     uno) y NIVEL.
   - **HOME + REC** congela también la nube: deja de grabar y los granos siguen saliendo de lo que tiene. Arriba se

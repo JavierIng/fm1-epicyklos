@@ -319,3 +319,8 @@
 - Memoria: pool 316.560 B de 344.064 → **27,5 KB libres** (antes 42,5). Es memoria que ya no queda para MACRO: si Plaits no cabe, esta reverb se puede reducir o quitar.
 - Pruebas: con densidad al centro, la cola de la nube sin reverb es 0 y con reverb 0,25 a los 1,2 s. Se corrigió la prueba del predelay (esperaba 0,5 s tras parar, lo mismo que el predelay máximo, y medía la cola de un golpe anterior).
 - Versión de prueba 0.1.1 compilada (Actions → Site, privada).
+
+## Orden de la reverb y textos de valor (2026-11-12, noche)
+- Javier: "REVERB 2 tendría que estar en la posición de REVERB: primero el tipo y luego los controles" y "quita que salga TIPO 1 / TIPO 100". Ahora la página 3 de EFECTOS (**REVERB**) es TIPO + (PREDELAY, TAMAÑO, DIFUSIÓN) o + (POSICIÓN, TAMAÑO, DENSIDAD); la 4 (**REVERB 2**) es CAÍDA, TONO, MOVER, NIVEL (en NUBE: REPITE, TEXTURA, AFINA, NIVEL).
+- **Fallo mío:** al quitar el STUTTER se borraron sin querer los textos de TIPO (PLACA/NUBE), PREDELAY (ms), AFINA (semitonos) y DENSIDAD (NADA/REG/AZAR): salían como 0-100. Restaurados. Las pruebas no lo vieron porque comprueban valores, no el texto; se comprueba ahora con capturas de pantalla.
+- Firmware oficial de M-VAVE recibido de Javier: `FM-1.fwsc` V16 (718.196 B), sha256 `d017fb65…61d5`, igual al que fm1-base registra como oficial (FM-1_016, 2026-10-23). Sirve para "volver al firmware de M-VAVE" desde el instalador.

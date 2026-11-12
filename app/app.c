@@ -152,15 +152,15 @@ static int slot_param(int track, int page, int slot)
 }
 
 /* ------------------------------------------------------------------ the effects' pages (páginas de EFECTOS) */
-enum { FXP_ECO, FXP_ECO2, FXP_REV, FXP_NUBE, FXP_REV3, FXP_FLT, FXP_MASTER, FXP_MAREA, FXP_MAREA2, FXP_MAREA3, FXP_DIGITAL,
+enum { FXP_ECO, FXP_ECO2, FXP_REV, FXP_REV2, FXP_REV3, FXP_FLT, FXP_MASTER, FXP_MAREA, FXP_MAREA2, FXP_MAREA3, FXP_DIGITAL,
        NFXPAGES };
 static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "REVERB 2", "REVERB 3", "FILTRO", "MASTER", "MAREA",
                                                    "MAREA 2", "MAREA 3", "DIGITAL"};
 static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
     {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, EPK_FX_DUCK},
-    {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
-    {EPK_FX_REV_TYPE, EPK_FX_NUBE_POS, EPK_FX_NUBE_SIZE, EPK_FX_NUBE_DENSITY},   /* REVERB 2 (NUBE) */
+    {EPK_FX_REV_TYPE, EPK_FX_NUBE_POS, EPK_FX_NUBE_SIZE, EPK_FX_NUBE_DENSITY},   /* REVERB: the type first (NUBE) */
+    {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},       /* REVERB 2 */
     {EPK_FX_REV_SHIMMER, EPK_FX_REV_SHIM_INT, EPK_FX_REV_LOWCUT, EPK_FX_REV_WIDTH},   /* REVERB 3 */
     {EPK_FX_FLT_TYPE, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_FLT_DOUBLE},
     {EPK_FX_COMP, EPK_FX_SAT, SLOT_NONE, SLOT_NONE},
@@ -209,9 +209,9 @@ static int is_nube(void) { return epk_fx_get(EPK_FX_REV_TYPE) > 0.5f; }
 static int fx_slot(int page, int slot)
 {
     static const int8_t PLACA2[4] = {EPK_FX_REV_TYPE, EPK_FX_REV_PREDELAY, EPK_FX_REV_SIZE, EPK_FX_REV_DIFFUSION};
-    if (page == FXP_REV && slot == 2 && is_nube())
+    if (page == FXP_REV2 && slot == 2 && is_nube())        /* REVERB 2 in NUBE: AFINA where MOVER is */
         return EPK_FX_NUBE_PITCH;
-    if (page == FXP_NUBE && !is_nube())                    /* REVERB 2: the plate's, or the cloud's (placa o nube) */
+    if (page == FXP_REV && !is_nube())                     /* REVERB: the type, then the plate's or the cloud's */
         return PLACA2[slot];
     if (page == FXP_REV3 && slot < 2 && is_nube())         /* NUBE: its own reverb where the plate has the shimmer */
         return slot ? EPK_FX_NUBE_VERB_TIME : EPK_FX_NUBE_VERB;
@@ -403,6 +403,26 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         else {
             str_cat(b, "/");
             int_str((int32_t)(1.0f + 31.0f * v * v + 0.5f), b + 1);
+        }
+    } else if (p == EPK_FX_REV_TYPE) {
+        str_cat(b, v > 0.5f ? "NUBE" : "PLACA");
+    } else if (p == EPK_FX_REV_PREDELAY) {
+        int_str((int32_t)(v * 500.0f + 0.5f), b);
+        str_cat(b, " MS");
+    } else if (p == EPK_FX_NUBE_PITCH) {
+        const int st = (int)(v * (float)(EPK_NUBE_PITCH_STEPS - 1) + 0.5f) - 24;
+        if (st > 0)
+            str_cat(b, "+");
+        else if (st < 0)
+            str_cat(b, "-");
+        int_str(st < 0 ? -st : st, b + (st != 0));
+    } else if (p == EPK_FX_NUBE_DENSITY) {
+        const int d = (int)((v - 0.5f) * 200.0f + (v >= 0.5f ? 0.5f : -0.5f));
+        if (d > -4 && d < 4)
+            str_cat(b, "NADA");
+        else {
+            str_cat(b, d < 0 ? "REG " : "AZAR ");
+            int_str(d < 0 ? -d : d, b + (d < 0 ? 4 : 5));
         }
     } else if (p == EPK_FX_REV_SHIMMER && v < 0.001f) {
         str_cat(b, "NO");

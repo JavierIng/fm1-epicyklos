@@ -87,18 +87,18 @@ turn K1 -2
 turn SELECT 2
 wait 30
 expect fxpage 2
-turn K1 4
-wait 30
-expect fx7 82
-# NUBE (nube de granos): the page after REVERB; K1 its type; in NUBE the REVERB page's K3 is AFINA
-turn SELECT 1
-wait 30
-expect fxpage 3
+# REVERB: the type first, then its controls (PLACA: PREDELAY, TAMANO, DIFUSION); REVERB 2: CAIDA, TONO, MOVER, NIVEL
 turn K2 2
 wait 30
 expect fx49 10
 shot placa2.png
 turn K2 -2
+turn SELECT 1
+wait 30
+expect fxpage 3
+turn K1 4
+wait 30
+expect fx7 82
 turn SELECT 1
 wait 30
 expect fxpage 4
@@ -107,31 +107,31 @@ wait 30
 expect fx42 20
 shot reverb3.png
 turn K1 -8
-turn SELECT -1
+turn SELECT -2
 wait 30
-expect fxpage 3
+expect fxpage 2
+# NUBE (nube de granos): K1 on REVERB; in NUBE, REVERB 2's K3 is AFINA
 turn K1 1
-wait 30
+wait 60
 expect fx44 1
+shot tipo_nube.png
 tap PLAY
 wait 2000
 shot nube.png
 tap PLAY
 wait 30
-turn SELECT -1
+turn SELECT 1
 wait 30
 turn K3 3
 wait 30
 expect fx48 27
 shot nube_reverb.png
 turn K3 -3
-turn SELECT 1
+turn SELECT -1
 wait 30
 turn K1 -1
 wait 30
 expect fx44 0
-turn SELECT -1
-wait 30
 expect fxpage 2
 # HOME+PRESETS: the selected track's send to the delay (envío al eco)
 press HOME

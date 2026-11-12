@@ -169,9 +169,9 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
   feedback [REPITE] (at the top the delay feeds itself), tone [TONO] (each repeat darker).
 - **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level,
   DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms).
-- **Reverb (PLACA, a plate):** decay [CAÍDA], tone (how dark the tail is), movement [MOVER], level.
-- **REVERB 2** (the next page): K1 **type [TIPO]** picks **PLACA** or **NUBE**; the other three knobs follow the
-  type. Changing it starts the reverb empty. Only one of the two plays (they share memory).
+- **REVERB:** K1 **type [TIPO]** picks **PLACA** or **NUBE**; the other three knobs follow the type. Changing it
+  starts the reverb empty. Only one of the two plays (they share memory).
+- **REVERB 2:** decay [CAÍDA], tone (how dark the tail is), movement [MOVER], level. In NUBE it changes (below).
 - **PLACA**, in the manner of Valley's **Plateau** reverb (its controls; our own code): Dattorro's classic plate.
   - **PREDELAY:** silence before the tail, 0 to 500 ms (shown in ms). It sets the hit apart from its reverb.
   - **Size [TAMANO]:** small room (0) to a huge hall (100): a quarter to twice the classic plate. It starts at 43,
@@ -179,12 +179,12 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
   - **Diffusion [DIFUSION]:** down, you hear the first echoes apart; up, everything blurs from the start.
   - **HOME + REC** freezes the plate too: nothing new comes in and the tail keeps ringing.
 - **NUBE** (cloud): a cloud of grains on the idea of Mutable Instruments' Clouds (our own code). It listens to the B
-  sends, keeps the last 2 seconds and scatters them in small pieces (grains) across the stereo field. On REVERB 2:
+  sends, keeps the last 2 seconds and scatters them in small pieces (grains) across the stereo field. On REVERB:
   - **Position [POSICION]:** where grains come from: what just played (0) to almost 2 seconds back (100).
   - **Size [TAMANO]:** short grains (~20 ms, crackle) to long (~1 s, a cloud).
   - **Density [DENSIDAD]:** at the centre, none [NADA] (no new grains); left, regular grains [REG]; right, random
     [AZAR], with the position a little scattered too. The further from the centre, the more grains (12 at once at most).
-  - In NUBE the **REVERB** page changes: **feedback [REPITE]** (grains go back into the cloud), **texture [TEXTURA]**
+  - In NUBE the **REVERB 2** page changes: **feedback [REPITE]** (grains go back into the cloud), **texture [TEXTURA]**
     (hard-edged grains on the left, smooth on the right, and a little darker), **pitch [AFINA]** (−24 to +24
     semitones, one at a time) and level.
   - **HOME + REC** freezes the cloud too: it stops recording and grains keep coming from what it holds. FREEZE shows
