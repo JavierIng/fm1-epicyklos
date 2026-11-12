@@ -96,19 +96,34 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
   - **LP, HP, BP, NOTCH:** low-pass, high-pass, band-pass and notch (takes a band out); the filter knob is the
     cutoff [CORTE].
   - **MORPH:** the fourth knob [FORMA] goes from low-pass to band-pass to high-pass.
-  - **MAREA:** a bank of 8 band-pass filters (100 Hz to 8 kHz, alternating left and right) with a wave of level
-    travelling across them. Position [POSICIÓN] is where the wave is, wave [OLA] how fast it travels (0 = still),
-    RESO wide or narrow bands. Inspired by Hypnus Records' Slink (the idea only).
   - Double [DOBLE] (in DJ, LP, HP, BP and NOTCH) adds a second peak above the cutoff, like a dual filter.
-  - HOME + ALGORITHM moves the filter / position from any view. It is also an LFO destination: a slow LFO on
-    MAREA's position makes the wave come and go.
+  - HOME + ALGORITHM moves the filter from any view. It is also an LFO destination.
 - **Master:** COMP (bus compressor: more is more glue and more pumping; the screen shows how many dB it takes
   off) and saturation [SATURA] (tape: warmth and roundness). A soft limiter always sits at the end.
+
+- **MAREA** (pages MAREA, MAREA 2 and MAREA 3): see the next section.
+- The bottom row shows the page before, this one and the next, and the page number (1/8 … 8/8).
 
 Changing the time in TAPE bends the pitch, like a tape changing speed. Changing the type starts the delay
 empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit is halved.
 
 The effects belong to the project: they do not change with the pattern.
+
+### MAREA: a filterbank moved by waves
+An effect you put **on the track you choose**, meant for chords, pads and sound design. Sixteen band-pass
+filters whose levels are moved by several crossing waves, like water. Inspired by Hypnus Records' Slink (the idea
+only; not the same algorithm).
+- **MAREA:** track [PISTA] (which one it is on; there is one MAREA, putting it on another track moves it), mix
+  [MEZCLA] (dry to wet), speed [VELOC] (0 = the water stands still), shape [FORMA] (one smooth swell to choppy).
+- **MAREA 2:** length [LONGITUD] (how many waves fit across the bands), depth [PROFUND] (how far the troughs
+  sink), stereo [ESTÉREO] (the right side reads the water further along: the sound opens and moves between the
+  sides), range [RANGO] (lower or higher bands).
+- **MAREA 3:** RESO (wide or narrow bands; narrow sounds more like resonances).
+- The screen draws the 16 bands: left on top, right below.
+- It comes out in stereo: that track's PAN works as a balance. Sends A and B already get the sound with MAREA.
+- Modulation destinations: MAR VELOC, MAR FORMA, MAR ESTÉREO, MAR RANGO and MAR MEZCLA (a slow LFO on range, or a
+  follower on shape, makes it breathe).
+- By default it sits on track 3 with mix 75.
 
 ### Dub gestures (REC)
 - **Hold REC:** throw. The selected track goes to the delay at full while you hold it, even with its send at 0.
@@ -125,8 +140,8 @@ the screen shows all four moving and where they go.
 - **Follower:** the track it listens to [SIGUE] and its release [CAÍDA]. It rises with each hit of that track.
 - **Destination and amount [DESTINO, CANT]** (K3, K4): where it goes and how much, positive or negative. Each
   source has **two destinations**: hold HOME and turn K3 and K4 for the second.
-- Destinations: filter, resonance, delay time, feedback, tone and level, reverb decay and level, and each track's
-  TONE or LEVEL. Modulation adds to the knob's setting without moving it.
+- Destinations: filter, resonance, delay time, feedback, tone and level, reverb decay and level, MAREA's, and
+  each track's TONE or LEVEL. Modulation adds to the knob's setting without moving it.
 - By default LFO 1 moves the delay's tone (+25 %, 8 bars).
 
 ## 11. To come

@@ -11,6 +11,7 @@
 #include "fx.h"
 #include "master.h"
 #include "mod.h"
+#include "marea.h"
 
 namespace epk {
 
@@ -95,6 +96,9 @@ struct Engine {
     Fx sends;
     Master master;
     Mod mod;
+    Marea marea;
+    int marea_on;                          // the track it was on last block (para vaciarla al moverla)
+    float ins_l[kBlock], ins_r[kBlock];    // the insert's stereo out (salida estéreo del inserto)
     float fx_live[EPK_FX_COUNT];           // the effects with the modulation on
     int32_t sixteenths;                    // since play (desde PLAY), for the LFOs
     float buf[kBlock], bus_a[kBlock], bus_b[kBlock], kick[kBlock], fx_l[kBlock], fx_r[kBlock];
@@ -450,13 +454,22 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const float throw_target = t.thrown ? 1.0f : 0.0f;
     const int is_kick = &t == &g.tr[0];
     const float gl = fm_cosf(pan * 1.5707963f), gr = fm_sinf(pan * 1.5707963f);   // equal power (potencia constante)
+    // MAREA on this track: the voice goes through it and comes out stereo; PAN works as a balance (balance)
+    const int ins = (int)(g.fx_live[EPK_FX_MAREA_TRACK] * 6.0f + 0.5f) == (int)(&t - g.tr) + 1;
+    if (ins) g.marea.process(g.buf, g.ins_l, g.ins_r, n, g.fx_live, g.sr);
     float peak = t.meter;
     for (uint32_t i = 0; i < n; i++) {
         t.gain += (target - t.gain) * 0.003f;                        // ~8 ms: mutes do not click
         t.lvl_s += (lvl - t.lvl_s) * 0.003f;                         // a modulated level glides (sin escalones)
-        const float s = g.buf[i] * t.lvl_s * t.gain;
-        l[i] += s * gl;
-        r[i] += s * gr;
+        const float s = (ins ? (g.ins_l[i] + g.ins_r[i]) * 0.5f : g.buf[i]) * t.lvl_s * t.gain;
+        if (ins) {
+            const float k = t.lvl_s * t.gain;
+            l[i] += g.ins_l[i] * k * gl;                             // the same law as a mono track
+            r[i] += g.ins_r[i] * k * gr;
+        } else {
+            l[i] += s * gl;
+            r[i] += s * gr;
+        }
         t.throw_g += (throw_target - t.throw_g) * 0.003f;            // the throw glides in: no click (sin clic)
         g.bus_a[i] += s * (send_a + (1.0f - send_a) * t.throw_g);    // after the fader (tras el fader)
         if (is_kick) g.kick[i] = s;
@@ -465,7 +478,7 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     }
     t.meter = peak;
     float bp = 0.0f;                                                 // this block's peak, for the followers
-    for (uint32_t i = 0; i < n; i++) bp = fm_maxf(bp, fm_fabsf(g.buf[i] * t.lvl_s * t.gain));
+    for (uint32_t i = 0; i < n; i++) bp = fm_maxf(bp, fm_fabsf((ins ? g.ins_l[i] : g.buf[i]) * t.lvl_s * t.gain));
     t.peak_block = bp;
 }
 
@@ -487,11 +500,14 @@ void epk_init(float sample_rate) {
     static const float kFx[EPK_FX_COUNT] = {0.0f, 2.0f / 15.0f, 0.50f, 0.45f, 0.35f, 0.25f, 0.75f,
                                             0.72f, 0.45f, 0.40f, 0.75f, 0.35f,
                                             0.5f, 0.30f, 0.0f, 0.30f, 0.15f,    // master: open, glue, a little tape
-                                            0.0f};                              // the DJ filter
+                                            0.0f,                               // the DJ filter
+                                            3.0f / 6.0f, 0.75f, 0.30f, 0.45f, 0.40f, 0.70f, 0.45f, 0.35f, 0.55f};   // MAREA on track 3
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();
     g.mod.init();
+    g.marea.init();
+    g.marea_on = 0;
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx_live[i] = g.fx[i];
     g.meter_fx = 0.0f;
     g.sr = sample_rate;
@@ -526,12 +542,16 @@ void epk_init(float sample_rate) {
 // their offsets. The followers hear the previous block (≤ 6 ms late).
 void apply_mod(uint32_t n) {
     static const int8_t kFxOf[EPK_DEST_TONE1] = {-1, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK,
-                                                 EPK_FX_DLY_TONE, EPK_FX_DLY_LEVEL, EPK_FX_REV_DECAY, EPK_FX_REV_LEVEL};
+                                                 EPK_FX_DLY_TONE, EPK_FX_DLY_LEVEL, EPK_FX_REV_DECAY, EPK_FX_REV_LEVEL,
+                                                 EPK_FX_MAREA_SPEED, EPK_FX_MAREA_SHAPE, EPK_FX_MAREA_STEREO,
+                                                 EPK_FX_MAREA_RANGE, EPK_FX_MAREA_MIX};
     float peaks[EPK_TRACKS];
     for (int i = 0; i < EPK_TRACKS; i++) peaks[i] = g.tr[i].peak_block;
     const float pos16 = g.playing && g.sixteenths >= 0 ? (float)g.sixteenths + (float)g.bar_pos * (1.0f / 4294967296.0f) : 0.0f;
     g.mod.tick(g.playing && g.sixteenths >= 0, pos16, n, g.bpm, g.sr, peaks);
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx_live[i] = g.fx[i];
+    const int on = (int)(g.fx[EPK_FX_MAREA_TRACK] * 6.0f + 0.5f);
+    if (on != g.marea_on) { g.marea.clear(); g.marea_on = on; }    // moved to another track: empty (vacía)
     for (int d = 1; d < EPK_DEST_TONE1; d++) {
         const float o = g.mod.off[d];
         if (o != 0.0f) g.fx_live[kFxOf[d]] = clamp01(g.fx[kFxOf[d]] + o);
@@ -601,7 +621,13 @@ void epk_panic(void) {
 void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COUNT) g.fx[param] = clamp01(value01); }
 float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
 int epk_fx_steps(int param) {
-    return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT : 0;
+    return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT :
+           param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : 0;
+}
+void epk_marea_band(int b, float *left, float *right) {
+    const int i = clampi(b, 0, kMareaBands - 1);
+    *left = g.marea.g_l[i];
+    *right = g.marea.g_r[i];
 }
 float epk_fx_meter(void) { float m = g.meter_fx; g.meter_fx = 0.0f; return m; }
 void epk_mod_set(int src, int param, float value01) {

@@ -90,19 +90,33 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
   - **DJ:** a la izquierda cierra un paso bajo, a la derecha abre un paso alto, en el centro no hace nada.
   - **LP, HP, BP, NOTCH:** paso bajo, paso alto, paso banda y notch (quita una banda); FILTRO es el corte.
   - **MORPH:** el cuarto knob (FORMA) pasa de paso bajo a banda a paso alto.
-  - **MAREA:** banco de 8 filtros de banda (de 100 Hz a 8 kHz, alternando izquierda y derecha) con una ola de
-    volumen que recorre las bandas. POSICIÓN dice dónde está la ola, OLA lo rápido que avanza (0 = quieta) y RESO
-    si las bandas son anchas o finas. Inspirado en el Slink de Hypnus Records (solo la idea).
   - DOBLE (en DJ, LP, HP, BP y NOTCH) añade un segundo pico por encima del corte, como un filtro doble.
-  - HOME + ALGORITHM mueve FILTRO / POSICIÓN desde cualquier vista. Es también un destino de los LFO: un LFO lento
-    sobre la posición de MAREA hace que la ola vaya y venga.
+  - HOME + ALGORITHM mueve FILTRO desde cualquier vista. También es un destino de los LFO.
 - **MASTER:** COMP (compresor de bus: más es más pegado y más bombeo; arriba se ve cuántos dB está bajando) y
   SATURA (cinta: calor y redondez). Al final hay siempre un limitador suave.
+
+- **MAREA** (páginas MAREA, MAREA 2 y MAREA 3): ver el apartado siguiente.
+- En la parte baja se ven la página anterior, la actual y la siguiente, y el número de página (1/8 … 8/8).
 
 Al cambiar el TIEMPO en TAPE el tono se desliza, como una cinta que cambia de velocidad. Al cambiar de TIPO el
 eco empieza vacío. El tiempo máximo es 1,5 s (0,75 s en PINGPONG); si no cabe, se divide por dos.
 
 Los efectos son del proyecto: no cambian al cambiar de patrón.
+
+### MAREA: banco de filtros con olas
+Un efecto que se pone **en la pista que elijas**, pensado para acordes, pads y diseño sonoro. Son 16 filtros de
+banda cuyo volumen mueven varias olas que se cruzan, como agua. Inspirado en el Slink de Hypnus Records (solo la
+idea; no es el mismo algoritmo).
+- **MAREA:** PISTA (en cuál va; hay una sola MAREA, si la pones en otra pista se mueve), MEZCLA (seco a mojado),
+  VELOC (0 = el agua se queda quieta), FORMA (de una ola suave a oleaje picado).
+- **MAREA 2:** LONGITUD (cuántas olas caben en las bandas), PROFUND (cuánto se hunden los valles), ESTÉREO (la
+  derecha lee el agua más allá: el sonido se abre y se mueve entre los lados), RANGO (bandas más graves o agudas).
+- **MAREA 3:** RESO (bandas anchas o finas; finas suena más a resonancias).
+- La pantalla dibuja las 16 bandas: arriba la izquierda, abajo la derecha.
+- Sale en estéreo: el PAN de esa pista funciona como balance. Los envíos A y B reciben ya el sonido con MAREA.
+- Destinos de modulación: MAR VELOC, MAR FORMA, MAR ESTÉREO, MAR RANGO y MAR MEZCLA (un LFO lento sobre RANGO, o
+  un seguidor sobre FORMA, la hacen respirar).
+- De inicio está en la pista 3 con MEZCLA 75.
 
 ### Gestos de dub (REC)
 - **Mantener REC:** throw. La pista elegida va al eco a tope mientras lo mantienes, aunque su envío esté a 0.
@@ -119,8 +133,8 @@ muestra las cuatro moviéndose y a dónde van.
 - **SEGUIDOR:** SIGUE (la pista que escucha) y CAÍDA (lo que tarda en bajar). Sube con cada golpe de esa pista.
 - **DESTINO y CANT** (K3 y K4): a dónde va y cuánto, en positivo o en negativo. Cada fuente tiene **dos destinos**:
   mantén HOME y gira K3 y K4 para el segundo.
-- Destinos: FILTRO, RESO, ECO TIEMPO, ECO REPITE, ECO TONO, ECO NIVEL, REV CAÍDA, REV NIVEL, y el TONO o el NIVEL
-  de cada pista. La modulación se suma a lo que marque el knob sin moverlo.
+- Destinos: FILTRO, RESO, ECO TIEMPO, ECO REPITE, ECO TONO, ECO NIVEL, REV CAÍDA, REV NIVEL, los de MAREA, y el TONO
+  o el NIVEL de cada pista. La modulación se suma a lo que marque el knob sin moverlo.
 - De inicio, el LFO 1 mueve el tono del eco (+25 %, 8 compases).
 
 ## 11. Pendiente

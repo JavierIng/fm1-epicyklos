@@ -603,7 +603,7 @@ int main() {
     }
 
     // 19. The filter's types (tipos de filtro): each one does what its name says on a full mix, MORPH goes from dark
-    // to thin, MAREA's wave moves the colour over time, and none blows up.
+    // to thin, and none blows up.
     {
         auto run = [&](int type, float cut, float reso, float dbl, double &energy, double &bright, double &sway) {
             epk_init(SR);
@@ -649,14 +649,77 @@ int main() {
         bad += run(EPK_FLT_MORPH, 0.55f, 0.3f, 1.0f, e1, b1, w1);
         CHECK(b0 < b[EPK_FLT_MORPH] && b[EPK_FLT_MORPH] < b1, "MORPH: brightness %.4f (LP) < %.4f (BP) < %.4f (HP)", b0,
               b[EPK_FLT_MORPH], b1);
-        bad += run(EPK_FLT_MAREA, 0.3f, 0.6f, 0.0f, e0, b0, w0);    // still: the colour holds
-        bad += run(EPK_FLT_MAREA, 0.3f, 0.6f, 0.5f, e1, b1, w1);    // travelling: it moves
-        CHECK(w1 > w0 * 1.5 && w1 > 2.0, "MAREA: the colour sways x%.1f with the wave, x%.1f still", w1, w0);
-        bad += run(EPK_FLT_MAREA, 1.0f, 1.0f, 1.0f, e1, b1, w1);
         bad += run(EPK_FLT_NOTCH, 0.0f, 1.0f, 1.0f, e1, b1, w1);
         bad += run(EPK_FLT_BP, 1.0f, 1.0f, 1.0f, e1, b1, w1);
         CHECK(bad == 0, "filter types: %d bad samples", bad);
-        std::printf("filters: LP %.4f HP %.4f flat %.4f; MAREA sway x%.1f\n", b[EPK_FLT_LP], b[EPK_FLT_HP], bf, w1);
+        std::printf("filters: LP %.4f HP %.4f flat %.4f\n", b[EPK_FLT_LP], b[EPK_FLT_HP], bf);
+    }
+
+    // 20. MAREA (marea), the track insert: only its track changes; dry at MIX 0; with SPEED the colour moves over time
+    // and still it holds; STEREO makes the sides differ; nothing blows up at the extremes.
+    {
+        // track 3 alone, a held saw, so the colour comes from MAREA and not from the notes
+        auto run = [&](float on_track, float mix, float speed, float shape, float stereo, double &sway, double &side,
+                       double &energy) {
+            epk_init(SR);
+            for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 2);
+            epk_param_set(2, EPK_P_SEND_A, 0.0f);
+            epk_param_set(2, EPK_P_SEND_B, 0.0f);
+            epk_param_set(2, EPK_P_CHARACTER, 0.5f);                 // saw (sierra)
+            epk_param_set(2, EPK_P_TONE, 1.0f);
+            epk_param_set(2, EPK_P_DECAY, 1.0f);
+            epk_fx_set(EPK_FX_COMP, 0.0f);
+            epk_fx_set(EPK_FX_SAT, 0.0f);
+            epk_fx_set(EPK_FX_MAREA_TRACK, on_track / 6.0f);
+            epk_fx_set(EPK_FX_MAREA_MIX, mix);
+            epk_fx_set(EPK_FX_MAREA_SPEED, speed);
+            epk_fx_set(EPK_FX_MAREA_SHAPE, shape);
+            epk_fx_set(EPK_FX_MAREA_STEREO, stereo);
+            epk_fx_set(EPK_FX_MAREA_DEPTH, 1.0f);
+            for (int i = 0; i < 4; i++) epk_mod_set(i, EPK_M_AMT1, 0.5f), epk_mod_set(i, EPK_M_AMT2, 0.5f);
+            epk_note_on(2, 45, 1.0f);
+            double e = 0.0, d = 0.0, bmin = 1e9, bmax = 0.0;
+            float prev = 0.0f;
+            int bad = 0;
+            for (int k = 0; k < 8; k++) {
+                double we = 0.0, wh = 0.0;
+                for (int b = 0; b < (int)(0.5f * SR / 256); b++) {
+                    epk_render(l, r, 256);
+                    for (int i = 0; i < 256; i++) {
+                        bad += !std::isfinite(l[i]) || std::fabs(l[i]) > 1.0f;
+                        we += (double)l[i] * l[i];
+                        wh += (double)(l[i] - prev) * (l[i] - prev);
+                        d += (double)(l[i] - r[i]) * (l[i] - r[i]);
+                        prev = l[i];
+                    }
+                }
+                e += we;
+                const double wb = wh / (we + 1e-12);
+                bmin = std::fmin(bmin, wb); bmax = std::fmax(bmax, wb);
+            }
+            sway = bmax / (bmin + 1e-12); side = d / (e + 1e-12); energy = e;
+            return bad;
+        };
+        double sw0, sd0, e0, sw1, sd1, e1, sw2, sd2, e2, sw3, sd3, e3;
+        int bad = run(0.0f, 1.0f, 0.5f, 0.5f, 0.0f, sw0, sd0, e0);   // MAREA elsewhere: the plain voice
+        bad += run(3.0f, 0.0f, 0.5f, 0.5f, 0.0f, sw1, sd1, e1);      // on track 3, dry
+        CHECK(std::fabs(e1 / e0 - 1.0) < 0.05, "MAREA at MIX 0 is dry: energy %.1f %% of the plain voice", 100 * e1 / e0);
+        bad += run(3.0f, 1.0f, 0.0f, 0.5f, 0.0f, sw2, sd2, e2);      // still water
+        bad += run(3.0f, 1.0f, 0.55f, 0.8f, 0.0f, sw3, sd3, e3);     // moving water
+        CHECK(sw3 > sw2 * 1.3 && sw3 > 1.3, "MAREA: the colour sways x%.2f moving, x%.2f still", sw3, sw2);
+        CHECK(e3 > e0 * 0.1 && e3 < e0 * 2.0, "MAREA wet keeps a sensible level: %.0f %% of dry", 100 * e3 / e0);
+        double sw4, sd4, e4;
+        bad += run(3.0f, 1.0f, 0.55f, 0.8f, 1.0f, sw4, sd4, e4);     // stereo
+        CHECK(sd4 > sd3 * 5.0 && sd4 > 0.05, "MAREA stereo: sides differ %.3f, mono %.4f", sd4, sd3);
+        double sw5, sd5, e5;
+        bad += run(1.0f, 1.0f, 0.55f, 0.8f, 1.0f, sw5, sd5, e5);     // on track 1: track 3 untouched
+        CHECK(std::fabs(e5 / e0 - 1.0) < 0.05, "MAREA on another track leaves track 3 alone (%.1f %%)", 100 * e5 / e0);
+        bad += run(3.0f, 1.0f, 1.0f, 1.0f, 1.0f, sw5, sd5, e5);
+        CHECK(bad == 0, "MAREA: %d bad samples", bad);
+        float bl, br;
+        epk_marea_band(7, &bl, &br);
+        CHECK(bl >= 0.0f && bl <= 1.0f && br >= 0.0f && br <= 1.0f, "MAREA band levels for the screen: %.2f %.2f", bl, br);
+        std::printf("marea: sway x%.2f moving, x%.2f still; stereo %.3f; wet %.0f %% of dry\n", sw3, sw2, sd4, 100 * e3 / e0);
     }
 
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare

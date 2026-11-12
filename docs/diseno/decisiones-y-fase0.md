@@ -189,3 +189,13 @@
 - **MAREA** (inspirado en el Slink de Hypnus Records, solo la idea) entra como un tipo del filtro del master, no como inserto aparte: 8 bandas de 100 Hz a 8 kHz alternando lados, con una ola de volumen que las recorre. POSICIÓN, OLA (velocidad), RESO (ancho de banda). Es la versión de 8 bandas; la de 16 sigue sin hacer (coste).
 - Al cambiar de tipo el filtro empieza vacío: puede oírse un pequeño corte.
 - Validación: LP oscurece y HP adelgaza; BP deja una banda y NOTCH la quita; MORPH va de oscuro a fino; con OLA la "color" de MAREA cambia en el tiempo y quieta no; ningún tipo da valores inválidos con todo al máximo. 92 comprobaciones en el simulador.
+
+## MAREA como efecto de pista (2026-11-12)
+
+- Javier (tras describir Slink: "al hacer el morphing de las ondas parece como unas olas de mar"; "más bien es para las pistas de armonías y sound design"): MAREA sale del filtro del master y pasa a ser un **inserto asignable a una pista** (PISTA: ninguna o 1-6). **Una sola MAREA a la vez** por coste de CPU.
+- Referencia pública de Slink: banco de 32 paso-banda cuyos niveles mueve un motor de 16 senos desfasados. Nuestra versión, escrita de cero: **16 bandas** (6,5 octavas, RANGO las desplaza), niveles por **4 senos sumados** con longitudes y velocidades distintas (dos en sentido contrario), FORMA mezcla de 1 a 4 (oleaje suave a picado), PROFUND, LONGITUD, ESTÉREO (desfase espacial a la derecha), RESO, MEZCLA. Sale en estéreo; el PAN de la pista hace de balance; los envíos reciben la señal ya procesada.
+- 3 páginas en EFECTOS (MAREA, MAREA 2, MAREA 3) con dibujo de las 16 bandas; las pestañas pasan a mostrar anterior/actual/siguiente y n/8.
+- 5 destinos de modulación nuevos: MAR VELOC, FORMA, ESTÉREO, RANGO, MEZCLA.
+- El filtro del master queda con DJ, LP, HP, BP, NOTCH y MORPH.
+- Validación: con MEZCLA 0 la pista suena igual que sin MAREA; en otra pista no toca la 3; moviéndose el color cambia x2,6 en el tiempo y quieta no (x1,06); ESTÉREO separa los lados; mojado queda en ~70 % de la energía seca; nada inválido en los extremos. 97 comprobaciones en el simulador.
+- **Abierto:** 32 bandas o varias MAREA a la vez cuando se conozca la CPU real; freeze propio de la ola (hoy VELOC 0 la detiene).

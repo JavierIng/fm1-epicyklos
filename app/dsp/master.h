@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
 // EPICYKLOS master chain (cadena del master), after the returns: a filter of several types (DJ, LP, HP, BP, notch,
-// morph, and MAREA, a bank of 8 band-passes after the idea of Hypnus Records' Slink) with a second, parallel peak
-// (DOBLE, the idea of a dual filter such as Mutable Instruments' Blades; no code from either) -> a bus compressor
-// -> tape saturation. The final soft clip stays in engine.cpp.
+// morph) with a second, parallel peak (DOBLE, the idea of a dual filter such as Mutable Instruments' Blades; no
+// code from it) -> a bus compressor -> tape saturation. (MAREA, the filterbank, is a track insert: marea.h.) The final soft clip stays in engine.cpp.
 // Rules: no heap, float only. Coefficients are worked out every 16 samples, with the parameter smoothed, so a knob
 // or a modulation moves without zipper noise (sin escalones).
 #pragma once
@@ -40,14 +39,10 @@ inline float filter_hp_hz(float v) { return v <= 0.53f ? 20.0f : 25.0f * fm_exp2
 
 inline float filter_cut_hz(float v) { return 30.0f * fm_exp2f(v * 9.3f); }   // 30 Hz .. 19 kHz
 
-constexpr int kBands = 8;                                         // MAREA (marea): 100 Hz .. 8 kHz
-constexpr float kBandHz[kBands] = {100.0f, 187.0f, 350.0f, 655.0f, 1225.0f, 2290.0f, 4280.0f, 8000.0f};
-
 struct Master {
-    Svf lp[2], hp[2], peak[2], one[2], band[kBands];
-    SvfCoef c_lp, c_hp, c_peak, c_one, c_band[kBands];
+    Svf lp[2], hp[2], peak[2], one[2];
+    SvfCoef c_lp, c_hp, c_peak, c_one;
     float v_s;                                    // the filter knob, smoothed (suavizado)
-    float wave, band_g[kBands];                   // MAREA: where the wave is; each band's level
     int type;
     float env, gain_db, gr_max;                   // the compressor (compresor)
     float tone[2], dc_x[2], dc_y[2];              // saturation's top roll-off and DC blocker
@@ -55,12 +50,11 @@ struct Master {
 
     void clear_filters() {
         for (int c = 0; c < 2; c++) { lp[c].clear(); hp[c].clear(); peak[c].clear(); one[c].clear(); }
-        for (int i = 0; i < kBands; i++) { band[i].clear(); band_g[i] = 0.0f; }
     }
     void init() {
         clear_filters();
         for (int c = 0; c < 2; c++) tone[c] = dc_x[c] = dc_y[c] = 0.0f;
-        v_s = 0.5f; wave = 0.0f; type = -1; env = 0.0f; gain_db = 0.0f; gr_max = 0.0f; sub = 0;
+        v_s = 0.5f; type = -1; env = 0.0f; gain_db = 0.0f; gr_max = 0.0f; sub = 0;
     }
 
     void process(float *l, float *r, uint32_t n, const float *fx, float sr) {
@@ -86,16 +80,6 @@ struct Master {
                     c_hp.set(f_hp, v_s > 0.5f ? k_on : k_off, sr);
                     const float f_active = v_s < 0.5f ? f_lp : v_s > 0.5f ? f_hp : 1000.0f;
                     c_peak.set(f_active * fm_exp2f(0.6f + 2.0f * dbl), 0.25f, sr);
-                } else if (type == EPK_FLT_MAREA) {                      // the wave travels (la ola avanza)
-                    wave += 16.0f * (dbl * dbl * 3.0f) / sr;             // 0 .. 3 turns a second
-                    if (wave >= 1.0f) wave -= 1.0f;
-                    const float k = 1.2f - 1.12f * reso;
-                    for (int b = 0; b < kBands; b++) {
-                        c_band[b].set(kBandHz[b], k, sr);
-                        const float d = (float)b / (float)kBands - v_s - wave;
-                        const float c = 0.5f + 0.5f * fm_sin_turns(d + 0.25f);   // a cosine crest (cresta)
-                        band_g[b] += (c * c * c - band_g[b]) * 0.25f;
-                    }
                 } else {
                     const float fc = filter_cut_hz(v_s);
                     c_one.set(fc, 2.0f - 1.94f * reso, sr);
@@ -106,17 +90,7 @@ struct Master {
             sub = (sub + 1) & 15;
             if (type == EPK_FLT_DJ) act = fm_minf(fm_fabsf(v_s - 0.5f) * 10.0f, 1.0f);
             float x[2] = {l[i], r[i]};
-            if (type == EPK_FLT_MAREA) {                                 // 8 bands, alternating sides (lados)
-                const float mono = (x[0] + x[1]) * 0.5f;
-                float yl = 0.0f, yr = 0.0f;
-                for (int b = 0; b < kBands; b++) {
-                    float bl, bb, bh;
-                    band[b].tick(mono, c_band[b].a1, c_band[b].a2, c_band[b].a3, c_band[b].k, bl, bb, bh);
-                    const float y = bb * c_band[b].k * band_g[b];
-                    if (b & 1) { yl += y * 0.35f; yr += y; } else { yl += y; yr += y * 0.35f; }
-                }
-                x[0] = yl * 1.6f; x[1] = yr * 1.6f;
-            } else {
+            {
                 for (int c = 0; c < 2; c++) {
                     float a, b, h, y;
                     if (type == EPK_FLT_DJ) {                            // LP then HP (paso bajo y luego alto)
