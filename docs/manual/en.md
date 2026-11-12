@@ -172,17 +172,16 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **Reverb (PLACA, a plate):** decay [CAÍDA], tone (how dark the tail is), movement [MOVER], level.
 - **REVERB 2** (the next page): K1 **type [TIPO]** picks **PLACA** or **NUBE**; the other three knobs follow the
   type. Changing it starts the reverb empty. Only one of the two plays (they share memory).
-- **PLACA**, in the manner of Valley's **Plateau** reverb (its controls; our own code): Dattorro's classic plate,
-  with a fixed low cut (~90 Hz) on its input so it does not muddy.
-  - **PREDELAY:** silence before the tail, 0 to 240 ms (shown in ms). It sets the hit apart from its reverb.
-  - **Size [TAMANO]:** small room (25 %) to the whole plate (100). The top is the size it always had: no more fits in
-    memory. Moving it while it plays jumps and bends the pitch, as in Plateau.
+- **PLACA**, in the manner of Valley's **Plateau** reverb (its controls; our own code): Dattorro's classic plate.
+  - **PREDELAY:** silence before the tail, 0 to 500 ms (shown in ms). It sets the hit apart from its reverb.
+  - **Size [TAMANO]:** small room (0) to a huge hall (100): a quarter to twice the classic plate. It starts at 43,
+    the classic size. Moving it while it plays jumps and bends the pitch, as in Plateau.
   - **Diffusion [DIFUSION]:** down, you hear the first echoes apart; up, everything blurs from the start.
   - **HOME + REC** freezes the plate too: nothing new comes in and the tail keeps ringing.
 - **NUBE** (cloud): a cloud of grains on the idea of Mutable Instruments' Clouds (our own code). It listens to the B
-  sends, keeps the last second and scatters it in small pieces (grains) across the stereo field. On REVERB 2:
-  - **Position [POSICION]:** where grains come from: what just played (0) to almost a second back (100).
-  - **Size [TAMANO]:** short grains (~20 ms, crackle) to long (~0.5 s, a cloud).
+  sends, keeps the last 2 seconds and scatters them in small pieces (grains) across the stereo field. On REVERB 2:
+  - **Position [POSICION]:** where grains come from: what just played (0) to almost 2 seconds back (100).
+  - **Size [TAMANO]:** short grains (~20 ms, crackle) to long (~1 s, a cloud).
   - **Density [DENSIDAD]:** at the centre, none [NADA] (no new grains); left, regular grains [REG]; right, random
     [AZAR], with the position a little scattered too. The further from the centre, the more grains (12 at once at most).
   - In NUBE the **REVERB** page changes: **feedback [REPITE]** (grains go back into the cloud), **texture [TEXTURA]**
@@ -191,6 +190,14 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
   - **HOME + REC** freezes the cloud too: it stops recording and grains keep coming from what it holds. FREEZE shows
     at the top.
   - In FLOW, block 3 is called NUBE when it is on.
+  - **Shimmer in NUBE:** pitch [AFINA] +12 and feedback [REPITE] high. Grains go back in an octave up.
+- **REVERB 3:**
+  - **SHIMMER** (PLACA only): the tail is pitched up and fed back into the reverb, so it keeps climbing and
+    shining. 0 = off [NO]. **Interval [INTERVALO]:** +12 (octave), +7 (fifth), +19 (octave and fifth), +24 (two
+    octaves) or −12 (an octave down: darker). With the reverb frozen (HOME + REC) the shimmer stops.
+  - **Low cut [GRAVES]:** cuts lows before the reverb, 20 to ~400 Hz (starts at ~90 Hz). Higher = less kick and bass
+    mud in the tail. For PLACA and NUBE.
+  - **Width [ANCHO]:** 0 = mono reverb, 50 = as it comes, 100 = wider. For PLACA and NUBE.
 - **Filter [FILTRO]** (the master's, after the returns): type [TIPO], filter, resonance [RESO] and a fourth knob
   that changes with the type.
   - **DJ:** left closes a low-pass, right opens a high-pass, the middle does nothing.
@@ -206,11 +213,9 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **DIGITAL** (at the end of the master: after the compressor and tape, before the limiter):
   - **BITS:** off [NO], or 16 down to 4 bits (lower resolution: grain, then harsh noise).
   - **Sample rate [MUESTREO]:** off, or /1 to /32 (lowers the sample rate: metallic aliasing).
-  - **STUTTER:** on/off [SÍ/NO]. Switching it on records the slice that is playing and repeats it until you switch
-    it off; it fades in and out in ~5 ms. **Length [REPITE]:** 1/4, 1/8, 1/16 or 1/32 of a bar, in time. If it does
-    not fit at that tempo (0.74 s at most), it is halved. Made for scenes: hold the STUTTER scene and let go.
-  - The repeat is stored at half rate and 16 bits: it sounds a little darker than the original.
-- The bottom row shows the page before, this one and the next, and the page number (1/10 … 10/10).
+  - STUTTER was taken out on 12 November to free memory for the reverb and for Plaits. For something close: delay
+    time 1 or 2, hold REC (throw) and HOME + REC (freeze).
+- The bottom row shows the page before, this one and the next, and the page number (1/11 … 11/11).
 
 Changing the time in TAPE bends the pitch, like a tape changing speed. Changing the type starts the delay
 empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit is halved.
@@ -291,7 +296,7 @@ project has 8 scenes.
 - Scenes do not move the knobs: on the way out, everything returns to where it was.
 - **Factory:** 1 SUMERGIR (submerge: filter closed and long delay, 1 bar), 2 CATEDRAL (all reverb, 2 bars), 3 CINTA
   ROTA (broken tape: saturation and wear), 4 DIGITAL (bits and sample rate), 5 TUNEL (tunnel: thin and far, 1/2 bar),
-  6 SECO (dry: no delay or reverb), 7 STUTTER (repeats 1/16), 8 ECO INFINITO (endless delay: feedback at 97 % and no
+  6 SECO (dry: no delay or reverb), 7 SHIMMER (plate with shimmer, long, 2 bars), 8 ECO INFINITO (endless delay: feedback at 97 % and no
   track sends to it, so what is there stays).
 - **Not yet saved** at power-off: they go back to the factory ones (project saving, phase 6).
 

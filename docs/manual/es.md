@@ -168,17 +168,17 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **REVERB 2** (la página siguiente): K1 **TIPO** elige **PLACA** o **NUBE**; los otros tres knobs dependen del tipo.
   Al cambiar de tipo, la reverb empieza vacía. Solo suena una de las dos (comparten memoria).
 - **PLACA**, a la manera de la reverb **Plateau** de Valley (sus controles; el código es propio): la placa clásica
-  de Dattorro, con un corte de graves fijo (~90 Hz) a la entrada para que no embarre.
-  - **PREDELAY:** silencio antes de la cola, de 0 a 240 ms (sale en ms). Separa el golpe de su reverb.
-  - **TAMAÑO:** de sala pequeña (25 %) a la placa entera (100). El máximo es el tamaño de siempre: no cabe más en
-    memoria. Moverlo mientras suena hace saltos y cambios de tono, como en Plateau.
+  de Dattorro.
+  - **PREDELAY:** silencio antes de la cola, de 0 a 500 ms (sale en ms). Separa el golpe de su reverb.
+  - **TAMAÑO:** de sala pequeña (0) a una nave enorme (100): de un cuarto a dos veces la placa clásica. Viene en
+    43, que es el tamaño clásico. Moverlo mientras suena hace saltos y cambios de tono, como en Plateau.
   - **DIFUSIÓN:** abajo se oyen los primeros ecos sueltos; arriba todo se funde desde el principio.
   - **HOME + REC** congela también la placa: deja de entrar sonido y la cola se queda sonando.
 - **NUBE**: una nube de granos con la idea del módulo Clouds de Mutable Instruments (el código es propio). Escucha
-  lo que le mandan los envíos B, guarda el último segundo y lo reparte en trocitos (granos) por el estéreo. En
+  lo que le mandan los envíos B, guarda los últimos 2 segundos y los reparte en trocitos (granos) por el estéreo. En
   REVERB 2:
-  - **POSICIÓN:** de dónde salen los granos: de lo que acaba de sonar (0) a casi un segundo atrás (100).
-  - **TAMAÑO:** granos cortos (~20 ms, chisporroteo) a largos (~0,5 s, nube).
+  - **POSICIÓN:** de dónde salen los granos: de lo que acaba de sonar (0) a casi 2 segundos atrás (100).
+  - **TAMAÑO:** granos cortos (~20 ms, chisporroteo) a largos (~1 s, nube).
   - **DENSIDAD:** en el centro, NADA (no salen granos nuevos); a la izquierda, granos regulares (REG); a la derecha,
     al azar (AZAR) y con la posición algo desordenada. Cuanto más lejos del centro, más granos (12 a la vez como
     máximo).
@@ -188,6 +188,14 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
   - **HOME + REC** congela también la nube: deja de grabar y los granos siguen saliendo de lo que tiene. Arriba se
     ve FREEZE.
   - En FLOW el bloque 3 se llama NUBE cuando está puesta.
+  - **Shimmer en NUBE:** AFINA +12 y REPITE alto. Los granos vuelven a entrar una octava más arriba.
+- **REVERB 3:**
+  - **SHIMMER** (solo en PLACA): la cola sube de tono y vuelve a entrar en la reverb, así que va subiendo y
+    brillando. 0 = NO. **INTERVALO:** +12 (octava), +7 (quinta), +19 (octava y quinta), +24 (dos octavas) o −12 (una
+    octava abajo: se oscurece). Con la reverb congelada (HOME + REC) el shimmer se para.
+  - **GRAVES:** corte de graves antes de la reverb, de 20 a ~400 Hz (viene en ~90 Hz). Más alto = menos barro del
+    bombo y el bajo en la cola. Vale para PLACA y NUBE.
+  - **ANCHO:** 0 = reverb en mono, 50 = tal cual, 100 = más abierta. Vale para PLACA y NUBE.
 - **FILTRO** (del master, después de los retornos): TIPO, FILTRO, RESO y un cuarto knob que cambia con el tipo.
   - **DJ:** a la izquierda cierra un paso bajo, a la derecha abre un paso alto, en el centro no hace nada.
   - **LP, HP, BP, NOTCH:** paso bajo, paso alto, paso banda y notch (quita una banda); FILTRO es el corte.
@@ -201,11 +209,9 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **DIGITAL** (al final del master: después del compresor y la cinta, antes del limitador):
   - **BITS:** NO, o de 16 a 4 bits (reducción de resolución: grano, luego ruido áspero).
   - **MUESTREO:** NO, o de /1 a /32 (baja la frecuencia de muestreo: aliasing metálico).
-  - **STUTTER:** SÍ/NO. Al ponerlo en SÍ graba el trozo que está sonando y lo repite hasta que lo quitas; entra y
-    sale en ~5 ms. **REPITE** es la longitud: 1/4, 1/8, 1/16 o 1/32 de compás, al tempo. Si a ese tempo no cabe (máximo
-    0,74 s), se divide por dos. Pensado para escenas: mantén la escena STUTTER y suelta.
-  - La repetición se guarda a media frecuencia y en 16 bits: suena algo más oscura que el original.
-- En la parte baja se ven la página anterior, la actual y la siguiente, y el número de página (1/10 … 10/10).
+  - El STUTTER se quitó el 12 de noviembre para liberar memoria para la reverb y para Plaits. Para algo parecido:
+    ECO con TIEMPO 1 o 2, mantener REC (throw) y HOME + REC (freeze).
+- En la parte baja se ven la página anterior, la actual y la siguiente, y el número de página (1/11 … 11/11).
 
 Al cambiar el TIEMPO en TAPE el tono se desliza, como una cinta que cambia de velocidad. Al cambiar de TIPO el
 eco empieza vacío. El tiempo máximo es 1,5 s (0,75 s en PINGPONG); si no cabe, se divide por dos.
@@ -287,7 +293,7 @@ Hay 8 escenas en el proyecto.
 - Las escenas no mueven los knobs: al salir, todo vuelve a donde estaba.
 - **De fábrica:** 1 SUMERGIR (filtro cerrado y eco largo, 1 compás), 2 CATEDRAL (todo reverb, 2 compases), 3 CINTA
   ROTA (cinta y desgaste), 4 DIGITAL (bits y muestreo), 5 TÚNEL (fino y lejos, 1/2 compás), 6 SECO (sin eco ni
-  reverb), 7 STUTTER (repite 1/16), 8 ECO INFINITO (el eco a 97 % y ninguna pista le envía: lo que hay se queda).
+  reverb), 7 SHIMMER (placa con shimmer, larga, 2 compases), 8 ECO INFINITO (el eco a 97 % y ninguna pista le envía: lo que hay se queda).
 - **Aún no se guardan** al apagar: vuelven a las de fábrica (guardado del proyecto, fase 6).
 
 ## 12. Pendiente

@@ -302,3 +302,13 @@
 - UI: la página 4 de EFECTOS pasa a llamarse **REVERB 2**: TIPO + (PREDELAY, TAMAÑO, DIFUSIÓN) en PLACA, o + (POSICIÓN, TAMAÑO, DENSIDAD) en NUBE. FREEZE se ve en el panel de la reverb también con la placa.
 - Por defecto: predelay 24 ms, tamaño y difusión al 100 % (suena como antes salvo el corte de graves y el predelay).
 - Pruebas (bloque 30): predelay arriba retrasa la cola 240 ms; congelada se mantiene (1,57 frente a 1,39 antes de congelar: no crece más de 1,5×) y libre se apaga; tamaño, difusión y predelay movidos sin parar 10 s: sin valores inválidos ni picos > 1. No escuchado.
+
+## Fuera el STUTTER: reverb más grande y shimmer (2026-11-12)
+- Javier: "¿si quitamos stutter?" → "adelante". Motivo: la RAM (26 KB libres) no daba para reverb más grande y además MACRO (Plaits), que estaba en el plan desde el 11 nov y **no se ha empezado** (pendiente, junto a BÁLTICO).
+- **STUTTER eliminado** (64 KB). Sus dos parámetros se reutilizan para el shimmer (`EPK_FX_REV_SHIMMER`, `EPK_FX_REV_SHIM_INT`) para no mover los índices de los demás. Sustituto aproximado: eco corto + throw + freeze. La escena de fábrica 7 pasa a SHIMMER.
+- **Bus B a 88 KB** (44.100 muestras): PLACA con TAMAÑO de 0,25× a **2×** Dattorro (las líneas del tanque tienen sitio para el doble; las moduladas también) y PREDELAY hasta **500 ms**; NUBE con **2 s** y granos de hasta ~1 s.
+- **Shimmer** (página REVERB 3, solo PLACA): desplazador de tono de dos tomas cruzadas sobre 2.048 muestras (4 KB) que coge la salida del tanque, la sube (+12, +7, +19, +24 o −12) y la mete a la entrada, limitada con tanh y con un paso bajo suave; se para con la reverb congelada para que no crezca sin fin.
+- **GRAVES** (corte de graves del bus B, 20–400 Hz, antes fijo en 90) y **ANCHO** (M/S en la salida de la reverb), para los dos tipos.
+- Memoria medida en CI: pool **300.488 B de 344.064 → 42,5 KB libres** (antes 26). Imagen 242.712 B.
+- Pruebas: predelay arriba 500 ms; shimmer sube el brillo de la cola (161 → 221 Hz de cruces); shimmer al máximo con caída al máximo 12 s sin valores inválidos ni picos > 1; ANCHO 0 = retornos mono; congelada y libre como antes. No escuchado.
+- Orden acordado: preparar la prueba en el aparato (medidor de CPU, procedimiento de instalación y vuelta al 801) antes de MACRO; MACRO irá en la pista 4 con unos pocos modelos de Plaits (MIT), medidos en RAM y CPU.
