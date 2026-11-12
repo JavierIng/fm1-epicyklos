@@ -90,9 +90,18 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level,
   DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms).
 - **Reverb (PLACA, a plate):** decay [CAÍDA], tone, movement [MOVER], level.
-- **Filter [FILTRO]** (the master's, after the returns): filter (left closes a low-pass, right opens a high-pass,
-  the middle does nothing), resonance [RESO], double [DOBLE] (a second peak above the cutoff, like a dual
-  filter). Also HOME + ALGORITHM from any view.
+- **Filter [FILTRO]** (the master's, after the returns): type [TIPO], filter, resonance [RESO] and a fourth knob
+  that changes with the type.
+  - **DJ:** left closes a low-pass, right opens a high-pass, the middle does nothing.
+  - **LP, HP, BP, NOTCH:** low-pass, high-pass, band-pass and notch (takes a band out); the filter knob is the
+    cutoff [CORTE].
+  - **MORPH:** the fourth knob [FORMA] goes from low-pass to band-pass to high-pass.
+  - **MAREA:** a bank of 8 band-pass filters (100 Hz to 8 kHz, alternating left and right) with a wave of level
+    travelling across them. Position [POSICIÓN] is where the wave is, wave [OLA] how fast it travels (0 = still),
+    RESO wide or narrow bands. Inspired by Hypnus Records' Slink (the idea only).
+  - Double [DOBLE] (in DJ, LP, HP, BP and NOTCH) adds a second peak above the cutoff, like a dual filter.
+  - HOME + ALGORITHM moves the filter / position from any view. It is also an LFO destination: a slow LFO on
+    MAREA's position makes the wave come and go.
 - **Master:** COMP (bus compressor: more is more glue and more pumping; the screen shows how many dB it takes
   off) and saturation [SATURA] (tape: warmth and roundness). A soft limiter always sits at the end.
 

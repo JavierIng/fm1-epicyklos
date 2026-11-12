@@ -130,18 +130,47 @@ static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
     {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, EPK_FX_DUCK},
     {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
-    {EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_FLT_DOUBLE, SLOT_NONE},
+    {EPK_FX_FLT_TYPE, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_FLT_DOUBLE},
     {EPK_FX_COMP, EPK_FX_SAT, SLOT_NONE, SLOT_NONE},
 };
 static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "TONO", "DESGASTE", "A REVERB", "NIVEL",
                                                   "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK",
-                                                  "FILTRO", "RESO", "DOBLE", "COMP", "SATURA"};
+                                                  "FILTRO", "RESO", "DOBLE", "COMP", "SATURA", "TIPO"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
     "Cuanto dura la cola", "Oscura o brillante", "Movimiento dentro de la placa", "Retorno de la reverb",
     "El bombo aparta eco y reverb", "Izquierda cierra, derecha adelgaza", "Resonancia del filtro",
-    "Un segundo pico sobre el corte", "Pega la mezcla; mas es mas bombeo", "Cinta: calor y redondez"};
+    "Un segundo pico sobre el corte", "Pega la mezcla; mas es mas bombeo", "Cinta: calor y redondez",
+    "DJ, bajo, alto, banda, notch, morph, marea"};
+static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH", "MAREA"};
+static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH", "MAREA"};
+static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
+/* the filter's knobs change meaning with its type (cambian de sentido con el tipo) */
+static const char *fx_name(int p)
+{
+    const int t = flt_type();
+    if (p == EPK_FX_FLT)
+        return t == EPK_FLT_DJ ? "FILTRO" : t == EPK_FLT_MAREA ? "POSICION" : "CORTE";
+    if (p == EPK_FX_FLT_DOUBLE)
+        return t == EPK_FLT_MORPH ? "FORMA" : t == EPK_FLT_MAREA ? "OLA" : "DOBLE";
+    return FX_NAME[p];
+}
+static const char *fx_hint(int p)
+{
+    const int t = flt_type();
+    if (p == EPK_FX_FLT && t == EPK_FLT_MAREA)
+        return "Donde esta la ola entre las bandas";
+    if (p == EPK_FX_FLT && t != EPK_FLT_DJ)
+        return "Frecuencia de corte";
+    if (p == EPK_FX_FLT_DOUBLE && t == EPK_FLT_MORPH)
+        return "De paso bajo a banda a paso alto";
+    if (p == EPK_FX_FLT_DOUBLE && t == EPK_FLT_MAREA)
+        return "Velocidad de la ola (0 quieta)";
+    if (p == EPK_FX_FLT_RESO && t == EPK_FLT_MAREA)
+        return "Bandas anchas o finas";
+    return FX_HINT[p];
+}
 static const char *const DLY_NAME[EPK_DLY_COUNT] = {"TAPE", "BBD", "PINGPONG"};
 
 /* ------------------------------------------------------------------ modulation (modulación) */
@@ -266,7 +295,29 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
     b[0] = 0;
     if (p == EPK_FX_DLY_TYPE)
         str_cat(b, DLY_NAME[(int)(v * (float)(EPK_DLY_COUNT - 1) + 0.5f)]);
-    else if (p == EPK_FX_FLT) {                       /* LP 1.2k / HP 300 / ABIERTO */
+    else if (p == EPK_FX_FLT_TYPE)
+        str_cat(b, FLT_TYPE_SHORT[flt_type()]);
+    else if (p == EPK_FX_FLT && flt_type() != EPK_FLT_DJ) {   /* the cutoff, or MAREA's position */
+        char n[8];
+        if (flt_type() == EPK_FLT_MAREA)
+            int_str((int)(v * 100.0f + 0.5f), b);
+        else {
+            const float hz = epk_master_cutoff();
+            if (hz >= 1000.0f) {
+                const int d = (int)(hz / 100.0f + 0.5f);
+                int_str(d / 10, b);
+                if (d < 100) {
+                    n[0] = '.'; n[1] = (char)('0' + d % 10); n[2] = 0;
+                    str_cat(b, n);
+                }
+                str_cat(b, "k");
+            } else {
+                int_str((int32_t)(hz + 0.5f), n);
+                str_cat(b, n);
+                str_cat(b, " Hz");
+            }
+        }
+    } else if (p == EPK_FX_FLT) {                       /* LP 1.2k / HP 300 / ABIERTO */
         float hz;
         const int mode = epk_master_filter(&hz);
         if (!mode)
@@ -1034,7 +1085,7 @@ static void draw_popup(void)                     /* the knob just turned, big (e
     const int fx = ui.pop_fx >= 0, p = fx ? ui.pop_fx : ui.pop_param, steps = fx ? epk_fx_steps(p) : epk_param_steps(p);
     const float val = fx ? epk_fx_get(p) : epk_param_get(ui.track, p);
     const uint16_t c = fx ? C_FX : TRACK_C[ui.track];
-    const char *name = fx ? FX_NAME[p] : param_name(ui.track, p), *hint = fx ? FX_HINT[p] : param_hint(ui.track, p);
+    const char *name = fx ? fx_name(p) : param_name(ui.track, p), *hint = fx ? fx_hint(p) : param_hint(ui.track, p);
     cv_rect(12, 8, 216, 128, C_PANEL);
     cv_rect(12, 8, 216, 1, c);
     cv_rect(12, 135, 216, 1, c);
@@ -1124,10 +1175,13 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
         cv_rect(4, 4, 112, 80, C_PANEL);
         cv_rect(4, 4, 112, 1, ui.fx_page == 3 ? C_FX : C_RULE);
         cv_text(10, 8, &FONT_XS, "FILTRO", ui.fx_page == 3 ? C_FX : C_LABEL);
+        cv_text(110 - text_w(&FONT_XS, FLT_TYPE_NAME[flt_type()]), 8, &FONT_XS, FLT_TYPE_NAME[flt_type()], C_TEXT);
         fx_str(EPK_FX_FLT, v);
-        cv_text(10, 24, text_w(&FONT_M, v) > 100 ? &FONT_S : &FONT_M, v, epk_master_filter(&hz) ? C_TEXT : C_LABEL);
+        cv_text(10, 24, text_w(&FONT_M, v) > 100 ? &FONT_S : &FONT_M, v,
+                flt_type() != EPK_FLT_DJ || epk_master_filter(&hz) ? C_TEXT : C_LABEL);
         cv_rect(10, 74, 100, 3, C_RULE);                              /* the knob: the middle is open */
-        cv_rect(59, 70, 2, 11, C_LABEL);
+        if (flt_type() == EPK_FLT_DJ)
+            cv_rect(59, 70, 2, 11, C_LABEL);
         cv_rect(10 + (int32_t)(epk_fx_get(EPK_FX_FLT) * 96.0f), 71, 4, 9, C_FX);
         cv_rect(120, 4, 108, 80, C_PANEL);
         cv_rect(120, 4, 108, 1, ui.fx_page == 4 ? C_FX : C_RULE);
@@ -1320,7 +1374,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
             fx_str(p, v);
             if (text_w(&FONT_S, v) > 50)
                 v[4] = 0;                                              /* PINGPONG -> PING on the small card */
-            cv_text(cx + 4, 22, &FONT_XS, FX_NAME[p], C_LABEL);
+            cv_text(cx + 4, 22, &FONT_XS, fx_name(p), C_LABEL);
             cv_text(cx + 4, 36, text_w(&FONT_M, v) > 50 ? &FONT_S : &FONT_M, v, C_TEXT);
             cv_rect(cx + 4, 63, 48, 3, C_RULE);
             cv_rect(cx + 4, 63, (int32_t)(epk_fx_get(p) * 48.0f + 0.5f), 3, C_FX);

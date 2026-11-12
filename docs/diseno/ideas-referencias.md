@@ -20,7 +20,7 @@ Consecuencias concretas:
 
 | Idea | Qué haríamos | Código | Coste estimado |
 |---|---|---|---|
-| **MAREA** (inspirado en Slink de Hypnus) | Banco de 8–16 filtros paso-banda repartidos entre L y R. Sus niveles los mueve una "ola" (suma de senos desfasados) | Propio. Slink es cerrado: solo la idea | 16 bandas ≈ 250–350 ciclos/muestra. Opción de 8 bandas |
+| **MAREA** (inspirado en Slink de Hypnus) — **hecho con 8 bandas como tipo del filtro del master (12 nov)** | Banco de 8–16 filtros paso-banda repartidos entre L y R. Sus niveles los mueve una "ola" (suma de senos desfasados) | Propio. Slink es cerrado: solo la idea | 16 bandas ≈ 250–350 ciclos/muestra. Opción de 8 bandas |
 | **PLACA** (Plateau de Valley) | Reverb de placa Dattorro con modulación del tanque, tamaño y "congelar"; sustituye a la reverb tipo Clouds | **Portable**: Plateau es GPL-3.0 (Dale Johnson) | Tanque en 16 bit a 22 kHz ≈ 35–50 KB de RAM; ~400 ciclos |
 | **RESONADOR** (SMR de 4ms) | 6 resonadores afinados a escala, rotables; como efecto de pista o del master | **Portable**: el código del SMR es MIT (sin usar la marca 4ms) | ~150–250 ciclos |
 | Intellijel (Rainmaker, Plonk, Metropolix) | Delay multi-tap con comb; percusión física; secuenciador por etapas (ya en ETAPAS) | Cerrado: solo ideas | Depende |

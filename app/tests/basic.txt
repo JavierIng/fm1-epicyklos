@@ -310,9 +310,19 @@ expect view 2
 turn SELECT 1
 wait 30
 expect fxpage 3
-turn K2 10
+turn K3 10
 wait 30
 expect fx13 55
+# the filter's type (tipo): MAREA, the filterbank
+turn K1 6
+wait 30
+expect fx17 6
+turn K4 8
+wait 30
+shot marea.png
+turn K1 -6
+wait 30
+expect fx17 0
 turn SELECT 1
 wait 30
 expect fxpage 4

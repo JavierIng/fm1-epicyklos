@@ -86,9 +86,16 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL,
   DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms).
 - **REVERB (PLACA):** CAÍDA, TONO, MOVER (movimiento interno), NIVEL.
-- **FILTRO** (del master, después de los retornos): FILTRO (a la izquierda cierra un paso-bajo, a la derecha abre un
-  paso-alto, en el centro no hace nada), RESO, DOBLE (un segundo pico por encima del corte, como un filtro doble).
-  También con HOME + ALGORITHM desde cualquier vista.
+- **FILTRO** (del master, después de los retornos): TIPO, FILTRO, RESO y un cuarto knob que cambia con el tipo.
+  - **DJ:** a la izquierda cierra un paso bajo, a la derecha abre un paso alto, en el centro no hace nada.
+  - **LP, HP, BP, NOTCH:** paso bajo, paso alto, paso banda y notch (quita una banda); FILTRO es el corte.
+  - **MORPH:** el cuarto knob (FORMA) pasa de paso bajo a banda a paso alto.
+  - **MAREA:** banco de 8 filtros de banda (de 100 Hz a 8 kHz, alternando izquierda y derecha) con una ola de
+    volumen que recorre las bandas. POSICIÓN dice dónde está la ola, OLA lo rápido que avanza (0 = quieta) y RESO
+    si las bandas son anchas o finas. Inspirado en el Slink de Hypnus Records (solo la idea).
+  - DOBLE (en DJ, LP, HP, BP y NOTCH) añade un segundo pico por encima del corte, como un filtro doble.
+  - HOME + ALGORITHM mueve FILTRO / POSICIÓN desde cualquier vista. Es también un destino de los LFO: un LFO lento
+    sobre la posición de MAREA hace que la ola vaya y venga.
 - **MASTER:** COMP (compresor de bus: más es más pegado y más bombeo; arriba se ve cuántos dB está bajando) y
   SATURA (cinta: calor y redondez). Al final hay siempre un limitador suave.
 

@@ -602,6 +602,63 @@ int main() {
         std::printf("modulation: LFO %.2f..%.2f, follower %.2f..%.2f\n", lo, hi, f_lo, f_hi);
     }
 
+    // 19. The filter's types (tipos de filtro): each one does what its name says on a full mix, MORPH goes from dark
+    // to thin, MAREA's wave moves the colour over time, and none blows up.
+    {
+        auto run = [&](int type, float cut, float reso, float dbl, double &energy, double &bright, double &sway) {
+            epk_init(SR);
+            epk_fx_set(EPK_FX_FLT_TYPE, (float)type / (float)(EPK_FLT_COUNT - 1));
+            epk_fx_set(EPK_FX_FLT, cut);
+            epk_fx_set(EPK_FX_FLT_RESO, reso);
+            epk_fx_set(EPK_FX_FLT_DOUBLE, dbl);
+            epk_fx_set(EPK_FX_COMP, 0.0f);
+            epk_fx_set(EPK_FX_SAT, 0.0f);
+            epk_pattern_select(0, 8);
+            epk_render(l, r, 1);
+            epk_play(1);
+            double e = 0.0, h = 0.0, bmin = 1e9, bmax = 0.0;
+            float prev = 0.0f;
+            int bad = 0;
+            for (int k = 0; k < 8; k++) {                            // eight half-second windows (ventanas)
+                double we = 0.0, wh = 0.0;
+                for (int b = 0; b < (int)(0.5f * SR / 256); b++) {
+                    epk_render(l, r, 256);
+                    for (int i = 0; i < 256; i++) {
+                        bad += !std::isfinite(l[i]) || std::fabs(l[i]) > 1.0f;
+                        we += (double)l[i] * l[i];
+                        wh += (double)(l[i] - prev) * (l[i] - prev);
+                        prev = l[i];
+                    }
+                }
+                e += we; h += wh;
+                const double wb = wh / (we + 1e-12);
+                bmin = std::fmin(bmin, wb); bmax = std::fmax(bmax, wb);
+            }
+            energy = e; bright = h / (e + 1e-12); sway = bmax / (bmin + 1e-12);
+            return bad;
+        };
+        double e[EPK_FLT_COUNT], b[EPK_FLT_COUNT], w[EPK_FLT_COUNT], ef, bf, wf;
+        int bad = run(EPK_FLT_DJ, 0.5f, 0.3f, 0.0f, ef, bf, wf);    // flat (plano)
+        for (int t = EPK_FLT_LP; t < EPK_FLT_COUNT; t++) bad += run(t, 0.55f, 0.3f, 0.5f, e[t], b[t], w[t]);
+        CHECK(b[EPK_FLT_LP] < bf * 0.5 && b[EPK_FLT_HP] > bf * 1.5, "LP / HP at 1 kHz: brightness %.4f / %.4f, flat %.4f",
+              b[EPK_FLT_LP], b[EPK_FLT_HP], bf);
+        CHECK(e[EPK_FLT_BP] < ef * 0.6 && e[EPK_FLT_NOTCH] < ef && e[EPK_FLT_NOTCH] > e[EPK_FLT_BP],
+              "BP keeps a band (%.0f %%), NOTCH takes one out (%.0f %%)", 100 * e[EPK_FLT_BP] / ef, 100 * e[EPK_FLT_NOTCH] / ef);
+        double e0, b0, w0, e1, b1, w1;
+        bad += run(EPK_FLT_MORPH, 0.55f, 0.3f, 0.0f, e0, b0, w0);
+        bad += run(EPK_FLT_MORPH, 0.55f, 0.3f, 1.0f, e1, b1, w1);
+        CHECK(b0 < b[EPK_FLT_MORPH] && b[EPK_FLT_MORPH] < b1, "MORPH: brightness %.4f (LP) < %.4f (BP) < %.4f (HP)", b0,
+              b[EPK_FLT_MORPH], b1);
+        bad += run(EPK_FLT_MAREA, 0.3f, 0.6f, 0.0f, e0, b0, w0);    // still: the colour holds
+        bad += run(EPK_FLT_MAREA, 0.3f, 0.6f, 0.5f, e1, b1, w1);    // travelling: it moves
+        CHECK(w1 > w0 * 1.5 && w1 > 2.0, "MAREA: the colour sways x%.1f with the wave, x%.1f still", w1, w0);
+        bad += run(EPK_FLT_MAREA, 1.0f, 1.0f, 1.0f, e1, b1, w1);
+        bad += run(EPK_FLT_NOTCH, 0.0f, 1.0f, 1.0f, e1, b1, w1);
+        bad += run(EPK_FLT_BP, 1.0f, 1.0f, 1.0f, e1, b1, w1);
+        CHECK(bad == 0, "filter types: %d bad samples", bad);
+        std::printf("filters: LP %.4f HP %.4f flat %.4f; MAREA sway x%.1f\n", b[EPK_FLT_LP], b[EPK_FLT_HP], bf, w1);
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
         static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR"};

@@ -65,6 +65,7 @@ enum {
     EPK_FX_FLT_DOUBLE,    /* a second, parallel peak above the cutoff (doble pico, como un filtro doble) */
     EPK_FX_COMP,          /* bus compressor amount: threshold, ratio and makeup in one (compresor) */
     EPK_FX_SAT,           /* tape saturation (saturación de cinta) */
+    EPK_FX_FLT_TYPE,      /* EPK_FLT_*: what the master filter is (tipo de filtro) */
     EPK_FX_COUNT
 };
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
@@ -105,6 +106,14 @@ int epk_fx_steps(int param);                   /* >0: stepped (por pasos) */
 float epk_fx_meter(void);                      /* the returns' peak since the last call (medidor de los retornos) */
 /* dub gestures (gestos de dub). THROW: the track's send to the delay goes to full while on. FREEZE: the delay stops
  * listening and loops what it holds, without losing it (congelar). Both are the project's and are not saved. */
+/* The master filter's types (tipos). DJ: FLT below the middle closes a low-pass, above it opens a high-pass. LP, HP,
+ * BP, NOTCH, MORPH: FLT is the cutoff, 30 Hz .. 19 kHz; in MORPH, FLT_DOUBLE morphs LP -> BP -> HP. MAREA: a bank of
+ * 8 band-passes (inspired by Hypnus Records' Slink: the idea, no code) with a wave of level travelling across them;
+ * FLT is where the wave is, FLT_DOUBLE how fast it travels (0 still), RESO the bands' sharpness. */
+enum { EPK_FLT_DJ, EPK_FLT_LP, EPK_FLT_HP, EPK_FLT_BP, EPK_FLT_NOTCH, EPK_FLT_MORPH, EPK_FLT_MAREA, EPK_FLT_COUNT };
+/* the cutoff of the continuous types for the screen (corte, para la pantalla) */
+float epk_master_cutoff(void);
+
 /* modulation (modulación), the project's: sources 0-1 are LFOs locked to the bar, 2-3 envelope followers. Each has two
  * destinations with a bipolar amount (0.5 = none). Settings 0..1 like every parameter. */
 #define EPK_MOD_SOURCES 4

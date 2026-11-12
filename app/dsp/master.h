@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
-// EPICYKLOS master chain (cadena del master), after the returns: a DJ filter with a second, parallel peak (DOBLE,
-// the idea of a dual filter such as Mutable Instruments' Blades; no code from it, which is analogue) -> a bus
-// compressor -> tape saturation. The final soft clip stays in engine.cpp.
+// EPICYKLOS master chain (cadena del master), after the returns: a filter of several types (DJ, LP, HP, BP, notch,
+// morph, and MAREA, a bank of 8 band-passes after the idea of Hypnus Records' Slink) with a second, parallel peak
+// (DOBLE, the idea of a dual filter such as Mutable Instruments' Blades; no code from either) -> a bus compressor
+// -> tape saturation. The final soft clip stays in engine.cpp.
 // Rules: no heap, float only. Coefficients are worked out every 16 samples, with the parameter smoothed, so a knob
 // or a modulation moves without zipper noise (sin escalones).
 #pragma once
@@ -37,25 +38,36 @@ struct SvfCoef {
 inline float filter_lp_hz(float v) { return v >= 0.47f ? 20000.0f : 18000.0f * fm_exp2f(-(0.47f - v) / 0.47f * 9.1f); }
 inline float filter_hp_hz(float v) { return v <= 0.53f ? 20.0f : 25.0f * fm_exp2f((v - 0.53f) / 0.47f * 8.5f); }
 
+inline float filter_cut_hz(float v) { return 30.0f * fm_exp2f(v * 9.3f); }   // 30 Hz .. 19 kHz
+
+constexpr int kBands = 8;                                         // MAREA (marea): 100 Hz .. 8 kHz
+constexpr float kBandHz[kBands] = {100.0f, 187.0f, 350.0f, 655.0f, 1225.0f, 2290.0f, 4280.0f, 8000.0f};
+
 struct Master {
-    Svf lp[2], hp[2], peak[2];
-    SvfCoef c_lp, c_hp, c_peak;
+    Svf lp[2], hp[2], peak[2], one[2], band[kBands];
+    SvfCoef c_lp, c_hp, c_peak, c_one, c_band[kBands];
     float v_s;                                    // the filter knob, smoothed (suavizado)
+    float wave, band_g[kBands];                   // MAREA: where the wave is; each band's level
+    int type;
     float env, gain_db, gr_max;                   // the compressor (compresor)
     float tone[2], dc_x[2], dc_y[2];              // saturation's top roll-off and DC blocker
     int sub;
 
+    void clear_filters() {
+        for (int c = 0; c < 2; c++) { lp[c].clear(); hp[c].clear(); peak[c].clear(); one[c].clear(); }
+        for (int i = 0; i < kBands; i++) { band[i].clear(); band_g[i] = 0.0f; }
+    }
     void init() {
-        for (int c = 0; c < 2; c++) {
-            lp[c].clear(); hp[c].clear(); peak[c].clear();
-            tone[c] = dc_x[c] = dc_y[c] = 0.0f;
-        }
-        v_s = 0.5f; env = 0.0f; gain_db = 0.0f; gr_max = 0.0f; sub = 0;
+        clear_filters();
+        for (int c = 0; c < 2; c++) tone[c] = dc_x[c] = dc_y[c] = 0.0f;
+        v_s = 0.5f; wave = 0.0f; type = -1; env = 0.0f; gain_db = 0.0f; gr_max = 0.0f; sub = 0;
     }
 
     void process(float *l, float *r, uint32_t n, const float *fx, float sr) {
         const float reso = fx[EPK_FX_FLT_RESO], dbl = fx[EPK_FX_FLT_DOUBLE];
         const float comp = fx[EPK_FX_COMP], sat = fx[EPK_FX_SAT];
+        const int ty = (int)(fx[EPK_FX_FLT_TYPE] * (float)(EPK_FLT_COUNT - 1) + 0.5f);
+        if (ty != type) { type = ty; clear_filters(); }               // another filter: from empty (desde vacío)
         // compressor: threshold -8 .. -28 dB, ratio 1.5 .. 7.5, attack 10 ms, release 150 ms, makeup up to 8 dB
         const float thr = -8.0f - 20.0f * comp, slope = 1.0f - 1.0f / (1.5f + 6.0f * comp), makeup = 8.0f * comp;
         const float att = 1.0f - fm_expf(-1.0f / (0.010f * sr)), rel = 1.0f - fm_expf(-1.0f / (0.150f * sr));
@@ -66,28 +78,72 @@ struct Master {
         for (uint32_t i = 0; i < n; i++) {
             if (sub == 0) {                                              // every 16 samples (cada 16 muestras)
                 v_s += (fx[EPK_FX_FLT] - v_s) * 0.15f;
-                act = fm_minf(fm_fabsf(v_s - 0.5f) * 10.0f, 1.0f);       // 0 in the middle, 1 away from it
-                const float k_on = 2.0f - 1.94f * reso * act, k_off = 1.414f;
-                const float f_lp = filter_lp_hz(v_s), f_hp = filter_hp_hz(v_s);
-                c_lp.set(f_lp, v_s < 0.5f ? k_on : k_off, sr);
-                c_hp.set(f_hp, v_s > 0.5f ? k_on : k_off, sr);
-                const float f_active = v_s < 0.5f ? f_lp : v_s > 0.5f ? f_hp : 1000.0f;
-                c_peak.set(f_active * fm_exp2f(0.6f + 2.0f * dbl), 0.25f, sr);
+                if (type == EPK_FLT_DJ) {
+                    act = fm_minf(fm_fabsf(v_s - 0.5f) * 10.0f, 1.0f);   // 0 in the middle, 1 away from it
+                    const float k_on = 2.0f - 1.94f * reso * act, k_off = 1.414f;
+                    const float f_lp = filter_lp_hz(v_s), f_hp = filter_hp_hz(v_s);
+                    c_lp.set(f_lp, v_s < 0.5f ? k_on : k_off, sr);
+                    c_hp.set(f_hp, v_s > 0.5f ? k_on : k_off, sr);
+                    const float f_active = v_s < 0.5f ? f_lp : v_s > 0.5f ? f_hp : 1000.0f;
+                    c_peak.set(f_active * fm_exp2f(0.6f + 2.0f * dbl), 0.25f, sr);
+                } else if (type == EPK_FLT_MAREA) {                      // the wave travels (la ola avanza)
+                    wave += 16.0f * (dbl * dbl * 3.0f) / sr;             // 0 .. 3 turns a second
+                    if (wave >= 1.0f) wave -= 1.0f;
+                    const float k = 1.2f - 1.12f * reso;
+                    for (int b = 0; b < kBands; b++) {
+                        c_band[b].set(kBandHz[b], k, sr);
+                        const float d = (float)b / (float)kBands - v_s - wave;
+                        const float c = 0.5f + 0.5f * fm_sin_turns(d + 0.25f);   // a cosine crest (cresta)
+                        band_g[b] += (c * c * c - band_g[b]) * 0.25f;
+                    }
+                } else {
+                    const float fc = filter_cut_hz(v_s);
+                    c_one.set(fc, 2.0f - 1.94f * reso, sr);
+                    c_peak.set(fc * fm_exp2f(0.6f + 2.0f * dbl), 0.25f, sr);
+                    act = 1.0f;
+                }
             }
             sub = (sub + 1) & 15;
-            act = fm_minf(fm_fabsf(v_s - 0.5f) * 10.0f, 1.0f);
+            if (type == EPK_FLT_DJ) act = fm_minf(fm_fabsf(v_s - 0.5f) * 10.0f, 1.0f);
             float x[2] = {l[i], r[i]};
-            for (int c = 0; c < 2; c++) {                                // the filter: LP then HP, and the second peak
-                float a, b, h, a2, b2, h2;
-                lp[c].tick(x[c], c_lp.a1, c_lp.a2, c_lp.a3, c_lp.k, a, b, h);
-                hp[c].tick(a, c_hp.a1, c_hp.a2, c_hp.a3, c_hp.k, a2, b2, h2);
-                float y = h2;
-                if (dbl > 0.001f) {
-                    float pl, pb, ph;
-                    peak[c].tick(x[c], c_peak.a1, c_peak.a2, c_peak.a3, c_peak.k, pl, pb, ph);
-                    y += pb * dbl * act * 0.8f;
+            if (type == EPK_FLT_MAREA) {                                 // 8 bands, alternating sides (lados)
+                const float mono = (x[0] + x[1]) * 0.5f;
+                float yl = 0.0f, yr = 0.0f;
+                for (int b = 0; b < kBands; b++) {
+                    float bl, bb, bh;
+                    band[b].tick(mono, c_band[b].a1, c_band[b].a2, c_band[b].a3, c_band[b].k, bl, bb, bh);
+                    const float y = bb * c_band[b].k * band_g[b];
+                    if (b & 1) { yl += y * 0.35f; yr += y; } else { yl += y; yr += y * 0.35f; }
                 }
-                x[c] = y;
+                x[0] = yl * 1.6f; x[1] = yr * 1.6f;
+            } else {
+                for (int c = 0; c < 2; c++) {
+                    float a, b, h, y;
+                    if (type == EPK_FLT_DJ) {                            // LP then HP (paso bajo y luego alto)
+                        float a2, b2, h2;
+                        lp[c].tick(x[c], c_lp.a1, c_lp.a2, c_lp.a3, c_lp.k, a, b, h);
+                        hp[c].tick(a, c_hp.a1, c_hp.a2, c_hp.a3, c_hp.k, a2, b2, h2);
+                        y = h2;
+                    } else {
+                        one[c].tick(x[c], c_one.a1, c_one.a2, c_one.a3, c_one.k, a, b, h);
+                        const float bn = b * c_one.k;                    // band-pass at unity (normalizado)
+                        switch (type) {
+                        case EPK_FLT_LP: y = a; break;
+                        case EPK_FLT_HP: y = h; break;
+                        case EPK_FLT_BP: y = bn; break;
+                        case EPK_FLT_NOTCH: y = a + h; break;
+                        default:                                         // MORPH: LP -> BP -> HP
+                            y = dbl < 0.5f ? a + (bn - a) * dbl * 2.0f : bn + (h - bn) * (dbl - 0.5f) * 2.0f;
+                            break;
+                        }
+                    }
+                    if (dbl > 0.001f && type != EPK_FLT_MORPH) {         // the second peak (segundo pico)
+                        float pl, pb, ph;
+                        peak[c].tick(x[c], c_peak.a1, c_peak.a2, c_peak.a3, c_peak.k, pl, pb, ph);
+                        y += pb * dbl * act * 0.8f;
+                    }
+                    x[c] = y;
+                }
             }
             if (comp > 0.001f) {                                         // the bus compressor (compresor de bus)
                 const float lvl = fm_maxf(fm_fabsf(x[0]), fm_fabsf(x[1]));

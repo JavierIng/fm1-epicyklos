@@ -182,3 +182,10 @@
 - **Modulación** (vista MOD en el ciclo de HOME): 2 LFO enganchados al compás (6 formas, 1/16–32 compases) y 2 seguidores de pista, cada uno con 2 destinos (HOME+K3/K4 = el segundo) y cantidad ± . Destinos: filtro, reso, eco (tiempo, repite, tono, nivel), reverb (caída, nivel), tono y nivel de cada pista. Se calcula por bloque (≤ 256 muestras); el nivel modulado se suaviza por muestra.
 - **Pendiente de la 3b:** escenas, REDUCCIÓN (bits/frecuencia) y STUTTER, EQ del master. LFO por pista y DERIVA van con los motores.
 - Validación: el filtro oscurece y adelgaza y en el centro no cambia la energía (<5 %) aunque RESO y DOBLE estén arriba; el compresor estrecha la dinámica (3,4 → 2,2 entre partes fuertes y suaves); el LFO de 1 compás va de 0,1 a 0,9 y está en su máximo a 1/4 de compás; el seguidor sube con el bombo y baja entre golpes. 90 comprobaciones en el simulador.
+
+## Tipos de filtro y MAREA (2026-11-12)
+
+- A petición de Javier, el filtro del master tiene **TIPO**: DJ, LP, HP, BP, NOTCH, MORPH (LP → BP → HP) y **MAREA**.
+- **MAREA** (inspirado en el Slink de Hypnus Records, solo la idea) entra como un tipo del filtro del master, no como inserto aparte: 8 bandas de 100 Hz a 8 kHz alternando lados, con una ola de volumen que las recorre. POSICIÓN, OLA (velocidad), RESO (ancho de banda). Es la versión de 8 bandas; la de 16 sigue sin hacer (coste).
+- Al cambiar de tipo el filtro empieza vacío: puede oírse un pequeño corte.
+- Validación: LP oscurece y HP adelgaza; BP deja una banda y NOTCH la quita; MORPH va de oscuro a fino; con OLA la "color" de MAREA cambia en el tiempo y quieta no; ningún tipo da valores inválidos con todo al máximo. 92 comprobaciones en el simulador.

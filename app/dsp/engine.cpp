@@ -486,7 +486,8 @@ void epk_init(float sample_rate) {
     // the send effects (efectos): a dotted-eighth tape echo into a long, dark plate
     static const float kFx[EPK_FX_COUNT] = {0.0f, 2.0f / 15.0f, 0.50f, 0.45f, 0.35f, 0.25f, 0.75f,
                                             0.72f, 0.45f, 0.40f, 0.75f, 0.35f,
-                                            0.5f, 0.30f, 0.0f, 0.30f, 0.15f};   // master: open, glue, a little tape
+                                            0.5f, 0.30f, 0.0f, 0.30f, 0.15f,    // master: open, glue, a little tape
+                                            0.0f};                              // the DJ filter
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();
@@ -599,7 +600,9 @@ void epk_panic(void) {
 
 void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COUNT) g.fx[param] = clamp01(value01); }
 float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
-int epk_fx_steps(int param) { return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : 0; }
+int epk_fx_steps(int param) {
+    return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT : 0;
+}
 float epk_fx_meter(void) { float m = g.meter_fx; g.meter_fx = 0.0f; return m; }
 void epk_mod_set(int src, int param, float value01) {
     if (src >= 0 && src < EPK_MOD_SOURCES && param >= 0 && param < EPK_M_COUNT) g.mod.m[src][param] = clamp01(value01);
@@ -612,6 +615,7 @@ float epk_mod_out(int src) { return src >= 0 && src < EPK_MOD_SOURCES ? g.mod.s[
 float epk_fx_live(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx_live[param] : 0.0f; }
 float epk_param_live(int track, int param) { return valid(track) && param >= 0 && param < EPK_P_COUNT ? g.tr[track].pm[param] : 0.0f; }
 float epk_comp_reduction(void) { const float r = g.master.gr_max; g.master.gr_max = 0.0f; return r; }
+float epk_master_cutoff(void) { return filter_cut_hz(g.fx[EPK_FX_FLT]); }
 int epk_master_filter(float *hz) {
     const float v = g.fx[EPK_FX_FLT];
     if (v < 0.47f) { *hz = filter_lp_hz(v); return 1; }
