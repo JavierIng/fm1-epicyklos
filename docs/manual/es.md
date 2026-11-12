@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **Fase 4a, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
+> Estado: **Fase 4b, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
 ## 1. Qué es
@@ -24,7 +24,7 @@ para dub techno, techno hipnótico, ambient y drone.
 | PRESETS | nivel de la pista | envío de la pista al eco |
 | K1-K4 | los 4 parámetros de la página | ajuste fino |
 | OCT- / OCT+ | octava del teclado | — |
-| SAVE | vista PATRONES | — |
+| SAVE | vista PATRONES | en PATRONES, HOME + tecla blanca: **guardar** |
 | SEQ | vista PASOS | — |
 | ARP | aleatorio | **deshacer** |
 | REC | mantener: **throw** de la pista al eco | **freeze** del eco (activa / quita) |
@@ -56,7 +56,26 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 - **PRUEBA** (pista 4, el bajo): voz provisional hasta que llegue un motor de bajo. Tiene ATAQUE (página MOTOR, K4).
 
 ## 5. Páginas (SELECT)
-SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA) · MEZCLA (NIVEL, PAN, A ECO, B REVERB).
+SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA) · EVOLUCIÓN (MUTAR, CADA,
+VUELTA, AUSENCIA) · MEZCLA (NIVEL, PAN, A ECO, B REVERB). Como no caben todas, arriba se ven la anterior, la actual y
+la siguiente, con el número de página.
+
+### EVOLUCIÓN: que el patrón cambie solo
+Cada pista puede ir cambiando poco a poco sin que toques nada. El patrón escrito no se modifica: lo que cambia es
+un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vuelve a empezar desde lo escrito.
+- **MUTAR:** cuánto cambia cada vez. Lo que cambia: golpes (uno más o uno menos), rotación, tono, caída, carácter
+  (en ACORDE, el acorde) y, en ACORDE, DRONE y PRUEBA, la nota (cuarta, quinta, octava). Nunca deja la pista sin
+  golpes: eso es cosa de AUSENCIA.
+- **CADA:** cada cuántos compases cambia: 1, 2, 4, 8 o 16. El primer tramo suena siempre tal como está escrito.
+- **VUELTA:** cuánto vuelve hacia lo escrito cada vez. Con VUELTA alta se aleja poco y regresa; con VUELTA baja se
+  va lejos.
+- **AUSENCIA:** probabilidad de que la pista descanse ese tramo entero. En dub, lo que quitas cuenta tanto como lo
+  que suena.
+- **Congelar:** MUTAR 0 y VUELTA 0 dejan la pista como está en ese momento. Si te gusta, guárdala (sección 6).
+- Los patrones del banco A ya traen evolución: platos cada 2 compases, acorde y bajo cada 4, dron cada 8,
+  percusión cada 2 y a veces descansa. El bombo no se mueve. Los bancos generados también la traen, en dosis
+  distintas.
+- ARP en esta página la cambia al azar, con límites: AUSENCIA como mucho 25 %.
 
 ## 6. Patrones y bancos (SAVE)
 - **Teclas negras = bancos A a K. Teclas blancas = los 16 patrones del banco.**
@@ -65,8 +84,21 @@ SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, 
 - Un patrón guarda la secuencia y el sonido de cada pista. Mezcla, tempo, **mute y solo son del proyecto**:
   no cambian al cambiar de patrón.
 - Banco A: 16 patrones de muestra. Bancos B-K: patrones generados.
-- **Limitación actual:** todavía no se guarda nada al apagar, y lo que edites en un banco se pierde al cambiar
-  de banco. El guardado llega en la fase 6.
+
+### Guardar un patrón (HOME + tecla blanca)
+1. Pulsa SAVE para ir a la vista PATRONES y elige el banco de destino con una tecla negra.
+2. Con HOME mantenido, pulsa la tecla blanca de la ranura: pregunta "GUARDAR EN B02 ?".
+3. Vuelve a pulsar la misma tecla en menos de 3 s: "GUARDADO".
+- Se guarda el patrón **tal como suena en ese momento**, con su evolución dentro. Así, si un aleatorio o una
+  mutación te gusta, lo conservas.
+- Un patrón guardado lleva `*` tras el nombre. Al cargar su banco, sustituye al de fábrica o al generado.
+- Si guardas en la ranura que está sonando, lo que oías pasa a ser el patrón escrito.
+- **Dónde se guarda:** en el emulador, en el navegador (sobrevive a recargar la página, pero no a borrar los
+  datos del sitio ni a cambiar de navegador). En el FM-1, en la flash, con el mismo código: *pendiente en el
+  dispositivo*, porque no se ha instalado nada en él.
+- **Lo que no se guarda todavía:** lo que edites sin guardar se pierde al cambiar de banco; la mezcla, los
+  efectos, el tempo y la modulación (son del proyecto) se pierden al apagar. Tampoco hay forma de borrar un
+  patrón guardado y volver al de fábrica: llegará con el menú de proyecto (fase 6).
 
 ## 7. Pasos (SEQ)
 - Las 16 teclas blancas son los pasos; OCT-/OCT+ cambia entre 1-16 y 17-32.
@@ -157,5 +189,6 @@ muestra las cuatro moviéndose y a dónde van.
 - De inicio, el LFO 1 mueve el tono del eco (+25 %, 8 compases).
 
 ## 11. Pendiente
-Escenas (fase 3), armonía y generativos (4), más motores (5), guardado, nombres, reloj y MIDI (6),
-prueba en el aparato (7, solo cuando se decida).
+Siguiente: LFO por pista y DERIVA, la vista FLOW (cadena de efectos), escenas. Después: más motores, guardado del
+proyecto (mezcla, efectos, tempo), nombres, borrar un patrón guardado, reloj y MIDI (fase 6), prueba en el aparato
+(7, solo cuando se decida).

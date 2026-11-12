@@ -1,6 +1,6 @@
 # EPICYKLOS · User manual (draft)
 
-> Status: **Phase 4a, browser emulator only.** None of this has been tested on a real FM-1 yet.
+> Status: **Phase 4b, browser emulator only.** None of this has been tested on a real FM-1 yet.
 > The manual grows with each phase and only describes what already works. Español: [es.md](es.md).
 > On-screen text is in Spanish for now; the Spanish label is given in brackets.
 
@@ -25,7 +25,7 @@ techno, hypnotic techno, ambient and drone.
 | PRESETS | track level | the track's send to the delay |
 | K1-K4 | the page's 4 parameters | fine adjust |
 | OCT- / OCT+ | keyboard octave | — |
-| SAVE | PATTERNS view [PATRONES] | — |
+| SAVE | PATTERNS view [PATRONES] | in PATTERNS, HOME + white key: **save** |
 | SEQ | STEPS view [PASOS] | — |
 | ARP | random | **undo** |
 | REC | hold: **throw** the track to the delay | **freeze** the delay (on / off) |
@@ -60,7 +60,25 @@ Each track has a sound engine (ENGINE page [MOTOR], K1). So far:
 
 ## 5. Pages (SELECT)
 SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, division) · GROOVE (swing, shift
-[DESPLAZA]) · MIX [MEZCLA] (level, pan, A delay [A ECO], B reverb).
+[DESPLAZA]) · EVOLUTION [EVOLUCION] (mutate [MUTAR], every [CADA], return [VUELTA], absence [AUSENCIA]) · MIX [MEZCLA]
+(level, pan, A delay [A ECO], B reverb). They do not all fit, so the top line shows the previous, current and next
+page, with the page number.
+
+### EVOLUTION: the pattern changes by itself
+Each track can drift little by little without you touching anything. The written pattern is not modified: an
+offset over it changes, and a pattern change or PLAY starts again from what is written.
+- **MUTATE [MUTAR]:** how much it changes each time. What changes: hits (one more or one fewer), rotation, tone,
+  decay, character (in ACORDE, the chord) and, in ACORDE, DRONE and TEST, the note (a fourth, fifth or octave). It
+  never leaves the track without hits: that is ABSENCE's job.
+- **EVERY [CADA]:** every how many bars it changes: 1, 2, 4, 8 or 16. The first stretch always plays as written.
+- **RETURN [VUELTA]:** how much it goes back towards the written pattern each time. High: it strays a little and
+  comes back. Low: it wanders far.
+- **ABSENCE [AUSENCIA]:** the chance that the track rests for that whole stretch. In dub, what you take out counts
+  as much as what plays.
+- **Freeze:** MUTATE 0 and RETURN 0 leave the track as it is at that moment. If you like it, save it (section 6).
+- Bank A's patterns already evolve: hats every 2 bars, chord and bass every 4, drone every 8, percussion every 2 and
+  resting now and then. The kick does not move. Generated banks evolve too, in different amounts.
+- ARP on this page randomizes it within limits: ABSENCE at most 25 %.
 
 ## 6. Patterns and banks (SAVE)
 - **Black keys = banks A to K. White keys = the bank's 16 patterns.**
@@ -69,8 +87,21 @@ SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, divisi
 - A pattern stores each track's sequence and sound. Mix, tempo, **mute and solo belong to the project**: they
   do not change with the pattern.
 - Bank A: 16 demo patterns. Banks B-K: generated patterns.
-- **Current limitation:** nothing is saved at power-off yet, and edits in a bank are lost when you change bank.
-  Saving arrives in phase 6.
+
+### Saving a pattern (HOME + white key)
+1. Press SAVE for the PATTERNS view and pick the destination bank with a black key.
+2. Holding HOME, press the slot's white key: it asks "GUARDAR EN B02 ?" (save in B02?).
+3. Press the same key again within 3 s: "GUARDADO" (saved).
+- The pattern is saved **as it sounds at that moment**, its evolution included. So a random result or a mutation
+  you like can be kept.
+- A saved pattern has `*` after its name. When its bank loads, it replaces the factory or generated one.
+- Saving into the slot that is playing makes what you heard the written pattern.
+- **Where it is kept:** in the emulator, in the browser (it survives a page reload, not clearing the site's data or
+  another browser). On the FM-1, in the flash, with the same code: *pending on the device*, since nothing has been
+  installed on it.
+- **Not saved yet:** edits you did not save are lost when you change bank; mix, effects, tempo and modulation
+  (the project's) are lost at power-off. There is no way yet to erase a saved pattern and get the factory one
+  back: it comes with the project menu (phase 6).
 
 ## 7. Steps (SEQ)
 - The 16 white keys are the steps; OCT-/OCT+ switches between 1-16 and 17-32.
@@ -163,5 +194,6 @@ the screen shows all four moving and where they go.
 - By default LFO 1 moves the delay's tone (+25 %, 8 bars).
 
 ## 11. To come
-Scenes (phase 3), harmony and generative tools (4), more engines (5), saving, names, clock and
-MIDI (6), testing on the device (7, only when decided).
+Next: per-track LFO and DRIFT, the FLOW view (effects chain), scenes. Then: more engines, saving the project (mix,
+effects, tempo), names, erasing a saved pattern, clock and MIDI (phase 6), testing on the device (7, only when
+decided).

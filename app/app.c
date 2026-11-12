@@ -621,7 +621,8 @@ static int save_pattern(int bank, int slot)
     int n = plat_store_load(obj, obj_buf, sizeof obj_buf);
     if (n < EPK_BANK_OBJ_BYTES || obj_buf[0] != 'E' || obj_buf[1] != 'P' || obj_buf[2] != 'K' || obj_buf[3] != 'B' ||
         obj_buf[4] != EPK_BANK_VERSION) {  /* nothing there yet, or another layout: a fresh half (vacío) */
-        memset(obj_buf, 0, EPK_BANK_OBJ_BYTES);
+        for (n = 0; n < EPK_BANK_OBJ_BYTES; n++)
+            obj_buf[n] = 0;
         obj_buf[0] = 'E'; obj_buf[1] = 'P'; obj_buf[2] = 'K'; obj_buf[3] = 'B';
         obj_buf[4] = EPK_BANK_VERSION;
     }
@@ -1656,7 +1657,12 @@ static void draw_foot(void)                       /* the page tabs and the four 
             cv_text(x, 3, &FONT_XS, PAGE_NAME[next], C_RULE);
             int_str(ui.page + 1, pg);
             str_cat(pg, "/");
-            int_str(NPAGES, pg + strlen(pg));
+            {
+                int n = 0;
+                while (pg[n])
+                    n++;
+                int_str(NPAGES, pg + n);
+            }
             cv_text(236 - text_w(&FONT_XS, pg), 3, &FONT_XS, pg, C_LABEL);
         }
     }
@@ -1768,7 +1774,10 @@ int app_expect(const char *what, int *got)
         *got = ui.saves;
     else if (!strcmp(what, "saved")) {         /* 1: the current pattern was saved (lleva '*') */
         const char *n = epk_pattern_name(epk_bank_current(), epk_pattern_current());
-        *got = n[0] && n[strlen(n) - 1] == '*';
+        int k = 0;
+        while (n[k])
+            k++;
+        *got = k && n[k - 1] == '*';
     } else if (!strcmp(what, "pattern"))         /* 1..16 */
         *got = epk_pattern_current() + 1;
     else if (!strcmp(what, "queued"))          /* 1..16, 0 none */

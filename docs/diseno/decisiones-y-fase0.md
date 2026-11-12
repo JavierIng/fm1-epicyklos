@@ -224,3 +224,17 @@
 - Pista 4 (bajo) sigue con la voz de prueba hasta que haya motor de bajo (LÍNEA o BÁLTICO).
 - Coste en el ordenador (no en el FM-1): ACORDE ~0,9× y DRONE ~1,4× la voz de prueba. Que ACORDE (8 sierras) salga más barato que la de prueba es sospechoso; la medida del ordenador no vale para decidir nada del aparato.
 - Validación: los dos suenan; cambiar de acorde cambia el contenido (1192 → 1302 cruces por segundo de octava a MIN9); los 70 acordes de las 4 tablas, limpios; el dron sigue a 2 s y se apaga tras parar. 103 comprobaciones en el simulador.
+
+## Fase 4b: guardar patrones y EVOLUCIÓN (2026-11-12)
+
+- Javier: "los patrones son muy estáticos y repetitivos" y "tendríamos que poder guardar el patrón generado en un banco o ranura". Orden acordado: guardar → EVOLUCIÓN (mutar + ausencias) → LFO de pista y DERIVA → FLOW.
+- **Guardar** usa el almacén de objetos de fm1-base (`plat_store_*`): en el aparato, la flash (A/B, CRC, a prueba de cortes); en el emulador, el navegador (localStorage). No es un apaño temporal: es el mismo camino que usará la fase 6.
+  - **Mapa de flash (decisión que no debe cambiar entre versiones):** objetos `OBJ_BANK0`..+21, dos por banco (ranuras 1-8 y 9-16), 8 KiB cada uno desde 0x97000 hasta 0xC2FFF, por debajo del panel (0xDC000) y del Bluetooth (0xDE000). Cada objeto: cabecera "EPKB", versión, banco, mitad y máscara de ranuras, luego 8 registros de 438 bytes (3512 de 3840). Un objeto de otra versión se ignora: un cambio de formato futuro necesita convertir, no romper.
+  - Se guarda **lo que suena** (con la evolución dentro). Gesto: vista PATRONES, HOME + tecla blanca, dos veces en 3 s. Marca `*` en el nombre.
+  - Antes de cargar otro banco, la interfaz lee sus objetos y se los pasa al núcleo (stage); el núcleo los aplica al cargarlo. Carrera conocida y aceptada: si se elige un banco justo cuando otro en cola entra en el compás, ese otro puede sonar un compás sin lo guardado.
+  - Falta: borrar una ranura guardada (volver a fábrica), guardar el proyecto (mezcla, efectos, tempo, MOD), nombres. Fase 6.
+- **EVOLUCIÓN** (página nueva por pista: MUTAR, CADA, VUELTA, AUSENCIA): un desvío sobre el patrón, no una edición. Cada CADA compases: vuelve hacia lo escrito según VUELTA, cambia según MUTAR (golpes ±, rotación, tono, caída, carácter; nota en motores melódicos: 4ª, 5ª, 8ª), y descansa según AUSENCIA. MUTAR 0 + VUELTA 0 = congelado. Cambiar de patrón o PLAY vuelve a lo escrito. Coste: unas operaciones por compás, nada por muestra.
+  - Banco A con evolución de fábrica (bombo quieto); los generados, al azar.
+  - Supuesto propio: los golpes nunca bajan a 0 por mutación (eso lo hace AUSENCIA); en pistas hechas a mano no se mutan los golpes, solo la rotación.
+- Validación: MUTAR 0 deja el patrón idéntico 16 compases; MUTAR 1 cambia el ritmo 28 veces en 32 compases sin vaciar la pista; VUELTA 1 vuelve al patrón; congelado se mantiene; AUSENCIA 1 no dispara; CYKLOS difiere del primer compás en 22 pista-compases de 32 con el bombo fijo; un patrón guardado en D13 se carga idéntico (tono, nota, carácter, pasos), con `*`, y se rechaza otra versión. El gesto de guardar (incluido que una sola pulsación no guarda) probado en el simulador: 109 comprobaciones.
+- **Sin probar:** no se ha escuchado; la persistencia del emulador tras recargar no se ha comprobado en un navegador real (el mecanismo es el de fm1-base); en el aparato, nada.

@@ -345,23 +345,24 @@ void unpack_pattern(const uint8_t *in, int pt) {
     }
 }
 // The live pattern as it sounds (como suena), its evolution baked in (con la evolución dentro)
-void bake_live(float out[EPK_TRACKS][EPK_P_PATTERN_COUNT], Steps st[EPK_TRACKS]) {
-    for (int i = 0; i < EPK_TRACKS; i++) {
+// Written straight into its destination: no big buffer on the audio interrupt's stack (sin búferes en la pila)
+void bake_track(int i, float *out, Steps &st) {
+    {
         const Track &t = g.tr[i];
-        for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) out[i][q] = t.p[q];
+        for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) out[q] = t.p[q];
         const int len = param_int(t, EPK_P_LENGTH);
-        out[i][EPK_P_NOTE] = (float)(note_live(t) - 24) / 60.0f;
-        out[i][EPK_P_TONE] = clamp01(t.p[EPK_P_TONE] + t.m_tone);
-        out[i][EPK_P_DECAY] = clamp01(t.p[EPK_P_DECAY] + t.m_decay);
-        out[i][EPK_P_CHARACTER] = clamp01(t.p[EPK_P_CHARACTER] + t.m_char);
-        out[i][EPK_P_HITS] = (float)hits_live(t, len) / (float)len;
-        out[i][EPK_P_ROTATE] = (float)((rot_live(t) % len + len) % len) / 31.0f;
-        st[i] = t.st;
+        out[EPK_P_NOTE] = (float)(note_live(t) - 24) / 60.0f;
+        out[EPK_P_TONE] = clamp01(t.p[EPK_P_TONE] + t.m_tone);
+        out[EPK_P_DECAY] = clamp01(t.p[EPK_P_DECAY] + t.m_decay);
+        out[EPK_P_CHARACTER] = clamp01(t.p[EPK_P_CHARACTER] + t.m_char);
+        out[EPK_P_HITS] = (float)hits_live(t, len) / (float)len;
+        out[EPK_P_ROTATE] = (float)((rot_live(t) % len + len) % len) / 31.0f;
+        st = t.st;
         if (t.st.manual && t.m_rot) {                                // manual steps: the rotation into the steps
             const int rot = ((t.m_rot % len) + len) % len;
-            st[i].mask = rotate_mask(t.st.mask, len, rot);
-            for (int k = 0; k < len; k++) st[i].meta[(k + rot) % len] = t.st.meta[k];
-            out[i][EPK_P_ROTATE] = (float)param_int(t, EPK_P_ROTATE) / 31.0f;
+            st.mask = rotate_mask(t.st.mask, len, rot);
+            for (int k = 0; k < len; k++) st.meta[(k + rot) % len] = t.st.meta[k];
+            out[EPK_P_ROTATE] = (float)param_int(t, EPK_P_ROTATE) / 31.0f;
         }
     }
 }
@@ -486,13 +487,7 @@ void drain() {
                 }
             g.undo.ready = 0;
         } else if (e.type == EV_KEEP) {                       // the live pattern into a slot (a la ranura)
-            float b[EPK_TRACKS][EPK_P_PATTERN_COUNT];
-            Steps st[EPK_TRACKS];
-            bake_live(b, st);
-            for (int k = 0; k < EPK_TRACKS; k++) {
-                for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) g.bank[e.a][k][p] = b[k][p];
-                g.bank_steps[e.a][k] = st[k];
-            }
+            for (int k = 0; k < EPK_TRACKS; k++) bake_track(k, g.bank[e.a][k], g.bank_steps[e.a][k]);
             g.user_mask |= (uint16_t)(1u << e.a);
             if (e.a == g.pattern) load_live(g.pattern, 0);   // what you heard is now the pattern (ya es el patrón)
         } else if (e.type == EV_RANDOM) {
@@ -947,10 +942,12 @@ int epk_every_bars(int track) { return valid(track) ? every_bars(g.tr[track]) : 
 int epk_absent(int track) { return valid(track) && g.playing ? g.tr[track].absent : 0; }
 
 void epk_pattern_pack_live(uint8_t *out) {
-    float b[EPK_TRACKS][EPK_P_PATTERN_COUNT];
-    Steps st[EPK_TRACKS];
-    bake_live(b, st);
-    for (int i = 0; i < EPK_TRACKS; i++) pack_track(b[i], st[i], out);
+    float b[EPK_P_PATTERN_COUNT];
+    Steps st;
+    for (int i = 0; i < EPK_TRACKS; i++) {
+        bake_track(i, b, st);
+        pack_track(b, st, out);
+    }
 }
 void epk_pattern_keep(int pattern) { if (pattern >= 0 && pattern < EPK_PATTERNS) push(EV_KEEP, 0, pattern, 0); }
 void epk_bank_stage_begin(int bank) {
