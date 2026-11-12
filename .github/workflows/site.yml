@@ -42,7 +42,7 @@ jobs:
           PATH="$PWD/tools/wasi-emcc:$PATH" python3 base/tools/build.py app --web --release "${{ inputs.version }}"
       - name: Site
         run: python3 base/tools/make_site.py app "app/build/epicyklos-${{ inputs.version }}.fwsc" "${{ inputs.version }}" app/build/site
-      - name: Zip the site (no se publica: solo un .zip para servirlo en local)
+      - name: Zip the site (no se publica, solo un zip para servirlo en local)
         run: cd app/build && zip -qr "epicyklos-site-${{ inputs.version }}.zip" site
       - uses: actions/upload-artifact@v4
         with:
