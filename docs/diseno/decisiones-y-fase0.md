@@ -175,3 +175,10 @@
 - **DUCK:** knob en ECO 2 (K4). Seguidor del bombo (pista 1) con ~150 ms de vuelta; baja los retornos de eco y reverb, por defecto 35 %.
 - Validación: el throw manda una pista con envío 0 al eco; con freeze el bucle sigue igual 4 s después y un golpe nuevo no entra; al quitarlo se apaga; el duck al 100 % deja los retornos en un tercio. 79 comprobaciones en el simulador.
 - **6 u 8 pistas (decidido 12 nov):** seguimos con 6. Pasar a 8 (como Groove OS, Hortator o el firmware Open de M-VAVE) queda en espera para una actualización futura; el obstáculo no es el núcleo sino el acceso a las pistas 7 y 8 desde el panel y la CPU con motores pesados.
+
+## Fase 3b: master y modulación (2026-11-12)
+
+- **Cadena del master** (tras los retornos): filtro DJ (izquierda paso-bajo, derecha paso-alto, centro transparente; dos SVF en serie siempre activos para que no haya clics al cruzar el centro) con RESO y DOBLE (segundo pico paralelo, idea de filtro doble tipo Blades, sin su código, que es analógico) → compresor de bus (un knob: umbral, ratio y ganancia; ataque 10 ms, vuelta 150 ms) → saturación de cinta → limitador suave. HOME+ALGORITHM = filtro desde cualquier vista. Sin EQ de 3 bandas todavía.
+- **Modulación** (vista MOD en el ciclo de HOME): 2 LFO enganchados al compás (6 formas, 1/16–32 compases) y 2 seguidores de pista, cada uno con 2 destinos (HOME+K3/K4 = el segundo) y cantidad ± . Destinos: filtro, reso, eco (tiempo, repite, tono, nivel), reverb (caída, nivel), tono y nivel de cada pista. Se calcula por bloque (≤ 256 muestras); el nivel modulado se suaviza por muestra.
+- **Pendiente de la 3b:** escenas, REDUCCIÓN (bits/frecuencia) y STUTTER, EQ del master. LFO por pista y DERIVA van con los motores.
+- Validación: el filtro oscurece y adelgaza y en el centro no cambia la energía (<5 %) aunque RESO y DOBLE estén arriba; el compresor estrecha la dinámica (3,4 → 2,2 entre partes fuertes y suaves); el LFO de 1 compás va de 0,1 a 0,9 y está en su máximo a 1/4 de compás; el seguidor sube con el bombo y baja entre golpes. 90 comprobaciones en el simulador.

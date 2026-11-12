@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **Fase 3a, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
+> Estado: **Fase 3b, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
 ## 1. Qué es
@@ -18,7 +18,7 @@ para dub techno, techno hipnótico, ambient y drone.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | elegir pista 1-6 | mute de la pista |
 | (en vista MEZCLA) | mute de la pista | solo de la pista |
-| HOME | toque: ÓRBITA → MEZCLA → EFECTOS | es la tecla de función |
+| HOME | toque: ÓRBITA → MEZCLA → EFECTOS → MOD | es la tecla de función |
 | PLAY | arrancar / parar | — |
 | SELECT | cambiar de página | **tempo** (1 BPM por clic) |
 | PRESETS | nivel de la pista | envío de la pista al eco |
@@ -28,7 +28,7 @@ para dub techno, techno hipnótico, ambient y drone.
 | SEQ | vista PASOS | — |
 | ARP | aleatorio | **deshacer** |
 | REC | mantener: **throw** de la pista al eco | **freeze** del eco (activa / quita) |
-| ALGORITHM | fase siguiente | — |
+| ALGORITHM | fase siguiente | **filtro del master**, desde cualquier vista |
 
 Al mantener HOME, la parte baja de la pantalla muestra esta chuleta.
 
@@ -86,6 +86,11 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL,
   DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms).
 - **REVERB (PLACA):** CAÍDA, TONO, MOVER (movimiento interno), NIVEL.
+- **FILTRO** (del master, después de los retornos): FILTRO (a la izquierda cierra un paso-bajo, a la derecha abre un
+  paso-alto, en el centro no hace nada), RESO, DOBLE (un segundo pico por encima del corte, como un filtro doble).
+  También con HOME + ALGORITHM desde cualquier vista.
+- **MASTER:** COMP (compresor de bus: más es más pegado y más bombeo; arriba se ve cuántos dB está bajando) y
+  SATURA (cinta: calor y redondez). Al final hay siempre un limitador suave.
 
 Al cambiar el TIEMPO en TAPE el tono se desliza, como una cinta que cambia de velocidad. Al cambiar de TIPO el
 eco empieza vacío. El tiempo máximo es 1,5 s (0,75 s en PINGPONG); si no cabe, se divide por dos.
@@ -99,6 +104,18 @@ Los efectos son del proyecto: no cambian al cambiar de patrón.
   suelta. Con freeze puesto el LED de REC queda encendido y la vista EFECTOS muestra FREEZE.
 - El bucle congelado se oscurece muy despacio tras muchas vueltas (efecto de la interpolación).
 
-## 10. Pendiente
-Filtro del master, compresor, modulación y escenas (fase 3b), armonía y generativos (4), más motores (5), guardado, nombres, reloj y MIDI (6),
+## 10. Modulación (vista MOD)
+Cuatro fuentes del proyecto: **LFO 1, LFO 2, SEGUIDOR 1 y SEGUIDOR 2**. SELECT elige la fuente; la pantalla
+muestra las cuatro moviéndose y a dónde van.
+- **LFO:** FORMA (seno, triángulo, sierra, cuadrada, S&H, azar suave) y VELOC (de 1/16 a 32 compases). Con el
+  secuenciador en marcha va enganchado al compás: un LFO de 1 compás empieza y acaba con el compás.
+- **SEGUIDOR:** SIGUE (la pista que escucha) y CAÍDA (lo que tarda en bajar). Sube con cada golpe de esa pista.
+- **DESTINO y CANT** (K3 y K4): a dónde va y cuánto, en positivo o en negativo. Cada fuente tiene **dos destinos**:
+  mantén HOME y gira K3 y K4 para el segundo.
+- Destinos: FILTRO, RESO, ECO TIEMPO, ECO REPITE, ECO TONO, ECO NIVEL, REV CAÍDA, REV NIVEL, y el TONO o el NIVEL
+  de cada pista. La modulación se suma a lo que marque el knob sin moverlo.
+- De inicio, el LFO 1 mueve el tono del eco (+25 %, 8 compases).
+
+## 11. Pendiente
+Escenas (fase 3), armonía y generativos (4), más motores (5), guardado, nombres, reloj y MIDI (6),
 prueba en el aparato (7, solo cuando se decida).

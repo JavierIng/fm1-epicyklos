@@ -9,7 +9,7 @@ expect pattern 1
 # SAVE: the PATTERNS view (patrones); stopped, a white key changes at once (pattern 4 ORBITA = key 6)
 tap SAVE
 wait 30
-expect view 3
+expect view 4
 key 6 down
 wait 30
 key 6 up
@@ -99,6 +99,29 @@ expect senda3 75
 expect view 2
 wait 1200
 shot fx2.png
+# HOME again: the MOD view (modulación): SELECT the source, K3 the destination, HOME+K3 the second one
+tap HOME
+wait 30
+expect view 3
+turn SELECT 2
+wait 30
+expect modpage 2
+turn K3 1
+wait 30
+expect mod3_2 1
+press HOME
+turn K3 9
+turn K4 4
+release HOME
+wait 30
+expect mod3_4 9
+expect mod3_5 60
+expect view 3
+tap PLAY
+wait 1200
+shot mod.png
+tap PLAY
+wait 30
 # back to the orbit, a page and a knob: the popup (ventana)
 tap HOME
 wait 30
@@ -154,7 +177,7 @@ tap FX
 wait 30
 tap SEQ
 wait 30
-expect view 4
+expect view 5
 expect page 2
 key w5 down
 wait 30
@@ -205,7 +228,7 @@ expect undo 0
 # banks (bancos): black key = bank, white key = pattern. Bank C, pattern 5
 tap SAVE
 wait 30
-expect view 3
+expect view 4
 key b2 down
 wait 30
 key b2 up

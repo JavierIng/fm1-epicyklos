@@ -5,7 +5,8 @@
  * (device/unity.c, host/plat_host.c), after the platform: gfx.c and announce.c are in scope.
  * Panel (panel, docs/diseno/decisiones-y-fase0.md):
  *   FX SCL ENV LFO EDIT GLO  select track 1-6 (pista); HOME+track mute. MIX view: track = mute, HOME+track = solo
- *   HOME   tap: ORBIT -> MIX -> EFFECTS view (vista); held: shift (mayúsculas). In EFFECTS, SELECT and K1-K4 are
+ *   HOME   tap: ORBIT -> MIX -> EFFECTS -> MOD view (vista); in MOD, SELECT the source, K1-K4 its settings, HOME+K3/K4
+ *          its second destination (segundo destino); held: shift (mayúsculas). In EFFECTS, SELECT and K1-K4 are
  *          the delay's and the reverb's (eco y reverb); HOME+PRESETS the track's send to the delay
  *   PLAY   start / stop          SELECT  page (página); HOME+SELECT tempo
  *   PRESETS track level (nivel)   K1-K4   the page's parameters; HOME+K fine (ajuste fino)
@@ -143,9 +144,20 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Un segundo pico sobre el corte", "Pega la mezcla; mas es mas bombeo", "Cinta: calor y redondez"};
 static const char *const DLY_NAME[EPK_DLY_COUNT] = {"TAPE", "BBD", "PINGPONG"};
 
+/* ------------------------------------------------------------------ modulation (modulación) */
+static const char *const MOD_PAGE_NAME[EPK_MOD_SOURCES] = {"LFO 1", "LFO 2", "SEG 1", "SEG 2"};
+static const char *const MOD_LONG_NAME[EPK_MOD_SOURCES] = {"LFO 1", "LFO 2", "SEGUIDOR 1", "SEGUIDOR 2"};
+static const char *const LFO_SHAPE_NAME[EPK_LFO_SHAPE_COUNT] = {"SENO", "TRIANG", "SIERRA", "CUADRA", "S&H", "AZAR"};
+static const char *const LFO_RATE_NAME[EPK_LFO_RATE_COUNT] = {"1/16", "1/8", "1/4", "1/2", "1 COMP", "2 COMP",
+                                                             "4 COMP", "8 COMP", "16 COMP", "32 COMP"};
+static const char *const DEST_NAME[EPK_DEST_COUNT] = {
+    "NADA", "FILTRO", "RESO", "ECO TIEMPO", "ECO REPITE", "ECO TONO", "ECO NIVEL", "REV CAIDA", "REV NIVEL",
+    "TONO 1", "TONO 2", "TONO 3", "TONO 4", "TONO 5", "TONO 6",
+    "NIVEL 1", "NIVEL 2", "NIVEL 3", "NIVEL 4", "NIVEL 5", "NIVEL 6"};
+
 /* ------------------------------------------------------------------ state (estado) */
-enum { VIEW_ORBIT, VIEW_MIX, VIEW_FX, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME goes round the first three */
-static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "EFECTOS", "PATRONES", "PASOS"};
+enum { VIEW_ORBIT, VIEW_MIX, VIEW_FX, VIEW_MOD, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME goes round the first four */
+static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "EFECTOS", "MOD", "PATRONES", "PASOS"};
 /* the keys, F3..G5: a white key's place among the whites (0..15), a black key's among the blacks (0..10) */
 static const int8_t WHITE_OF[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6, 7, -1, 8, -1, 9, -1, 10, 11, -1,
                                        12, -1, 13, 14, -1, 15};
@@ -173,6 +185,7 @@ static struct {
     int step_page, hold_step, hold_edited; /* STEPS view: which 16, the step held (-1), a knob turned meanwhile */
     int fx_page, pop_fx;                   /* EFFECTS view: its page; the popup is an effect's knob (-1 a track's) */
     float fx_meter, comp_gr;
+    int mod_page;                          /* MOD view: the source shown (fuente a la vista) */
     int amount;                            /* random: how much, 1..10 (cantidad) */
     uint32_t locked;                       /* random: parameters it leaves alone, a bit each (bloqueados) */
     uint32_t rng;
@@ -280,6 +293,38 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         str_cat(b, "/16");
     } else
         int_str((int)(v * 100.0f + 0.5f), b);
+}
+
+static int mod_idx(int src, int param)
+{
+    const int n = epk_mod_steps(src, param);
+    return n ? (int)(epk_mod_get(src, param) * (float)(n - 1) + 0.5f) : 0;
+}
+static void mod_str(int src, int param, char *b)       /* a modulation setting as the screen shows it */
+{
+    b[0] = 0;
+    if (param == EPK_M_SHAPE) {
+        if (src < 2)
+            str_cat(b, LFO_SHAPE_NAME[mod_idx(src, param)]);
+        else {
+            str_cat(b, "PISTA ");
+            int_str(mod_idx(src, param) + 1, b + 6);
+        }
+    } else if (param == EPK_M_RATE) {
+        if (src < 2)
+            str_cat(b, LFO_RATE_NAME[mod_idx(src, param)]);
+        else {
+            int_str((int32_t)(20.0f * fm_exp2f(epk_mod_get(src, param) * 6.0f) + 0.5f), b);
+            str_cat(b, " ms");
+        }
+    } else if (param == EPK_M_DEST1 || param == EPK_M_DEST2)
+        str_cat(b, DEST_NAME[mod_idx(src, param)]);
+    else {
+        const int c = (int)((epk_mod_get(src, param) - 0.5f) * 200.0f + (epk_mod_get(src, param) < 0.5f ? -0.5f : 0.5f));
+        if (c > 0)
+            str_cat(b, "+");
+        int_str(c, b + (c > 0));
+    }
 }
 
 /* a parameter's value as the screen shows it (valor en pantalla) */
@@ -451,7 +496,7 @@ static void set_view(int v)
         ui.page = PAGE_RHYTHM;
     if (v == VIEW_PATTERNS)
         ui.bank = epk_bank_current();
-    app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : v == VIEW_FX ? "ECO+REV" : "");
+    app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : v == VIEW_FX ? "ECO+REV" : v == VIEW_MOD ? "LFO+SEG" : "");
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -491,6 +536,23 @@ static void turn_fx(int slot, int32_t detents, int fine)
     epk_fx_set(p, epk_fx_get(p) + (float)detents / (steps ? (float)(steps - 1) : fine ? 400.0f : 40.0f));
     ui.pop_fx = p;
     ui.pop_until = plat_ms() + 1000u;
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
+/* MOD view: K1 shape or track, K2 rate or release, K3 destination, K4 amount; with HOME, K3/K4 the second ones */
+static void turn_mod(int slot, int32_t detents, int shift)
+{
+    static const int8_t PARAM[2][4] = {{EPK_M_SHAPE, EPK_M_RATE, EPK_M_DEST1, EPK_M_AMT1},
+                                       {EPK_M_SHAPE, EPK_M_RATE, EPK_M_DEST2, EPK_M_AMT2}};
+    const int src = ui.mod_page, p = slot >= 0 ? PARAM[shift][slot] : -1;
+    const int steps = p >= 0 ? epk_mod_steps(src, p) : 0;
+    char v[16];
+    if (p < 0)
+        return;
+    epk_mod_set(src, p, epk_mod_get(src, p) + (float)detents / (steps ? (float)(steps - 1) : 40.0f));
+    mod_str(src, p, v);
+    app_say(slot == 0 ? (src < 2 ? "FORMA" : "SIGUE") : slot == 1 ? (src < 2 ? "VELOC" : "CAIDA") :
+            slot == 2 ? (shift ? "DESTINO 2" : "DESTINO") : (shift ? "CANT 2" : "CANTIDAD"), v);
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -732,8 +794,8 @@ static void input(void)
     if (!arp && (ui.btn >> B_ARP & 1u)) {     /* ARP released: random (aleatorio) */
         if (!ui.arp_used)
 {
-            if (ui.view == VIEW_FX)
-                app_say("ALEATORIO", "NO EN EFECTOS");
+            if (ui.view == VIEW_FX || ui.view == VIEW_MOD)
+                app_say("ALEATORIO", "SOLO EN PISTAS");
             else
                 ui.view == VIEW_PATTERNS ? random_pattern() : random_page();
         }
@@ -757,7 +819,7 @@ static void input(void)
                 int_str(ui.amount * 10, t);
                 str_cat(t, "%");
                 app_say("CANTIDAD", t);
-            } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX) {
+            } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX && ui.view != VIEW_MOD) {
                 const int p = slot_param(ui.track, ui.page, ENC_SLOT[k]);
                 if (p >= 0) {
                     ui.locked ^= 1u << p;
@@ -773,6 +835,10 @@ static void input(void)
                 epk_set_tempo(epk_tempo() + (float)e);
                 int_str((int32_t)(epk_tempo() + 0.5f), t);
                 app_say("TEMPO", t);
+            } else if (ui.view == VIEW_MOD) {
+                ui.mod_page = ((ui.mod_page + (int)e) % EPK_MOD_SOURCES + EPK_MOD_SOURCES) % EPK_MOD_SOURCES;
+                app_say("FUENTE", MOD_LONG_NAME[ui.mod_page]);
+                ui.dirty_main = ui.dirty_foot = 1;
             } else if (ui.view == VIEW_FX) {
                 ui.fx_page = ((ui.fx_page + (int)e) % NFXPAGES + NFXPAGES) % NFXPAGES;
                 app_say("PAGINA", FX_PAGE_NAME[ui.fx_page]);
@@ -799,6 +865,8 @@ static void input(void)
             turn_step(ENC_SLOT[k], e);
         else if (ui.view == VIEW_FX)
             turn_fx(ENC_SLOT[k], e, shift);
+        else if (ui.view == VIEW_MOD)
+            turn_mod(ENC_SLOT[k], e, shift);
         else
             turn_param(ui.page, ENC_SLOT[k], e, shift);
     }
@@ -1112,6 +1180,44 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     cv_text(4, 104, &FONT_XS, "A  B", C_RULE);
 }
 
+static void draw_mod(void)                         /* the four sources, moving, and where they go */
+{
+    char v[16], w[24];
+    int i;
+    for (i = 0; i < EPK_MOD_SOURCES; i++) {
+        const int32_t y = 3 + i * 35;
+        const int sel = i == ui.mod_page, lfo = i < 2;
+        const float out = epk_mod_out(i);
+        const uint16_t c = sel ? C_FX : C_LABEL;
+        int d;
+        cv_rect(2, y, 236, 33, C_PANEL);
+        if (sel)
+            cv_rect(2, y, 3, 33, C_FX);
+        cv_text(9, y + 2, &FONT_XS, MOD_LONG_NAME[i], c);
+        mod_str(i, EPK_M_SHAPE, v);
+        cv_text(9, y + 17, &FONT_XS, v, sel ? C_TEXT : C_LABEL);
+        cv_rect(86, y + 14, 60, 5, C_RULE);                            /* what it puts out now (salida) */
+        if (lfo) {
+            const int32_t x0 = 116, x1 = 116 + (int32_t)(out * 30.0f);
+            cv_rect(x0 < x1 ? x0 : x1, y + 14, (x0 < x1 ? x1 - x0 : x0 - x1) + 1, 5, c);
+            cv_rect(115, y + 11, 2, 11, C_LABEL);
+        } else
+            cv_rect(86, y + 14, (int32_t)(out * 60.0f), 5, c);
+        for (d = 0; d < 2; d++) {                                      /* its two destinations */
+            const int dp = d ? EPK_M_DEST2 : EPK_M_DEST1, ap = d ? EPK_M_AMT2 : EPK_M_AMT1;
+            w[0] = 0;
+            if (mod_idx(i, dp)) {
+                mod_str(i, dp, w);
+                str_cat(w, " ");
+                mod_str(i, ap, v);
+                str_cat(w, v);
+            } else
+                str_cat(w, "-");
+            cv_text(152, y + 2 + d * 15, &FONT_XS, w, mod_idx(i, dp) ? (sel ? C_TEXT : C_LABEL) : C_RULE);
+        }
+    }
+}
+
 static void draw_main(void)
 {
     cv_begin(240, 144, C_BG);
@@ -1123,6 +1229,8 @@ static void draw_main(void)
         draw_steps();
     else if (ui.view == VIEW_FX)
         draw_fx();
+    else if (ui.view == VIEW_MOD)
+        draw_mod();
     else if (ui.view == VIEW_ORBIT)
         draw_orbit();
     else
@@ -1170,6 +1278,33 @@ static void draw_foot(void)                       /* the page tabs and the four 
                 ? epk_pattern_name(ui.bank, epk_pattern_current()) : "ELIGE PATRON", C_TEXT);
         cv_text(6, 44, &FONT_XS, "Negras: banco   Blancas: patron", C_LABEL);
         cv_text(6, 57, &FONT_XS, "ARP: patron al azar   HOME+ARP: deshacer", C_LABEL);
+        cv_blit(0, 168);
+        return;
+    }
+    if (ui.view == VIEW_MOD) {                /* the sources and their four knobs (fuentes y knobs de MOD) */
+        static const char *const K_LFO[4] = {"FORMA", "VELOC", "DESTINO", "CANT"};
+        static const char *const K_FOL[4] = {"SIGUE", "CAIDA", "DESTINO", "CANT"};
+        const int src = ui.mod_page, two = (int)(ui.btn >> B_HOME & 1u);
+        const int prm[4] = {EPK_M_SHAPE, EPK_M_RATE, two ? EPK_M_DEST2 : EPK_M_DEST1, two ? EPK_M_AMT2 : EPK_M_AMT1};
+        for (i = 0; i < EPK_MOD_SOURCES; i++)
+            x = cv_text(x, 3, &FONT_XS, MOD_PAGE_NAME[i], i == ui.mod_page ? C_FX : C_LABEL) + 10;
+        cv_text(236 - text_w(&FONT_XS, two ? "DESTINO 2" : "HOME: DEST 2"), 3, &FONT_XS, two ? "DESTINO 2" : "HOME: DEST 2",
+                two ? C_SOLO : C_RULE);
+        for (i = 0; i < 4; i++) {
+            const int32_t cx = i * 60 + 2;
+            const int steps = epk_mod_steps(src, prm[i]);
+            const float val = epk_mod_get(src, prm[i]);
+            cv_rect(cx, 18, 56, 52, C_PANEL);
+            mod_str(src, prm[i], v);
+            cv_text(cx + 4, 22, &FONT_XS, (src < 2 ? K_LFO : K_FOL)[i], i >= 2 && two ? C_SOLO : C_LABEL);
+            cv_text(cx + 4, 38, text_w(&FONT_S, v) > 50 ? &FONT_XS : &FONT_S, v, C_TEXT);
+            cv_rect(cx + 4, 63, 48, 3, C_RULE);
+            if (i == 3) {                                              /* the amount from the middle (desde el centro) */
+                const int32_t m0 = cx + 28, m1 = cx + 4 + (int32_t)(val * 48.0f);
+                cv_rect(m0 < m1 ? m0 : m1, 63, (m0 < m1 ? m1 - m0 : m0 - m1) + 1, 3, C_FX);
+            } else if (!steps || i != 2)
+                cv_rect(cx + 4, 63, (int32_t)(val * 48.0f + 0.5f), 3, C_FX);
+        }
         cv_blit(0, 168);
         return;
     }
@@ -1261,6 +1396,10 @@ void app_frame(void)
                 ui.dirty_main = ui.dirty_foot = 1;
         }
     }
+    if (ui.view == VIEW_MOD && now - ui.meter_at >= 40u) {   /* the sources move (las fuentes se mueven) */
+        ui.meter_at = now;
+        ui.dirty_main = 1;
+    }
     if (ui.view == VIEW_FX && now - ui.meter_at >= 50u) {    /* the returns' meter (medidor de los retornos) */
         ui.meter_at = now;
         ui.fx_meter = ui.fx_meter * 0.6f + epk_fx_meter();
@@ -1323,7 +1462,12 @@ int app_expect(const char *what, int *got)
         *got = epk_frozen();
     else if (!strncmp(what, "throw", 5))
         *got = epk_thrown(atoi(what + 5) - 1);
-    else if (!strcmp(what, "fxpage"))
+    else if (!strcmp(what, "modpage"))
+        *got = ui.mod_page;
+    else if (!strncmp(what, "mod", 3) && u) {  /* modS_P: source S (1..4), setting P: a step, or x100 */
+        const int src = atoi(what + 3) - 1, p = atoi(u + 1);
+        *got = epk_mod_steps(src, p) ? mod_idx(src, p) : (int)(epk_mod_get(src, p) * 100.0f + 0.5f);
+    } else if (!strcmp(what, "fxpage"))
         *got = ui.fx_page;
     else if (!strncmp(what, "fx", 2) && what[2] >= '0' && what[2] <= '9') {   /* fxK: effect parameter K, x100 */
         const int k = atoi(what + 2);

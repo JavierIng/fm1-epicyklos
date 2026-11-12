@@ -10,6 +10,7 @@
 #include "voices.h"
 #include "fx.h"
 #include "master.h"
+#include "mod.h"
 
 namespace epk {
 
@@ -43,6 +44,8 @@ struct Steps {
 // ------------------------------------------------------------------ track (pista)
 struct Track {
     float p[EPK_P_COUNT];                  // parameters (parámetros), 0..1
+    float pm[EPK_P_COUNT];                 // the same with the modulation on (con modulación), each block
+    float peak_block, lvl_s;               // for the followers; the level, smoothed (suavizado)
     Steps st;
     int muted, soloed;
     int step;
@@ -91,6 +94,9 @@ struct Engine {
     float fx[EPK_FX_COUNT];                // the send effects' parameters (del proyecto)
     Fx sends;
     Master master;
+    Mod mod;
+    float fx_live[EPK_FX_COUNT];           // the effects with the modulation on
+    int32_t sixteenths;                    // since play (desde PLAY), for the LFOs
     float buf[kBlock], bus_a[kBlock], bus_b[kBlock], kick[kBlock], fx_l[kBlock], fx_r[kBlock];
 };
 
@@ -332,7 +338,7 @@ void drain() {
             else switch_pattern(e.a, e.b);                    // stopped: now (ahora)
         } else if (e.type == EV_PLAY) {
             g.playing = 1;
-            g.bar_step = -1; g.bar_pos = 0; g.bar_fire = 1;
+            g.bar_step = -1; g.bar_pos = 0; g.bar_fire = 1; g.sixteenths = -1;
             for (Track &k : g.tr) { k.step = -1; k.pos = 0; k.fire = 1; k.cycle = 0xFFFFFFFFu; }
         } else if (e.type == EV_STOP) {
             g.playing = 0;
@@ -429,7 +435,7 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
                 if (d < run) run = d;
             }
         }
-        t.voice.render(g.buf + done, run, t.p, g.sr);
+        t.voice.render(g.buf + done, run, t.pm, g.sr);
         done += run;
         if (g.playing) {
             t.pos += run * inc;                                      // wraps past 2^32 at the step's end
@@ -437,7 +443,8 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
         }
     }
     const float target = (t.muted || (solo && !t.soloed)) ? 0.0f : 1.0f;
-    const float lvl = t.p[EPK_P_LEVEL] * t.p[EPK_P_LEVEL];          // a squared taper (curva cuadrática)
+    const float lvl = t.pm[EPK_P_LEVEL] * t.pm[EPK_P_LEVEL];        // a squared taper (curva cuadrática)
+    if (t.lvl_s < 0.0f) t.lvl_s = lvl;
     const float pan = t.p[EPK_P_PAN];
     const float send_a = t.p[EPK_P_SEND_A] * t.p[EPK_P_SEND_A], send_b = t.p[EPK_P_SEND_B] * t.p[EPK_P_SEND_B];
     const float throw_target = t.thrown ? 1.0f : 0.0f;
@@ -446,7 +453,8 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     float peak = t.meter;
     for (uint32_t i = 0; i < n; i++) {
         t.gain += (target - t.gain) * 0.003f;                        // ~8 ms: mutes do not click
-        const float s = g.buf[i] * lvl * t.gain;
+        t.lvl_s += (lvl - t.lvl_s) * 0.003f;                         // a modulated level glides (sin escalones)
+        const float s = g.buf[i] * t.lvl_s * t.gain;
         l[i] += s * gl;
         r[i] += s * gr;
         t.throw_g += (throw_target - t.throw_g) * 0.003f;            // the throw glides in: no click (sin clic)
@@ -456,6 +464,9 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
         peak = fm_maxf(peak, fm_fabsf(s));
     }
     t.meter = peak;
+    float bp = 0.0f;                                                 // this block's peak, for the followers
+    for (uint32_t i = 0; i < n; i++) bp = fm_maxf(bp, fm_fabsf(g.buf[i] * t.lvl_s * t.gain));
+    t.peak_block = bp;
 }
 
 inline int valid(int track) { return track >= 0 && track < EPK_TRACKS; }
@@ -479,6 +490,8 @@ void epk_init(float sample_rate) {
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();
+    g.mod.init();
+    for (int i = 0; i < EPK_FX_COUNT; i++) g.fx_live[i] = g.fx[i];
     g.meter_fx = 0.0f;
     g.sr = sample_rate;
     g.bpm = 124.0f;
@@ -501,9 +514,32 @@ void epk_init(float sample_rate) {
         t.step = -1; t.pos = 0; t.fire = 0; t.cycle = 0;
         t.pend[0].on = t.pend[1].on = 0;
         t.thrown = 0; t.throw_g = 0.0f;
+        t.peak_block = 0.0f; t.lvl_s = -1.0f;
         t.gain = 1.0f; t.meter = 0.0f; t.triggers = 0; t.key_note = -1;
         t.chance.init(0x2545F491u * (uint32_t)(i + 1));
         t.voice.init(param_int(t, EPK_P_ENGINE), 0x1234567u * (uint32_t)(i + 1));
+    }
+}
+
+// The modulation for this block (la modulación de este bloque): the sources move, the effects and the tracks get
+// their offsets. The followers hear the previous block (≤ 6 ms late).
+void apply_mod(uint32_t n) {
+    static const int8_t kFxOf[EPK_DEST_TONE1] = {-1, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK,
+                                                 EPK_FX_DLY_TONE, EPK_FX_DLY_LEVEL, EPK_FX_REV_DECAY, EPK_FX_REV_LEVEL};
+    float peaks[EPK_TRACKS];
+    for (int i = 0; i < EPK_TRACKS; i++) peaks[i] = g.tr[i].peak_block;
+    const float pos16 = g.playing && g.sixteenths >= 0 ? (float)g.sixteenths + (float)g.bar_pos * (1.0f / 4294967296.0f) : 0.0f;
+    g.mod.tick(g.playing && g.sixteenths >= 0, pos16, n, g.bpm, g.sr, peaks);
+    for (int i = 0; i < EPK_FX_COUNT; i++) g.fx_live[i] = g.fx[i];
+    for (int d = 1; d < EPK_DEST_TONE1; d++) {
+        const float o = g.mod.off[d];
+        if (o != 0.0f) g.fx_live[kFxOf[d]] = clamp01(g.fx[kFxOf[d]] + o);
+    }
+    for (int k = 0; k < EPK_TRACKS; k++) {
+        Track &t = g.tr[k];
+        for (int p = 0; p < EPK_P_COUNT; p++) t.pm[p] = t.p[p];
+        t.pm[EPK_P_TONE] = clamp01(t.p[EPK_P_TONE] + g.mod.off[EPK_DEST_TONE1 + k]);
+        t.pm[EPK_P_LEVEL] = clamp01(t.p[EPK_P_LEVEL] + g.mod.off[EPK_DEST_LEVEL1 + k]);
     }
 }
 
@@ -518,6 +554,7 @@ void epk_render(float *left, float *right, uint32_t frames) {
         if (g.playing && g.bar_fire) {
             g.bar_fire = 0;
             g.bar_step = (g.bar_step + 1) % EPK_BAR_STEPS;
+            g.sixteenths++;
             if (g.bar_step == 0 && g.queued >= 0) switch_pattern(g.queued, g.queued_bank);
         }
         uint32_t n = frames - done, until = 0xFFFFFFFFu;
@@ -528,8 +565,9 @@ void epk_render(float *left, float *right, uint32_t frames) {
             if (until < n) n = until;
         }
         for (uint32_t i = 0; i < n; i++) g.bus_a[i] = g.bus_b[i] = g.kick[i] = g.fx_l[i] = g.fx_r[i] = 0.0f;
+        apply_mod(n);
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
-        g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx, g.bpm, g.sr);
+        g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx_live, g.bpm, g.sr);
         float fx_peak = g.meter_fx;
         for (uint32_t i = 0; i < n; i++) {                            // the returns (retornos)
             left[done + i] += g.fx_l[i];
@@ -543,7 +581,7 @@ void epk_render(float *left, float *right, uint32_t frames) {
             if (n == until) g.bar_fire = 1;
         }
     }
-    g.master.process(left, right, frames, g.fx, g.sr);              // filter, compressor, tape (filtro, comp, cinta)
+    g.master.process(left, right, frames, g.fx_live, g.sr);              // filter, compressor, tape (filtro, comp, cinta)
     float peak = g.meter_master;
     for (uint32_t i = 0; i < frames; i++) {                           // the master (salida): a soft clip
         left[i] = fm_tanhf(left[i] * 0.9f);
@@ -563,6 +601,16 @@ void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COU
 float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
 int epk_fx_steps(int param) { return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : 0; }
 float epk_fx_meter(void) { float m = g.meter_fx; g.meter_fx = 0.0f; return m; }
+void epk_mod_set(int src, int param, float value01) {
+    if (src >= 0 && src < EPK_MOD_SOURCES && param >= 0 && param < EPK_M_COUNT) g.mod.m[src][param] = clamp01(value01);
+}
+float epk_mod_get(int src, int param) {
+    return src >= 0 && src < EPK_MOD_SOURCES && param >= 0 && param < EPK_M_COUNT ? g.mod.m[src][param] : 0.0f;
+}
+int epk_mod_steps(int src, int param) { return Mod::steps(src, param); }
+float epk_mod_out(int src) { return src >= 0 && src < EPK_MOD_SOURCES ? g.mod.s[src].out : 0.0f; }
+float epk_fx_live(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx_live[param] : 0.0f; }
+float epk_param_live(int track, int param) { return valid(track) && param >= 0 && param < EPK_P_COUNT ? g.tr[track].pm[param] : 0.0f; }
 float epk_comp_reduction(void) { const float r = g.master.gr_max; g.master.gr_max = 0.0f; return r; }
 int epk_master_filter(float *hz) {
     const float v = g.fx[EPK_FX_FLT];

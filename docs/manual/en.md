@@ -1,6 +1,6 @@
 # EPICYKLOS · User manual (draft)
 
-> Status: **Phase 3a, browser emulator only.** None of this has been tested on a real FM-1 yet.
+> Status: **Phase 3b, browser emulator only.** None of this has been tested on a real FM-1 yet.
 > The manual grows with each phase and only describes what already works. Español: [es.md](es.md).
 > On-screen text is in Spanish for now; the Spanish label is given in brackets.
 
@@ -19,7 +19,7 @@ techno, hypnotic techno, ambient and drone.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | select track 1-6 | mute the track |
 | (in the MIX view) | mute the track | solo the track |
-| HOME | tap: ORBIT → MIX → EFFECTS [ÓRBITA / MEZCLA / EFECTOS] | the shift key |
+| HOME | tap: ORBIT → MIX → EFFECTS → MOD [ÓRBITA / MEZCLA / EFECTOS / MOD] | the shift key |
 | PLAY | start / stop | — |
 | SELECT | change page | **tempo** (1 BPM per click) |
 | PRESETS | track level | the track's send to the delay |
@@ -29,7 +29,7 @@ techno, hypnotic techno, ambient and drone.
 | SEQ | STEPS view [PASOS] | — |
 | ARP | random | **undo** |
 | REC | hold: **throw** the track to the delay | **freeze** the delay (on / off) |
-| ALGORITHM | a later phase | — |
+| ALGORITHM | a later phase | **master filter**, from any view |
 
 While HOME is held, the lower part of the screen shows this cheat sheet.
 
@@ -90,6 +90,11 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level,
   DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms).
 - **Reverb (PLACA, a plate):** decay [CAÍDA], tone, movement [MOVER], level.
+- **Filter [FILTRO]** (the master's, after the returns): filter (left closes a low-pass, right opens a high-pass,
+  the middle does nothing), resonance [RESO], double [DOBLE] (a second peak above the cutoff, like a dual
+  filter). Also HOME + ALGORITHM from any view.
+- **Master:** COMP (bus compressor: more is more glue and more pumping; the screen shows how many dB it takes
+  off) and saturation [SATURA] (tape: warmth and roundness). A soft limiter always sits at the end.
 
 Changing the time in TAPE bends the pitch, like a tape changing speed. Changing the type starts the delay
 empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit is halved.
@@ -103,6 +108,18 @@ The effects belong to the project: they do not change with the pattern.
   lets it go. While frozen the REC light stays on and the EFFECTS view shows FREEZE.
 - A frozen loop darkens very slowly over many turns (a side effect of the interpolation).
 
-## 10. To come
-Master filter, compressor, modulation and scenes (phase 3b), harmony and generative tools (4), more engines (5), saving, names, clock and
+## 10. Modulation (MOD view)
+Four sources, the project's: **LFO 1, LFO 2, FOLLOWER 1 and FOLLOWER 2 [SEGUIDOR]**. SELECT picks the source;
+the screen shows all four moving and where they go.
+- **LFO:** shape [FORMA: sine, triangle, saw, square, S&H, smooth random] and rate [VELOC] (1/16 to 32 bars).
+  While the sequencer runs it is locked to the bar: a 1-bar LFO starts and ends with the bar.
+- **Follower:** the track it listens to [SIGUE] and its release [CAÍDA]. It rises with each hit of that track.
+- **Destination and amount [DESTINO, CANT]** (K3, K4): where it goes and how much, positive or negative. Each
+  source has **two destinations**: hold HOME and turn K3 and K4 for the second.
+- Destinations: filter, resonance, delay time, feedback, tone and level, reverb decay and level, and each track's
+  TONE or LEVEL. Modulation adds to the knob's setting without moving it.
+- By default LFO 1 moves the delay's tone (+25 %, 8 bars).
+
+## 11. To come
+Scenes (phase 3), harmony and generative tools (4), more engines (5), saving, names, clock and
 MIDI (6), testing on the device (7, only when decided).

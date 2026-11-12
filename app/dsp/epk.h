@@ -105,6 +105,31 @@ int epk_fx_steps(int param);                   /* >0: stepped (por pasos) */
 float epk_fx_meter(void);                      /* the returns' peak since the last call (medidor de los retornos) */
 /* dub gestures (gestos de dub). THROW: the track's send to the delay goes to full while on. FREEZE: the delay stops
  * listening and loops what it holds, without losing it (congelar). Both are the project's and are not saved. */
+/* modulation (modulación), the project's: sources 0-1 are LFOs locked to the bar, 2-3 envelope followers. Each has two
+ * destinations with a bipolar amount (0.5 = none). Settings 0..1 like every parameter. */
+#define EPK_MOD_SOURCES 4
+enum {
+    EPK_M_SHAPE,          /* LFO: EPK_LFO_*. Follower: the track it follows (0..5) */
+    EPK_M_RATE,           /* LFO: EPK_LFO_RATE_* (1/16 .. 32 bars). Follower: release 20 ms .. 1.3 s */
+    EPK_M_DEST1, EPK_M_AMT1, EPK_M_DEST2, EPK_M_AMT2,
+    EPK_M_COUNT
+};
+enum { EPK_LFO_SINE, EPK_LFO_TRIANGLE, EPK_LFO_SAW, EPK_LFO_SQUARE, EPK_LFO_SH, EPK_LFO_RANDOM, EPK_LFO_SHAPE_COUNT };
+#define EPK_LFO_RATE_COUNT 10
+enum {
+    EPK_DEST_NONE, EPK_DEST_FLT, EPK_DEST_FLT_RESO, EPK_DEST_DLY_TIME, EPK_DEST_DLY_FEEDBACK, EPK_DEST_DLY_TONE,
+    EPK_DEST_DLY_LEVEL, EPK_DEST_REV_DECAY, EPK_DEST_REV_LEVEL,
+    EPK_DEST_TONE1,                                   /* + track: a track's TONE (tono de la pista) */
+    EPK_DEST_LEVEL1 = EPK_DEST_TONE1 + EPK_TRACKS,    /* + track: a track's LEVEL */
+    EPK_DEST_COUNT = EPK_DEST_LEVEL1 + EPK_TRACKS
+};
+void epk_mod_set(int src, int param, float value01);
+float epk_mod_get(int src, int param);
+int epk_mod_steps(int src, int param);
+float epk_mod_out(int src);                    /* what the source puts out now: LFO -1..1, follower 0..1 */
+float epk_fx_live(int param);                  /* an effect's value with the modulation on it (con modulación) */
+float epk_param_live(int track, int param);    /* the same for a track's parameter */
+
 float epk_comp_reduction(void);                /* the compressor's deepest reduction in dB since the last call */
 /* the master filter's state for the screen: 0 open, 1 low-pass, 2 high-pass; *hz its cutoff */
 int epk_master_filter(float *hz);

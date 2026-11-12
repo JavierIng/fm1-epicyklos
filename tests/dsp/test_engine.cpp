@@ -551,6 +551,57 @@ int main() {
         CHECK(epk_master_filter(&hz) == 1 && hz > 100.0f && hz < 2000.0f, "filter for the screen: LP at %.0f Hz", hz);
     }
 
+    // 18. Modulation (modulación): an LFO locked to the bar sweeps its destination over exactly its cycle; a follower
+    // rises with the kick and falls between hits; a track's TONE and LEVEL can be destinations.
+    {
+        auto setdest = [&](int src, int slot, int dest, float amount) {   // amount -1..1
+            epk_mod_set(src, slot == 0 ? EPK_M_DEST1 : EPK_M_DEST2, (float)dest / (float)(EPK_DEST_COUNT - 1));
+            epk_mod_set(src, slot == 0 ? EPK_M_AMT1 : EPK_M_AMT2, 0.5f + 0.5f * amount);
+        };
+        epk_init(SR);
+        epk_mod_set(0, EPK_M_SHAPE, 0.0f);                              // sine
+        epk_mod_set(0, EPK_M_RATE, 4.0f / 9.0f);                        // 1 bar
+        setdest(0, 0, EPK_DEST_FLT, 0.4f);
+        setdest(1, 0, EPK_DEST_NONE, 0.0f);
+        epk_pattern_select(0, 3);
+        epk_render(l, r, 1);
+        epk_play(1);
+        const int bar = (int)(16.0 * 15.0 / 124.0 * SR);                // samples per bar at 124 BPM
+        float lo = 1.0f, hi = 0.0f, at_quarter = 0.0f, at_three = 0.0f;
+        for (int done = 0; done < bar; done += 64) {
+            epk_render(l, r, 64);
+            const float v = epk_fx_live(EPK_FX_FLT);
+            lo = std::fmin(lo, v); hi = std::fmax(hi, v);
+            if (std::abs(done - bar / 4) < 64) at_quarter = v;
+            if (std::abs(done - 3 * bar / 4) < 64) at_three = v;
+        }
+        CHECK(lo < 0.13f && hi > 0.87f && epk_fx_get(EPK_FX_FLT) == 0.5f, "LFO on the filter: %.2f .. %.2f (knob 0.50)", lo, hi);
+        CHECK(at_quarter > 0.85f && at_three < 0.15f, "LFO locked to the bar: %.2f at 1/4, %.2f at 3/4", at_quarter, at_three);
+
+        epk_init(SR);                                                    // follower 1 on the kick, into track 3's TONE
+        for (int i = 1; i < EPK_MOD_SOURCES; i++) setdest(i, 0, EPK_DEST_NONE, 0.0f);
+        setdest(0, 0, EPK_DEST_NONE, 0.0f);
+        epk_mod_set(2, EPK_M_SHAPE, 0.0f);
+        epk_mod_set(2, EPK_M_RATE, 0.2f);
+        setdest(2, 0, EPK_DEST_TONE1 + 2, -0.5f);
+        setdest(2, 1, EPK_DEST_LEVEL1 + 4, 0.3f);
+        epk_pattern_select(0, 3);
+        epk_render(l, r, 1);
+        const float tone = epk_param_get(2, EPK_P_TONE);
+        epk_play(1);
+        float f_hi = 0.0f, f_lo = 1.0f, t_lo = 1.0f;
+        for (int done = 0; done < bar; done += 64) {
+            epk_render(l, r, 64);
+            const float o = epk_mod_out(2);
+            if (done > bar / 8) { f_hi = std::fmax(f_hi, o); f_lo = std::fmin(f_lo, o); }
+            t_lo = std::fmin(t_lo, epk_param_live(2, EPK_P_TONE));
+        }
+        CHECK(f_hi > 0.8f && f_lo < 0.2f, "follower: %.2f on a hit, %.2f between", f_hi, f_lo);
+        CHECK(t_lo < tone - 0.3f && epk_param_get(2, EPK_P_TONE) == tone, "follower into TONE 3: down to %.2f from %.2f", t_lo, tone);
+        CHECK(epk_param_live(4, EPK_P_LEVEL) >= epk_param_get(4, EPK_P_LEVEL), "second destination: LEVEL 5 up");
+        std::printf("modulation: LFO %.2f..%.2f, follower %.2f..%.2f\n", lo, hi, f_lo, f_hi);
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
         static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR"};
