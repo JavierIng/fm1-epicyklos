@@ -127,3 +127,13 @@ Apuntadas para ir viendo; ninguna está comprometida.
 - **Banco B:** 16 patrones más deep y dub.
 - **Banco C:** 16 patrones de techno hipnótico, raw.
 - Javier puede pasar ejemplos de referencia si hacen falta. Se hará después de los motores de síntesis, la vista FLOW y las escenas, cuando haya sonidos con los que escribirlos. Requisito técnico: los bancos B y C pasan de generados a escritos a mano (hoy B–K salen de una semilla); jungle pide también breaks rápidos (división 1/32, swing y micro ya existen) y quizá un motor o modo de break.
+
+## Ideas del 12 nov (mañana), para más adelante
+
+- **Ajuste de clock MIDI / nudge:** desplazamiento en ms de la salida y de la entrada de clock (por puerto: TRS, Bluetooth, USB) para encajar con otros aparatos; nudge momentáneo (acelerar/frenar un instante) para cuadrar a oído. Va con la fase 6 (MIDI). El Bluetooth necesitará su propio desplazamiento: llega con más retraso y a ráfagas.
+- **Menú SYSTEM global** (ya previsto como GLOBAL en HOME+SAVE): aspecto visual (temas de color, brillo), clock y MIDI (fuente, puertos, desplazamientos, canales), envíos pre o post fader, idioma de la interfaz, y lo que vaya saliendo.
+  - **Idioma (ES/EN):** hoy los textos de pantalla están escritos en castellano dentro del código. Para cambiar de idioma hay que pasarlos a una tabla de textos; cuanto más crezca la interfaz, más caro será hacerlo. Conviene hacerlo antes de la fase 6.
+- **Versión VST3/AU** (para tocarlo desde un DAW como Ableton Live). Son dos cosas distintas:
+  1. **El instrumento dentro del DAW:** el núcleo de sonido ya es C++ portable sin dependencias (fue una regla desde el principio), así que se puede envolver en un plugin. La pantalla del emulador también podría ir dentro. Trabajo: el envoltorio del plugin (JUCE, iPlug2 o DPF; las dos últimas encajan bien con GPL), firmar y notarizar en Mac para AU.
+  2. **Controlar el FM-1 desde el DAW:** necesita un mapa MIDI (CC por parámetro) en el aparato, que es fase 6. Con eso, un plugin o una plantilla de Ableton podría mover sus knobs.
+  - Orden lógico: primero el mapa MIDI del aparato (fase 6); después el plugin.
