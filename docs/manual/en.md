@@ -170,6 +170,20 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level,
   DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms).
 - **Reverb (PLACA, a plate):** decay [CAÍDA], tone, movement [MOVER], level.
+- **NUBE** (the next page): the reverb can be **PLACA** or **NUBE** (cloud), a cloud of grains on the idea of
+  Mutable Instruments' Clouds (our own code). It listens to the B sends, keeps the last second and scatters it in
+  small pieces (grains) across the stereo field.
+  - **Type [TIPO]:** PLACA or NUBE. Changing it starts the reverb empty. Only one of the two plays (they share memory).
+  - **Position [POSICION]:** where grains come from: what just played (0) to almost a second back (100).
+  - **Size [TAMANO]:** short grains (~20 ms, crackle) to long (~0.5 s, a cloud).
+  - **Density [DENSIDAD]:** at the centre, none [NADA] (no new grains); left, regular grains [REG]; right, random
+    [AZAR], with the position a little scattered too. The further from the centre, the more grains (12 at once at most).
+  - In NUBE the **REVERB** page changes: **feedback [REPITE]** (grains go back into the cloud), **texture [TEXTURA]**
+    (hard-edged grains on the left, smooth on the right, and a little darker), **pitch [AFINA]** (−24 to +24
+    semitones, one at a time) and level.
+  - **HOME + REC** freezes the cloud too: it stops recording and grains keep coming from what it holds. FREEZE shows
+    at the top.
+  - In FLOW, block 3 is called NUBE when it is on.
 - **Filter [FILTRO]** (the master's, after the returns): type [TIPO], filter, resonance [RESO] and a fourth knob
   that changes with the type.
   - **DJ:** left closes a low-pass, right opens a high-pass, the middle does nothing.
@@ -189,7 +203,7 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
     it off; it fades in and out in ~5 ms. **Length [REPITE]:** 1/4, 1/8, 1/16 or 1/32 of a bar, in time. If it does
     not fit at that tempo (0.74 s at most), it is halved. Made for scenes: hold the STUTTER scene and let go.
   - The repeat is stored at half rate and 16 bits: it sounds a little darker than the original.
-- The bottom row shows the page before, this one and the next, and the page number (1/9 … 9/9).
+- The bottom row shows the page before, this one and the next, and the page number (1/10 … 10/10).
 
 Changing the time in TAPE bends the pitch, like a tape changing speed. Changing the type starts the delay
 empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit is halved.

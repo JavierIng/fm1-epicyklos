@@ -165,6 +165,21 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL,
   DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms).
 - **REVERB (PLACA):** CAÍDA, TONO, MOVER (movimiento interno), NIVEL.
+- **NUBE** (la página siguiente): la reverb puede ser **PLACA** o **NUBE**, una nube de granos con la idea del
+  módulo Clouds de Mutable Instruments (el código es propio). Escucha lo que le mandan los envíos B, guarda el último
+  segundo y lo reparte en trocitos (granos) por el estéreo.
+  - **TIPO:** PLACA o NUBE. Al cambiar, la reverb empieza vacía. Solo suena una de las dos (comparten memoria).
+  - **POSICIÓN:** de dónde salen los granos: de lo que acaba de sonar (0) a casi un segundo atrás (100).
+  - **TAMAÑO:** granos cortos (~20 ms, chisporroteo) a largos (~0,5 s, nube).
+  - **DENSIDAD:** en el centro, NADA (no salen granos nuevos); a la izquierda, granos regulares (REG); a la derecha,
+    al azar (AZAR) y con la posición algo desordenada. Cuanto más lejos del centro, más granos (12 a la vez como
+    máximo).
+  - En NUBE la página **REVERB** cambia: **REPITE** (los granos vuelven a entrar en la nube), **TEXTURA** (granos de
+    borde duro a la izquierda, suaves a la derecha, y algo más oscuros), **AFINA** (de −24 a +24 semitonos, de uno en
+    uno) y NIVEL.
+  - **HOME + REC** congela también la nube: deja de grabar y los granos siguen saliendo de lo que tiene. Arriba se
+    ve FREEZE.
+  - En FLOW el bloque 3 se llama NUBE cuando está puesta.
 - **FILTRO** (del master, después de los retornos): TIPO, FILTRO, RESO y un cuarto knob que cambia con el tipo.
   - **DJ:** a la izquierda cierra un paso bajo, a la derecha abre un paso alto, en el centro no hace nada.
   - **LP, HP, BP, NOTCH:** paso bajo, paso alto, paso banda y notch (quita una banda); FILTRO es el corte.
@@ -182,7 +197,7 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
     sale en ~5 ms. **REPITE** es la longitud: 1/4, 1/8, 1/16 o 1/32 de compás, al tempo. Si a ese tempo no cabe (máximo
     0,74 s), se divide por dos. Pensado para escenas: mantén la escena STUTTER y suelta.
   - La repetición se guarda a media frecuencia y en 16 bits: suena algo más oscura que el original.
-- En la parte baja se ven la página anterior, la actual y la siguiente, y el número de página (1/9 … 9/9).
+- En la parte baja se ven la página anterior, la actual y la siguiente, y el número de página (1/10 … 10/10).
 
 Al cambiar el TIEMPO en TAPE el tono se desliza, como una cinta que cambia de velocidad. Al cambiar de TIPO el
 eco empieza vacío. El tiempo máximo es 1,5 s (0,75 s en PINGPONG); si no cabe, se divide por dos.

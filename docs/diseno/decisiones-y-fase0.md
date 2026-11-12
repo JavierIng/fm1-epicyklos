@@ -284,3 +284,13 @@
 - 8 de fábrica: SUMERGIR, CATEDRAL, CINTA ROTA, DIGITAL, TUNEL, SECO, STUTTER, ECO INFINITO.
 - **No se guardan al apagar** (fase 6, con el proyecto). FILL pierde su atajo HOME+PLAY (ahora congela la EVOLUCIÓN): pendiente buscarle otro.
 - Pruebas: bloque 28 en `test_engine.cpp` (envío PRE 0,706 con nivel 0; correlación del stutter 1,000; fundido a la mitad 0,50) y escenas en `basic.txt`. Nada escuchado aún.
+
+## NUBE: granular como tipo de reverb (2026-11-12)
+- Javier: "prefiero el tema granular como Clouds, en el tipo de reverb; algo se ha perdido por el camino". Cierto: al principio la reverb iba a ser "tipo Clouds"; se cambió por PLACA (Dattorro) y el granular (NIEBLA) quedó "para el final". Se recupera como **segundo tipo del bus B**, no como pista ni como efecto aparte.
+- **Seguimos con 6 pistas** (confirmado por Javier, 12 nov): las 8 pistas quedan descartadas por ahora.
+- Memoria: NUBE y PLACA comparten un buffer de 16 bit (22.050 muestras, 1 s mono a 22 kHz, 44 KB; la placa usa 33 KB de él). Coste medido en CI: **+11 KB de pool** (de 306.644 a 317.752 B de 344.064; quedan **26 KB**). Imagen 240.452 B de ~581 KB.
+- Motor propio con la idea de Clouds (MIT, crédito en CREDITS.md; no se ha portado código): 12 granos, captura mono repartida en estéreo, ventana de borde duro → triángulo → campana suave (TEXTURA), afinación por semitonos (±24), densidad con el centro en silencio (izq. regular, der. al azar), feedback (REPITE), freeze con HOME+REC (congela eco y nube a la vez). Sin modos espectrales.
+- UI: página NUBE tras REVERB (TIPO, POSICION, TAMANO, DENSIDAD); en NUBE la página REVERB pasa a REPITE, TEXTURA, AFINA, NIVEL. EFECTOS pasa a 10 páginas; DIGITAL muestra el panel del master (antes dibujaba MAREA por error).
+- Coste de CPU: sin medir en el aparato; en el peor caso 12 granos con interpolación por muestra a 22 kHz. Si no llega, bajar a 8 granos.
+- Pruebas: bloque 29 (suena; congelada sigue sonando sin entrada; densidad al centro = silencio; extremos sin valores inválidos ni picos > 1; vuelta a PLACA) y la página en `basic.txt`. No escuchado.
+- Pendiente: destinos de modulación para NUBE (POSICIÓN, TAMAÑO), una escena de fábrica con NUBE.
