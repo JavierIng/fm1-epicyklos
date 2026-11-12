@@ -152,21 +152,22 @@ static int slot_param(int track, int page, int slot)
 }
 
 /* ------------------------------------------------------------------ the effects' pages (páginas de EFECTOS) */
-enum { FXP_ECO, FXP_ECO2, FXP_REV, FXP_NUBE, FXP_FLT, FXP_MASTER, FXP_MAREA, FXP_MAREA2, FXP_MAREA3, FXP_DIGITAL,
+enum { FXP_ECO, FXP_ECO2, FXP_REV, FXP_NUBE, FXP_REV3, FXP_FLT, FXP_MASTER, FXP_MAREA, FXP_MAREA2, FXP_MAREA3, FXP_DIGITAL,
        NFXPAGES };
-static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "REVERB 2", "FILTRO", "MASTER", "MAREA",
+static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "REVERB 2", "REVERB 3", "FILTRO", "MASTER", "MAREA",
                                                    "MAREA 2", "MAREA 3", "DIGITAL"};
 static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
     {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, EPK_FX_DUCK},
     {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
-    {EPK_FX_REV_TYPE, EPK_FX_NUBE_POS, EPK_FX_NUBE_SIZE, EPK_FX_NUBE_DENSITY},   /* NUBE */
+    {EPK_FX_REV_TYPE, EPK_FX_NUBE_POS, EPK_FX_NUBE_SIZE, EPK_FX_NUBE_DENSITY},   /* REVERB 2 (NUBE) */
+    {EPK_FX_REV_SHIMMER, EPK_FX_REV_SHIM_INT, EPK_FX_REV_LOWCUT, EPK_FX_REV_WIDTH},   /* REVERB 3 */
     {EPK_FX_FLT_TYPE, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_FLT_DOUBLE},
     {EPK_FX_COMP, EPK_FX_SAT, SLOT_NONE, SLOT_NONE},
     {EPK_FX_MAREA_TRACK, EPK_FX_MAREA_MIX, EPK_FX_MAREA_SPEED, EPK_FX_MAREA_MULTIPLY},
     {EPK_FX_MAREA_RIPPLE, EPK_FX_MAREA_OFFSET, EPK_FX_MAREA_INVERT, EPK_FX_MAREA_GRAVITY},
     {EPK_FX_MAREA_FROM, EPK_FX_MAREA_TO, EPK_FX_MAREA_RESO, EPK_FX_MAREA_WIDTH},
-    {EPK_FX_BITS, EPK_FX_SRR, EPK_FX_STUTTER, EPK_FX_STUT_DIV},   /* DIGITAL */
+    {EPK_FX_BITS, EPK_FX_SRR, SLOT_NONE, SLOT_NONE},              /* DIGITAL */
 };
 static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "TONO", "DESGASTE", "A REVERB", "NIVEL",
                                                   "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK",
@@ -175,9 +176,9 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "INVIERTE", "GRAVEDAD", "DESDE", "HASTA", "RESO", "ANCHO",
                                                   "MAREA", "ECO", "REVERB", "FILTRO", "COMP", "SATURA",
                                                   "FILTRO EN", "ESPACIO", "DRIVE",
-                                                  "BITS", "MUESTREO", "STUTTER", "REPITE",
+                                                  "BITS", "MUESTREO", "SHIMMER", "INTERVALO",
                                                   "TIPO", "POSICION", "TAMANO", "DENSIDAD", "AFINA",
-                                                  "PREDELAY", "TAMANO", "DIFUSION"};
+                                                  "PREDELAY", "TAMANO", "DIFUSION", "GRAVES", "ANCHO"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -192,11 +193,12 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "MAREA activa o quitada", "Eco activo o quitado", "Reverb activa o quitada", "Filtro activo o quitado",
     "Compresor activo o quitado", "Cinta activa o quitada",
     "Todo, solo pistas o solo efectos", "Quien alimenta a quien (CRUCE)", "Compresor y cinta: en que orden",
-    "Menos bits: mas ruido digital", "Menos muestras: aliasing", "Repite lo que sonaba al activarlo",
-    "Cuanto repite: 1/4 .. 1/32",
+    "Menos bits: mas ruido digital", "Menos muestras: aliasing", "La cola sube de tono y vuelve a entrar",
+    "Octava, quinta, 8a+5a, 2 octavas, octava abajo",
     "Placa o nube de granos", "De donde: de ahora a 1 s atras", "Granos cortos o largos",
     "Centro nada; izq. regular, der. al azar", "En semitonos, de -24 a +24",
-    "Silencio antes de la cola", "Sala pequena o grande", "Ecos sueltos o todo fundido"};
+    "Silencio antes de la cola", "De sala pequena a nave enorme", "Ecos sueltos o todo fundido",
+    "Quita graves antes de la reverb", "0 mono, 50 tal cual, 100 mas abierta"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
@@ -209,6 +211,8 @@ static int fx_slot(int page, int slot)
         return EPK_FX_NUBE_PITCH;
     if (page == FXP_NUBE && !is_nube())                    /* REVERB 2: the plate's, or the cloud's (placa o nube) */
         return PLACA2[slot];
+    if (page == FXP_REV3 && slot < 2 && is_nube())         /* the shimmer is the plate's (en NUBE: AFINA + REPITE) */
+        return SLOT_NONE;
     return FX_PAGE_PARAM[page][slot];
 }
 static int view_is_flow(void);
@@ -398,31 +402,14 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
             str_cat(b, "/");
             int_str((int32_t)(1.0f + 31.0f * v * v + 0.5f), b + 1);
         }
-    } else if (p == EPK_FX_STUTTER)
-        str_cat(b, v > 0.5f ? "SI" : "NO");
-    else if (p == EPK_FX_REV_PREDELAY) {
-        int_str((int32_t)(v * 240.0f + 0.5f), b);
-        str_cat(b, " MS");
-    } else if (p == EPK_FX_REV_TYPE)
-        str_cat(b, v > 0.5f ? "NUBE" : "PLACA");
-    else if (p == EPK_FX_NUBE_PITCH) {
-        const int st = (int)(v * (float)(EPK_NUBE_PITCH_STEPS - 1) + 0.5f) - 24;
-        if (st > 0)
-            str_cat(b, "+");
-        else if (st < 0)
-            str_cat(b, "-");
-        int_str(st < 0 ? -st : st, b + (st != 0));
-    } else if (p == EPK_FX_NUBE_DENSITY) {
-        const int d = (int)((v - 0.5f) * 200.0f + (v >= 0.5f ? 0.5f : -0.5f));
-        if (d > -4 && d < 4)
-            str_cat(b, "NADA");
-        else {
-            str_cat(b, d < 0 ? "REG " : "AZAR ");
-            int_str(d < 0 ? -d : d, b + (d < 0 ? 4 : 5));
-        }
-    } else if (p == EPK_FX_STUT_DIV) {
-        static const char *const SD[EPK_STUT_COUNT] = {"1/4", "1/8", "1/16", "1/32"};
-        str_cat(b, SD[(int)(v * (float)(EPK_STUT_COUNT - 1) + 0.5f)]);
+    } else if (p == EPK_FX_REV_SHIMMER && v < 0.001f) {
+        str_cat(b, "NO");
+    } else if (p == EPK_FX_REV_SHIM_INT) {
+        static const char *const SI[EPK_SHIM_COUNT] = {"+12", "+7", "+19", "+24", "-12"};
+        str_cat(b, SI[(int)(v * (float)(EPK_SHIM_COUNT - 1) + 0.5f)]);
+    } else if (p == EPK_FX_REV_LOWCUT) {
+        int_str((int32_t)(20.0f * fm_exp2f(4.32f * v) + 0.5f), b);
+        str_cat(b, " HZ");
     }
     else if (p == EPK_FX_FLT_TYPE)
         str_cat(b, FLT_TYPE_SHORT[flt_type()]);

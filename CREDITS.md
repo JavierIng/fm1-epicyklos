@@ -7,7 +7,7 @@
 - **Tablas de acordes** (Plaits Palette, Rubato Audio): Original (Mutable Instruments), Colour Chords (Jon Butler), Disastrous Peace (Joe McMullen), Tonnetz Walk (Rubato Audio). MIT.
 - **Mutable Instruments / Emilie Gillet** — por cada módulo portado (Plaits, Rings…), MIT. *(cuando se porten)*
 - **NUBE** (reverb granular): idea de **Clouds** de Mutable Instruments (Émilie Gillet). Solo la idea y los nombres de sus controles; el código es propio, no se ha portado nada de Clouds.
-- **PLACA** (reverb): a la manera de **Plateau** de Valley Audio (Dale Johnson, GPL-3.0): sus controles (predelay, tamaño, difusión, corte de graves, freeze) sobre la topología de placa de Jon Dattorro (1997). Código propio, no portado.
+- **PLACA** (reverb): a la manera de **Plateau** de Valley Audio (Dale Johnson, GPL-3.0): sus controles (predelay, tamaño, difusión, corte de graves, freeze, shimmer) sobre la topología de placa de Jon Dattorro (1997). Código propio, no portado.
 - **Valley Audio / Dale Johnson** — Plateau (Dattorro), GPL-3.0. *(si se porta)*
 - **4ms Company** — Spectral Multiband Resonator, código MIT. *(si se porta; sin usar la marca 4ms)*
 - Inspiraciones sin código: Cwejman SM-1, Hypnus Records Slink, Intellijel, Erica Synths, DUB-1.

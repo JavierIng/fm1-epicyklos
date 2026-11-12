@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Javier Sánchez
 // EPICYKLOS send effects (efectos de envío): bus A, a delay with three types (TAPE, BBD, PINGPONG); bus B, PLACA,
 // a plate reverb in the manner of Valley's Plateau, or NUBE, a granular cloud (nube de granos) on the same buffer. Both run at half the sample rate (a mitad de frecuencia) on 16-bit buffers, to fit the FM-1's
-// RAM: the delay 66 KB (1.5 s), bus B 44 KB (PLACA uses 33 of them; NUBE all, 1 s).
+// RAM: the delay 66 KB (1.5 s), bus B 88 KB (PLACA up to twice Dattorro's size plus 500 ms of pre-delay; NUBE 2 s).
 // PLACA follows the plate topology Jon Dattorro published ("Effect Design, Part 1", J. Audio Eng. Soc., 1997): four
 // input diffusers and a figure-of-eight tank with two modulated all-passes. The delay lengths are his, scaled from
 // 29761 Hz to 22050 Hz. Written for this project; no code from other implementations.
@@ -121,14 +121,18 @@ struct Delay {
 // ------------------------------------------------------------------ bus B: PLACA (reverb de placa)
 // The plate the way Valley's Plateau (Dale Johnson) plays it: Dattorro's figure-of-eight tank with PRE-DELAY, SIZE
 // (the tank's lengths scaled), input DIFFUSION, a low cut into the tank and a FREEZE that holds the tail. Plateau's
-// controls, our own code at half rate on 16 bits; the largest size is Dattorro's own (memory).
+// controls, our own code at half rate on 16 bits; SIZE goes from a quarter of Dattorro's tank to twice it, and a
+// SHIMMER pitches the tail up (an octave, a fifth...) and feeds it back in, so it climbs (sube).
 // The lines, in order, inside one buffer: 4 input diffusers; left half: modulated all-pass, delay, all-pass, delay;
 // right half the same; then the pre-delay. Values are stored at half scale (headroom for the all-passes).
 constexpr int kVerbLines = 13;
-constexpr int kVerbPre = 5300;                 // up to ~240 ms of pre-delay (predelay)
-constexpr int kVerbLineLen[kVerbLines] = {105, 79, 281, 205, 512, 3300, 1334, 2757, 688, 3125, 1968, 2344, kVerbPre};
-constexpr int kVerbLen = 105 + 79 + 281 + 205 + 512 + 3300 + 1334 + 2757 + 688 + 3125 + 1968 + 2344 + kVerbPre;
-constexpr int kNubeLen = 22050;                // NUBE: 1 s at the half rate, mono, 16-bit (44 KB)
+constexpr int kVerbPre = 11025;                // up to 500 ms of pre-delay (predelay)
+// Dattorro's lengths at 22050 Hz (the base, size 1); the tank's lines get room for twice that (tamaño x2)
+constexpr int kVerbBase[kVerbLines] = {105, 79, 281, 205, 512, 3300, 1334, 2757, 688, 3125, 1968, 2344, kVerbPre};
+constexpr int kVerbLineLen[kVerbLines] = {105, 79, 281, 205, 1024, 6600, 2668, 5514, 1376, 6250, 3936, 4688, kVerbPre};
+constexpr int kVerbLen = 105 + 79 + 281 + 205 + 1024 + 6600 + 2668 + 5514 + 1376 + 6250 + 3936 + 4688 + kVerbPre;
+constexpr float kVerbMaxSize = 2.0f;
+constexpr int kNubeLen = 44100;                // NUBE: 2 s at the half rate, mono, 16-bit (88 KB)
 constexpr int kBusBLen = kNubeLen > kVerbLen ? kNubeLen : kVerbLen;
 static_assert(kVerbLen <= kNubeLen, "PLACA must fit in NUBE's buffer: no more memory (sin más memoria)");
 static int16_t g_verb_buf[kBusBLen] EPK_POOL;  // one buffer for bus B: PLACA or NUBE, never both (nunca las dos)
@@ -136,26 +140,54 @@ static int16_t g_verb_buf[kBusBLen] EPK_POOL;  // one buffer for bus B: PLACA or
 struct Plate {
     enum { IN1, IN2, IN3, IN4, L_MOD, L_DL1, L_AP, L_DL2, R_MOD, R_DL1, R_AP, R_DL2, PRE };
     int off[kVerbLines], w[kVerbLines], len[kVerbLines];
-    float l_fb, r_fb, l_damp, r_damp, lfo, hp, scale;
+    float l_fb, r_fb, l_damp, r_damp, lfo, scale;
+    // the shimmer's pitch shifter (desplazador de tono): two taps crossfading over a short window
+    int16_t shim_buf[2048];
+    int shim_w;
+    float shim_ph, shim_lp;
 
     void clear() {
         for (int i = 0; i < kVerbLen; i++) g_verb_buf[i] = 0;
-        l_fb = r_fb = l_damp = r_damp = hp = 0.0f;
+        l_fb = r_fb = l_damp = r_damp = shim_lp = 0.0f;
+        for (int i = 0; i < 2048; i++) shim_buf[i] = 0;
+    }
+    // an octave (or the interval) up: the read point slides through the window faster than it is written
+    inline float shimmer(float x, float ratio) {
+        shim_buf[shim_w] = (int16_t)(fm_clampf(x, -1.99f, 1.99f) * 16384.0f);
+        shim_ph += (1.0f - ratio) * (1.0f / 2048.0f);                   // the delay moves (el retardo se mueve)
+        shim_ph -= fm_floorf(shim_ph);
+        float y = 0.0f;
+        for (int k = 0; k < 2; k++) {
+            float ph = shim_ph + 0.5f * (float)k;
+            if (ph >= 1.0f) ph -= 1.0f;
+            const float d = 4.0f + ph * 2000.0f;
+            float rp = (float)shim_w - d;
+            if (rp < 0.0f) rp += 2048.0f;
+            const int i0 = (int)rp, i1 = (i0 + 1) & 2047;
+            const float fr = rp - (float)i0;
+            const float v = ((float)shim_buf[i0] + ((float)shim_buf[i1] - (float)shim_buf[i0]) * fr) * (1.0f / 16384.0f);
+            y += v * (1.0f - fm_fabsf(2.0f * ph - 1.0f));              // a triangle each: they sum to one (suman 1)
+        }
+        shim_w = (shim_w + 1) & 2047;
+        return y;
     }
     void init() {
         int o = 0;
         for (int i = 0; i < kVerbLines; i++) { off[i] = o; w[i] = 0; len[i] = kVerbLineLen[i]; o += kVerbLineLen[i]; }
-        lfo = 0.0f; scale = 1.0f;
+        lfo = 0.0f; scale = -1.0f;                                       // set_size sets it (lo pone set_size)
+        shim_w = 0; shim_ph = 0.0f;
         clear();
+        set_size(3.0f / 7.0f);
     }
-    // SIZE (tamaño): the tank's lines scaled 0.25 .. 1; the diffusers and the pre-delay keep theirs
+    // SIZE (tamaño): the tank's lines scaled 0.25 .. 2; the diffusers and the pre-delay keep theirs
     void set_size(float v) {
-        const float sc = 0.25f + 0.75f * v;
+        const float sc = 0.25f + (kVerbMaxSize - 0.25f) * v;
         if (fm_fabsf(sc - scale) < 0.002f) return;
         scale = sc;
         for (int i = L_MOD; i <= R_DL2; i++) {
             if (i == L_MOD || i == R_MOD) continue;                     // these read a moving tap: keep their room
-            int n = (int)((float)kVerbLineLen[i] * sc);
+            int n = (int)((float)kVerbBase[i] * sc);
+            if (n > kVerbLineLen[i]) n = kVerbLineLen[i];
             if (n < 16) n = 16;
             len[i] = n;
             if (w[i] >= n) w[i] = 0;
@@ -198,7 +230,7 @@ struct Plate {
     void tick(float in, const float *fx, float hsr, int freeze, float &out_l, float &out_r) {
         const float decay = freeze ? 0.9995f : 0.30f + 0.69f * fx[EPK_FX_REV_DECAY];
         const float open = freeze ? 1.0f : 0.12f + 0.88f * fx[EPK_FX_REV_TONE];   // the tank's low-pass
-        const float depth = 1.0f + 10.0f * fx[EPK_FX_REV_MOD];
+        const float depth = (1.0f + 10.0f * fx[EPK_FX_REV_MOD]) * (scale > 1.0f ? scale : 1.0f);
         const float diff = fx[EPK_FX_REV_DIFFUSION];
         lfo += (0.4f + 1.1f * fx[EPK_FX_REV_MOD]) / hsr;
         if (lfo >= 1.0f) lfo -= 1.0f;
@@ -209,8 +241,15 @@ struct Plate {
             wr(PRE, x);
             x = rd(PRE, pre);
         }
-        hp += (x - hp) * (2.0f * 3.14159265f * 90.0f / hsr);            // low cut ~90 Hz into the tank (graves fuera)
-        x -= hp;
+        // the shimmer: the tank's last output, pitched, back in (brillo que sube); a gentle low-pass keeps it soft
+        const float shim = fx[EPK_FX_REV_SHIMMER];
+        if (shim > 0.001f && !freeze) {                               // frozen: nothing new, not even this
+            static const float kSemi[EPK_SHIM_COUNT] = {12.0f, 7.0f, 19.0f, 24.0f, -12.0f};
+            const int iv = (int)(fx[EPK_FX_REV_SHIM_INT] * (float)(EPK_SHIM_COUNT - 1) + 0.5f);
+            const float up = shimmer((l_fb + r_fb) * 0.5f, fm_exp2f(kSemi[iv] * (1.0f / 12.0f)));
+            shim_lp = fm_flush(shim_lp + (up - shim_lp) * 0.5f);
+            x += fm_tanhf(shim_lp * 0.6f * shim);
+        }
         x = allpass(IN1, 105, x, 0.75f * diff);
         x = allpass(IN2, 79, x, 0.75f * diff);
         x = allpass(IN3, 281, x, 0.625f * diff);
@@ -275,7 +314,7 @@ struct Nube {
     }
     void tick(float in, const float *fx, float hsr, int freeze, float &out_l, float &out_r) {
         const float size = fx[EPK_FX_NUBE_SIZE];
-        float len = hsr * (0.02f + 0.48f * size * size);                // ~20 ms .. 0.5 s
+        float len = hsr * (0.02f + 0.98f * size * size);                // ~20 ms .. 1 s
         const int st = (int)(fx[EPK_FX_NUBE_PITCH] * (float)(EPK_NUBE_PITCH_STEPS - 1) + 0.5f) - 24;
         const float inc = fm_exp2f((float)st * (1.0f / 12.0f));
         if (len * (inc > 1.0f ? inc : 1.0f) > (float)kNubeLen * 0.45f) len = (float)kNubeLen * 0.45f / (inc > 1.0f ? inc : 1.0f);
@@ -340,13 +379,20 @@ struct Fx {
 
     void init() {
         dly_g = rev_g = 1.0f;
-        delay.init(); plate.init(); nube.init(); half = 0; freeze = 0; rev_type = EPK_REV_PLACA;
+        delay.init(); plate.init(); nube.init(); b_hp = 0.0f; half = 0; freeze = 0; rev_type = EPK_REV_PLACA;
         acc_a = acc_b = 0.0f; prev_l = prev_r = cur_l = cur_r = 0.0f; duck_env = 0.0f; duck_gain = 1.0f;
     }
     void clear() { delay.clear(); if (rev_type == EPK_REV_NUBE) nube.clear(); else plate.clear(); acc_a = acc_b = prev_l = prev_r = cur_l = cur_r = 0.0f; }
 
+    float b_hp;                                   // bus B's low cut (corte de graves)
     inline void bus_b(float in, const float *fx, float hsr, float &l, float &r) {
+        const float hz = 20.0f * fm_exp2f(4.32f * fx[EPK_FX_REV_LOWCUT]); // ~20 .. ~400 Hz, 90 in the middle
+        b_hp = fm_flush(b_hp + (in - b_hp) * (6.2831853f * hz / hsr));
+        in -= b_hp;
         if (rev_type == EPK_REV_NUBE) nube.tick(in, fx, hsr, freeze, l, r); else plate.tick(in, fx, hsr, freeze, l, r);
+        const float w = fx[EPK_FX_REV_WIDTH] * 2.0f;                   // width (ancho): side scaled 0 .. 2
+        const float m = (l + r) * 0.5f, sd = (l - r) * 0.5f * w;
+        l = m + sd; r = m - sd;
     }
     // a, b: the send buses; kick: track 1's signal, for the duck (se suman al estéreo l, r)
     void process(const float *a, const float *b, const float *kick, float *l, float *r, uint32_t n, const float *fx,

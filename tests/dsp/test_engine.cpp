@@ -1254,7 +1254,7 @@ int main() {
                     without, e_fx / e_all, e_rd, worst);
     }
 
-    // 28. Pre-fader sends, DIGITAL (bits, rate, stutter) and SCENES (escenas)
+    // 28. Pre-fader sends, DIGITAL (bits, rate) and SCENES (escenas)
     {
         const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
         auto fresh = [&]() {
@@ -1291,21 +1291,6 @@ int main() {
             for (int i = 1; i < 256; i++) { if (l[i] == l[i - 1]) held++; else changes++; }
         }
         CHECK(held > 20 * changes, "rate /32: samples held %d, changes %d", held, changes);
-        // stutter at 1/16: after the first pass the output repeats every sixteenth (se repite)
-        fresh();
-        for (long d = 0; d < 2 * bar; d += 256) epk_render(l, r, 256);
-        epk_fx_set(EPK_FX_STUT_DIV, 2.0f / 3.0f);
-        epk_fx_set(EPK_FX_STUTTER, 1.0f);
-        const int six = (int)(bar / 16);
-        static float rec[44100];
-        int nrec = 0;
-        while (nrec < 6 * six && nrec + 256 <= 44100) { epk_render(l, r, 256); for (int i = 0; i < 256; i++) rec[nrec + i] = l[i]; nrec += 256; }
-        double num = 0.0, da = 0.0, db = 0.0;
-        for (int i = 2 * six; i < 3 * six; i++) { num += rec[i] * rec[i + six]; da += rec[i] * rec[i]; db += rec[i + six] * rec[i + six]; }
-        const double corr = num / std::sqrt(da * db + 1e-12);
-        CHECK(corr > 0.95, "stutter 1/16: one repeat against the next correlates %.3f", corr);
-        epk_fx_set(EPK_FX_STUTTER, 0.0f);
-        for (long d = 0; d < SR / 2; d += 256) epk_render(l, r, 256);
         // scenes: SECO (5) held takes both returns to 0 at once; let go, back; the knobs untouched
         fresh();
         const float dly = epk_fx_get(EPK_FX_DLY_LEVEL);
@@ -1342,7 +1327,7 @@ int main() {
               "changing a target already there works when full");
         epk_scene_clear(2);
         CHECK(epk_scene_count(2) == 0, "cleared");
-        std::printf("pre-fader send %.3f; stutter repeat corr %.3f; fade half %.2f\n", pre, corr, half);
+        std::printf("pre-fader send %.3f; fade half %.2f\n", pre, half);
     }
 
     // 29. NUBE (nube de granos), bus B's second type: it sounds; freeze keeps it going with nothing new in; density
@@ -1437,7 +1422,7 @@ int main() {
         const float t0 = onset();
         fresh(1.0f);
         const float t1 = onset();
-        CHECK(t1 - t0 > 0.20f && t1 - t0 < 0.28f, "pre-delay at the top holds the tail ~240 ms (%.0f ms)",
+        CHECK(t1 - t0 > 0.45f && t1 - t0 < 0.55f, "pre-delay at the top holds the tail ~500 ms (%.0f ms)",
               (t1 - t0) * 1000.0f);
         // freeze: the kick's send off, the tail stays; without freeze it dies
         float before = 0.0f;
@@ -1481,7 +1466,42 @@ int main() {
             }
         }
         CHECK(bad == 0 && peak <= 1.0f, "PLACA swept: %d bad samples, peak %.3f", bad, peak);
-        std::printf("plate pre-delay %.0f ms; frozen %.3f, free %.5f\n", (t1 - t0) * 1000.0f, held, gone);
+        // shimmer (+12): the tail gets brighter (more zero crossings); flat out with decay up it stays bounded
+        auto bright = [&](float shim) {
+            fresh(0.0f);
+            epk_fx_set(EPK_FX_REV_DECAY, 0.85f);
+            epk_fx_set(EPK_FX_REV_SHIMMER, shim);
+            for (long d = 0; d < (long)(3.0f * SR); d += 256) epk_render(l, r, 256);
+            long zc = 0, n = 0;
+            float prev = 0.0f;
+            for (long d = 0; d < (long)(2.0f * SR); d += 256) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) { zc += (l[i] > 0.0f) != (prev > 0.0f); prev = l[i]; n++; }
+            }
+            return (float)zc / ((float)n / SR) * 0.5f;              // a rough "frequency" (Hz)
+        };
+        const float plain = bright(0.0f), shimmered = bright(1.0f);
+        CHECK(shimmered > plain * 1.3f, "shimmer brightens the tail (%.0f -> %.0f Hz)", plain, shimmered);
+        fresh(0.0f);
+        epk_param_set(0, EPK_P_SEND_B, 1.0f);
+        epk_fx_set(EPK_FX_REV_DECAY, 1.0f);
+        epk_fx_set(EPK_FX_REV_SHIMMER, 1.0f);
+        epk_fx_set(EPK_FX_REV_SIZE, 1.0f);
+        bad = 0; peak = 0.0f;
+        for (long d = 0; d < (long)(12.0f * SR); d += 256) {
+            epk_render(l, r, 256);
+            for (int i = 0; i < 256; i++) { bad += !std::isfinite(l[i]); peak = std::fmax(peak, std::fabs(l[i])); }
+        }
+        CHECK(bad == 0 && peak <= 1.0f, "shimmer flat out, 12 s: %d bad, peak %.3f", bad, peak);
+        // width 0: mono (l == r) from the reverb
+        fresh(0.0f);
+        epk_fx_set(EPK_FX_REV_WIDTH, 0.0f);
+        for (long d = 0; d < (long)(2.0f * SR); d += 256) epk_render(l, r, 256);
+        float side = 0.0f;
+        for (int i = 0; i < 256; i++) side = std::fmax(side, std::fabs(l[i] - r[i]));
+        CHECK(side < 1e-4f, "width 0: mono returns (side %.6f)", side);
+        std::printf("plate pre-delay %.0f ms; frozen %.3f, free %.5f; shimmer %.0f -> %.0f Hz\n", (t1 - t0) * 1000.0f,
+                    held, gone, plain, shimmered);
     }
 
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;

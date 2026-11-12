@@ -96,9 +96,20 @@ wait 30
 expect fxpage 3
 turn K2 2
 wait 30
-expect fx49 15
+expect fx49 10
 shot placa2.png
 turn K2 -2
+turn SELECT 1
+wait 30
+expect fxpage 4
+turn K1 8
+wait 30
+expect fx42 20
+shot reverb3.png
+turn K1 -8
+turn SELECT -1
+wait 30
+expect fxpage 3
 turn K1 1
 wait 30
 expect fx44 1
@@ -370,9 +381,9 @@ release HOME
 wait 30
 expect fx12 30
 expect view 2
-turn SELECT 2
+turn SELECT 3
 wait 30
-expect fxpage 4
+expect fxpage 5
 turn K3 10
 wait 30
 expect fx13 55
@@ -388,7 +399,7 @@ wait 30
 expect fx17 0
 turn SELECT 1
 wait 30
-expect fxpage 5
+expect fxpage 6
 tap PLAY
 wait 1500
 shot master.png
@@ -400,7 +411,7 @@ wait 30
 # MAREA (marea): its own pages; K1 the track it is on (one at a time)
 turn SELECT 2
 wait 30
-expect fxpage 6
+expect fxpage 7
 expect fx18 3
 turn K1 2
 wait 30
@@ -425,7 +436,7 @@ wait 2000
 shot marea.png
 turn SELECT 1
 wait 30
-expect fxpage 7
+expect fxpage 8
 shot marea2.png
 tap PLAY
 wait 30

@@ -125,7 +125,6 @@ struct Engine {
     Fx sends;
     Master master;
     Crush crush;                           // DIGITAL (reducción)
-    Stutter stutter;                       // 64 KB: in the pool on the device (en el pool)
     Mod mod;
     Marea marea;
     int marea_on;                          // the track it was on last block (para vaciarla al moverla)
@@ -797,16 +796,16 @@ void epk_init(float sample_rate) {
                                             1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,   // FLOW: all on (todo activo)
                                             0.0f, 0.0f, 0.0f,                   // filter on all, delay > reverb,
                                                                                 // compressor > tape
-                                            0.0f, 0.0f, 0.0f, 2.0f / 3.0f,      // DIGITAL off, stutter 1/16
+                                            0.0f, 0.0f, 0.0f, 0.0f,             // DIGITAL off; shimmer off, +12
                                             0.0f, 0.30f, 0.45f, 0.72f, 0.5f,
-                                            0.10f, 1.0f, 1.0f};                 // PLACA: ~24 ms pre-delay, full size
-                                                                                // and diffusion (as before)   // PLACA; NUBE: a little back,
+                                            0.05f, 3.0f / 7.0f, 1.0f,           // PLACA: ~25 ms pre-delay, the size it
+                                                                                // had (1x of 0.25 .. 2x), full diffusion
+                                            0.5f, 0.5f};                        // low cut ~90 Hz, width as it comes   // PLACA; NUBE: a little back,
                                                                                 // mid grains, some random, unison
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();
     g.crush.init();
-    g.stutter.init();
     g.mod.init();
     g.marea.init();
     g.marea_on = 0;
@@ -855,7 +854,7 @@ void epk_init(float sample_rate) {
 // their offsets. The followers hear the previous block (≤ 6 ms late).
 // ------------------------------------------------------------------ scenes (escenas)
 static const char *const kSceneNames[EPK_SCENES] = {"SUMERGIR", "CATEDRAL", "CINTA ROTA", "DIGITAL",
-                                                      "TUNEL", "SECO", "STUTTER", "ECO INFINITO"};
+                                                      "TUNEL", "SECO", "SHIMMER", "ECO INFINITO"};
 static const float kFadeBars[EPK_SCENE_FADES] = {0.0f, 0.0625f, 0.125f, 0.25f, 0.5f, 1.0f, 2.0f, 4.0f};
 
 int scene_lock(Scene &sc, int target, float value) {
@@ -888,8 +887,11 @@ void scenes_factory() {
     s[4].fade = 4.0f / 7.0f;                                         // 1/2 bar
     scene_lock(s[5], EPK_FX_DLY_LEVEL, 0.0f);                        // SECO: no returns (sin retornos)
     scene_lock(s[5], EPK_FX_REV_LEVEL, 0.0f);
-    scene_lock(s[6], EPK_FX_STUTTER, 1.0f);                          // STUTTER at 1/16
-    scene_lock(s[6], EPK_FX_STUT_DIV, 2.0f / 3.0f);
+    scene_lock(s[6], EPK_FX_REV_TYPE, 0.0f);                         // SHIMMER: the plate, an octave up into it,
+    scene_lock(s[6], EPK_FX_REV_SHIMMER, 0.7f);                      // long and loud (larga y presente)
+    scene_lock(s[6], EPK_FX_REV_DECAY, 0.92f);
+    scene_lock(s[6], EPK_FX_REV_LEVEL, 0.9f);
+    s[6].fade = 6.0f / 7.0f;                                         // 2 bars
     scene_lock(s[7], EPK_FX_DLY_FEEDBACK, 0.97f);                    // ECO INFINITO: nothing new in, the echo on
     for (int t = 0; t < EPK_TRACKS; t++) scene_lock(s[7], EPK_SCENE_TRACK + t * 32 + EPK_P_SEND_A, 0.0f);
 }
@@ -1041,7 +1043,6 @@ void epk_render(float *left, float *right, uint32_t frames) {
     if (place == EPK_PLACE_ALL) g.master.filter(left, right, frames, g.fx_live, g.sr);   // on everything (en todo)
     g.master.dynamics(left, right, frames, g.fx_live, g.sr);         // compressor and tape (comp y cinta)
     g.crush.process(left, right, frames, g.fx_live);                 // DIGITAL: bits and rate (bits y frecuencia)
-    g.stutter.process(left, right, frames, g.fx_live, g.bpm, g.sr);  // and the stutter (repetición)
     float peak = g.meter_master;
     for (uint32_t i = 0; i < frames; i++) {                           // the master (salida): a soft clip
         left[i] = fm_tanhf(left[i] * 0.9f);
@@ -1056,7 +1057,6 @@ void epk_panic(void) {
     g.sends.clear();                                                 // and the echoes and the tail (ecos y cola)
     g.master.init();
     g.crush.init();
-    g.stutter.init();
 }
 
 void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COUNT) g.fx[param] = clamp01(value01); }
@@ -1065,8 +1065,8 @@ int epk_fx_steps(int param) {
     return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT :
            param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : param == EPK_FX_MAREA_SYNC ? 2 :
            (param >= EPK_FX_ON_MAREA && param <= EPK_FX_ON_SAT) ? 2 : param == EPK_FX_FLT_PLACE ? EPK_PLACE_COUNT :
-           param == EPK_FX_SPACE_ORDER || param == EPK_FX_DRIVE_ORDER || param == EPK_FX_STUTTER ? 2 :
-           param == EPK_FX_STUT_DIV ? EPK_STUT_COUNT : param == EPK_FX_REV_TYPE ? EPK_REV_COUNT :
+           param == EPK_FX_SPACE_ORDER || param == EPK_FX_DRIVE_ORDER ? 2 :
+           param == EPK_FX_REV_SHIM_INT ? EPK_SHIM_COUNT : param == EPK_FX_REV_TYPE ? EPK_REV_COUNT :
            param == EPK_FX_NUBE_PITCH ? EPK_NUBE_PITCH_STEPS : 0;
 }
 float epk_marea_band(int b) { return g.marea.gain[clampi(b, 0, kMareaBands - 1)]; }

@@ -62,7 +62,7 @@ enum { EPK_SCOPE_ALL, EPK_SCOPE_RHYTHM, EPK_SCOPE_SOUND, EPK_SCOPE_NOTE, EPK_SCO
 
 /* SCENES (escenas), the project's: each sets up to EPK_SCENE_LOCKS targets to its own value. Held or latched,
  * it comes in over its FADE and goes back the same way. A target: an effect (0 .. EPK_FX_COUNT-1) or a track's
- * parameter (EPK_SCENE_TRACK + track * 32 + param). Effects with steps (on/off, orders, stutter) switch halfway */
+ * parameter (EPK_SCENE_TRACK + track * 32 + param). Effects with steps (on/off, orders, types) switch halfway */
 #define EPK_SCENES 8
 #define EPK_SCENE_LOCKS 8
 #define EPK_SCENE_TRACK 0x100
@@ -134,8 +134,9 @@ enum {
     /* DIGITAL: at the end of the master, before the limiter (al final del master) */
     EPK_FX_BITS,          /* 0 off, up: 16 .. 4 bits (reducción de bits) */
     EPK_FX_SRR,           /* 0 off, up: the sample rate divided by 1 .. 32 (reducción de frecuencia) */
-    EPK_FX_STUTTER,       /* 1: repeats the last division played from the moment it is turned on (repetición) */
-    EPK_FX_STUT_DIV,      /* EPK_STUT_*: what it repeats: 1/4, 1/8, 1/16, 1/32 */
+    /* (STUTTER was here: taken out on 12 Nov 2026 for memory; these two slots are now the plate's shimmer) */
+    EPK_FX_REV_SHIMMER,   /* the plate's tail pitched up and fed back into it (shimmer): 0 off */
+    EPK_FX_REV_SHIM_INT,  /* EPK_SHIM_*: the shimmer's interval (intervalo) */
     /* bus B's type (tipo de la reverb): PLACA, or NUBE, grains from the last second (granos, idea de Clouds).
      * In NUBE, REV_DECAY is the feedback (repite), REV_TONE the texture (textura); REV_MOD is not used */
     EPK_FX_REV_TYPE,      /* EPK_REV_* */
@@ -147,13 +148,15 @@ enum {
     EPK_FX_REV_PREDELAY,  /* 0 .. ~240 ms before the tail starts (predelay) */
     EPK_FX_REV_SIZE,      /* the tank, small .. Dattorro's size (tamaño) */
     EPK_FX_REV_DIFFUSION, /* input diffusion: 0 echoes you can hear .. 1 smeared at once (difusión) */
+    EPK_FX_REV_LOWCUT,    /* bus B's low cut, ~20 .. ~400 Hz, both types (graves) */
+    EPK_FX_REV_WIDTH,     /* bus B's stereo width: 0 mono, 0.5 as it comes, 1 wider (ancho) */
     EPK_FX_COUNT
 };
 /* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */
 enum { EPK_PLACE_ALL, EPK_PLACE_DRY, EPK_PLACE_FX, EPK_PLACE_COUNT };
 enum { EPK_SPACE_DLY_REV, EPK_SPACE_REV_DLY };   /* ECO > REVERB / REVERB > ECO */
 enum { EPK_DRIVE_COMP_SAT, EPK_DRIVE_SAT_COMP };  /* COMP > SATURA / SATURA > COMP */
-enum { EPK_STUT_4, EPK_STUT_8, EPK_STUT_16, EPK_STUT_32, EPK_STUT_COUNT };
+enum { EPK_SHIM_OCT, EPK_SHIM_FIFTH, EPK_SHIM_OCT_FIFTH, EPK_SHIM_2OCT, EPK_SHIM_DOWN, EPK_SHIM_COUNT };  /* +12 +7 +19 +24 -12 */
 enum { EPK_REV_PLACA, EPK_REV_NUBE, EPK_REV_COUNT };
 #define EPK_NUBE_PITCH_STEPS 49
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
