@@ -27,7 +27,8 @@ para dub techno, techno hipnótico, ambient y drone.
 | SAVE | vista PATRONES | — |
 | SEQ | vista PASOS | — |
 | ARP | aleatorio | **deshacer** |
-| ALGORITHM, REC | fases siguientes | — |
+| REC | mantener: **throw** de la pista al eco | **freeze** del eco (activa / quita) |
+| ALGORITHM | fase siguiente | — |
 
 Al mantener HOME, la parte baja de la pantalla muestra esta chuleta.
 
@@ -82,13 +83,21 @@ envío sale después del nivel: si silencias una pista deja de enviar, pero la c
 En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **ECO:** TIPO (TAPE, BBD, PINGPONG), TIEMPO (en semicorcheas, de 1 a 16: prueba 3, 5 o 7), REPITE (arriba del
   todo el eco se realimenta solo), TONO (cada repetición más oscura).
-- **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL.
+- **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL,
+  DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms).
 - **REVERB (PLACA):** CAÍDA, TONO, MOVER (movimiento interno), NIVEL.
 
 Al cambiar el TIEMPO en TAPE el tono se desliza, como una cinta que cambia de velocidad. Al cambiar de TIPO el
 eco empieza vacío. El tiempo máximo es 1,5 s (0,75 s en PINGPONG); si no cabe, se divide por dos.
 
 Los efectos son del proyecto: no cambian al cambiar de patrón.
+
+### Gestos de dub (REC)
+- **Mantener REC:** throw. La pista elegida va al eco a tope mientras lo mantienes, aunque su envío esté a 0.
+  Sin soltar REC, pulsa otras pistas para lanzarlas también. Al soltar, todo vuelve a su envío.
+- **HOME + REC:** freeze. El eco deja de escuchar y repite lo que tiene sin apagarse; otra vez HOME + REC lo
+  suelta. Con freeze puesto el LED de REC queda encendido y la vista EFECTOS muestra FREEZE.
+- El bucle congelado se oscurece muy despacio tras muchas vueltas (efecto de la interpolación).
 
 ## 10. Pendiente
 Filtro del master, compresor, modulación y escenas (fase 3b), armonía y generativos (4), más motores (5), guardado, nombres, reloj y MIDI (6),

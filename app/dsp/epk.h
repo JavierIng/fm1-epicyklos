@@ -58,6 +58,7 @@ enum {
     EPK_FX_REV_TONE,      /* dark .. bright (oscura .. brillante) */
     EPK_FX_REV_MOD,       /* movement inside the tank (movimiento) */
     EPK_FX_REV_LEVEL,     /* return level (retorno) */
+    EPK_FX_DUCK,          /* the kick (track 1) pushes both returns down (el bombo aparta eco y reverb) */
     EPK_FX_COUNT
 };
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
@@ -96,6 +97,12 @@ void epk_fx_set(int param, float value01);
 float epk_fx_get(int param);
 int epk_fx_steps(int param);                   /* >0: stepped (por pasos) */
 float epk_fx_meter(void);                      /* the returns' peak since the last call (medidor de los retornos) */
+/* dub gestures (gestos de dub). THROW: the track's send to the delay goes to full while on. FREEZE: the delay stops
+ * listening and loops what it holds, without losing it (congelar). Both are the project's and are not saved. */
+void epk_throw(int track, int on);
+int epk_thrown(int track);
+void epk_freeze(int on);
+int epk_frozen(void);
 
 /* patterns (patrones): sound and rhythm of every track, 16 to a bank, banks A..K. The mix, mutes, solos and tempo
  * stay (son del proyecto). Playing, a change waits for the end of the bar; stopped, it is immediate. Edits stay in

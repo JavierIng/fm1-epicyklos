@@ -53,6 +53,8 @@ struct Track {
     uint32_t triggers;
     int key_note;                          // last key played (-1 none)
     Rng chance;
+    int thrown;                            // a dub throw to the delay (throw al eco)
+    float throw_g;
     // triggers off the grid (golpes fuera de la rejilla): [0] this step's, late; [1] the next step's, early.
     // at: where in the current step, Q32
     struct Pending { uint32_t at; int step, on; } pend[2];
@@ -87,7 +89,7 @@ struct Engine {
     float meter_master, meter_fx;
     float fx[EPK_FX_COUNT];                // the send effects' parameters (del proyecto)
     Fx sends;
-    float buf[kBlock], bus_a[kBlock], bus_b[kBlock], fx_l[kBlock], fx_r[kBlock];
+    float buf[kBlock], bus_a[kBlock], bus_b[kBlock], kick[kBlock], fx_l[kBlock], fx_r[kBlock];
 };
 
 static Engine g EPK_POOL;                  // zero-initialised (pool RAM on the device): no constructor runs at boot
@@ -436,6 +438,8 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const float lvl = t.p[EPK_P_LEVEL] * t.p[EPK_P_LEVEL];          // a squared taper (curva cuadrática)
     const float pan = t.p[EPK_P_PAN];
     const float send_a = t.p[EPK_P_SEND_A] * t.p[EPK_P_SEND_A], send_b = t.p[EPK_P_SEND_B] * t.p[EPK_P_SEND_B];
+    const float throw_target = t.thrown ? 1.0f : 0.0f;
+    const int is_kick = &t == &g.tr[0];
     const float gl = fm_cosf(pan * 1.5707963f), gr = fm_sinf(pan * 1.5707963f);   // equal power (potencia constante)
     float peak = t.meter;
     for (uint32_t i = 0; i < n; i++) {
@@ -443,7 +447,9 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
         const float s = g.buf[i] * lvl * t.gain;
         l[i] += s * gl;
         r[i] += s * gr;
-        g.bus_a[i] += s * send_a;                                    // after the fader (tras el fader)
+        t.throw_g += (throw_target - t.throw_g) * 0.003f;            // the throw glides in: no click (sin clic)
+        g.bus_a[i] += s * (send_a + (1.0f - send_a) * t.throw_g);    // after the fader (tras el fader)
+        if (is_kick) g.kick[i] = s;
         g.bus_b[i] += s * send_b;
         peak = fm_maxf(peak, fm_fabsf(s));
     }
@@ -466,7 +472,7 @@ void epk_init(float sample_rate) {
                                               {0.50f, 0.36f, 0.40f, 0.70f}, {0.60f, 0.57f, 0.40f, 0.50f}};
     // the send effects (efectos): a dotted-eighth tape echo into a long, dark plate
     static const float kFx[EPK_FX_COUNT] = {0.0f, 2.0f / 15.0f, 0.50f, 0.45f, 0.35f, 0.25f, 0.75f,
-                                            0.72f, 0.45f, 0.40f, 0.75f};
+                                            0.72f, 0.45f, 0.40f, 0.75f, 0.35f};
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.meter_fx = 0.0f;
@@ -490,6 +496,7 @@ void epk_init(float sample_rate) {
         t.muted = t.soloed = 0;
         t.step = -1; t.pos = 0; t.fire = 0; t.cycle = 0;
         t.pend[0].on = t.pend[1].on = 0;
+        t.thrown = 0; t.throw_g = 0.0f;
         t.gain = 1.0f; t.meter = 0.0f; t.triggers = 0; t.key_note = -1;
         t.chance.init(0x2545F491u * (uint32_t)(i + 1));
         t.voice.init(param_int(t, EPK_P_ENGINE), 0x1234567u * (uint32_t)(i + 1));
@@ -516,9 +523,9 @@ void epk_render(float *left, float *right, uint32_t frames) {
             until = remain / inc + (remain % inc ? 1u : 0u);
             if (until < n) n = until;
         }
-        for (uint32_t i = 0; i < n; i++) g.bus_a[i] = g.bus_b[i] = g.fx_l[i] = g.fx_r[i] = 0.0f;
+        for (uint32_t i = 0; i < n; i++) g.bus_a[i] = g.bus_b[i] = g.kick[i] = g.fx_l[i] = g.fx_r[i] = 0.0f;
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
-        g.sends.process(g.bus_a, g.bus_b, g.fx_l, g.fx_r, n, g.fx, g.bpm, g.sr);
+        g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx, g.bpm, g.sr);
         float fx_peak = g.meter_fx;
         for (uint32_t i = 0; i < n; i++) {                            // the returns (retornos)
             left[done + i] += g.fx_l[i];
@@ -550,6 +557,10 @@ void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COU
 float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
 int epk_fx_steps(int param) { return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : 0; }
 float epk_fx_meter(void) { float m = g.meter_fx; g.meter_fx = 0.0f; return m; }
+void epk_throw(int track, int on) { if (valid(track)) g.tr[track].thrown = on ? 1 : 0; }
+int epk_thrown(int track) { return valid(track) ? g.tr[track].thrown : 0; }
+void epk_freeze(int on) { g.sends.freeze = on ? 1 : 0; }
+int epk_frozen(void) { return g.sends.freeze; }
 
 void epk_play(int on) { push(on ? EV_PLAY : EV_STOP, 0, 0, 0); }
 int epk_playing(void) { return g.playing; }

@@ -425,6 +425,74 @@ int main() {
         std::printf("plate: tail %.4f at 0.3 s, %.4f at 2 s (decay 0.9)\n", early, late);
     }
 
+    // 16. Dub gestures (gestos de dub): THROW sends a dry track to the delay; FREEZE holds the loop and stops
+    // listening; DUCK pushes the returns down under the kick.
+    {
+        auto setup = [&]() {
+            epk_init(SR);
+            for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
+            epk_param_set(5, EPK_P_SEND_A, 0.0f);
+            epk_param_set(5, EPK_P_SEND_B, 0.0f);
+            epk_param_set(5, EPK_P_DECAY, 0.1f);
+            epk_fx_set(EPK_FX_DLY_TO_REV, 0.0f);
+            epk_fx_set(EPK_FX_DLY_FEEDBACK, 0.3f);
+            epk_fx_set(EPK_FX_DUCK, 0.0f);
+            epk_render(l, r, 256);
+        };
+        auto returns = [&](float seconds) {                          // the returns' peak, block by block, summed
+            double sum = 0.0;
+            epk_fx_meter();
+            for (int k = 0; k < (int)(seconds * SR / 256); k++) { epk_render(l, r, 256); sum += epk_fx_meter(); }
+            return sum;
+        };
+        setup();                                                     // no send: no echo
+        epk_note_on(5, 52, 1.0f);
+        const double dry = returns(1.0f);
+        setup();                                                     // the same, thrown
+        epk_throw(5, 1);
+        epk_note_on(5, 52, 1.0f);
+        const double thrown = returns(1.0f);
+        CHECK(epk_thrown(5) && dry < 0.01 && thrown > 0.05, "throw: returns %.3f dry, %.3f thrown", dry, thrown);
+        epk_throw(5, 0);
+        CHECK(!epk_thrown(5), "throw released");
+
+        setup();                                                     // freeze: what is in the loop stays there
+        epk_param_set(5, EPK_P_SEND_A, 1.0f);
+        epk_note_on(5, 52, 1.0f);
+        returns(0.2f);                                               // the hit is in the line, not out yet
+        epk_freeze(1);
+        const double loop1 = returns(1.45f);                         // 4 turns of the 0.363 s loop
+        returns(4.0f);
+        const double loop2 = returns(1.45f);
+        epk_freeze(0);
+        returns(4.0f);
+        const double late = returns(1.45f);
+        CHECK(loop1 > 0.05 && loop2 > loop1 * 0.6, "freeze: returns %.3f, then %.3f 4 s later", loop1, loop2);
+        CHECK(late < loop2 * 0.2, "freeze off: the loop dies away (%.4f against %.3f)", late, loop2);
+        setup();                                                     // frozen and empty: a new hit stays out
+        epk_param_set(5, EPK_P_SEND_A, 1.0f);
+        epk_freeze(1);
+        epk_note_on(5, 52, 1.0f);
+        const double empty = returns(1.0f);
+        CHECK(epk_frozen() && empty < 0.01, "frozen: a new hit does not get in (%.4f)", empty);
+        epk_freeze(0);
+
+        auto duck_run = [&](float duck) {                            // kick 4 in 16, sending to the reverb
+            epk_init(SR);
+            for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 0);
+            epk_param_set(0, EPK_P_SEND_B, 1.0f);
+            epk_fx_set(EPK_FX_DUCK, duck);
+            epk_pattern_select(0, 3);
+            epk_render(l, r, 1);
+            epk_play(1);
+            returns(2.0f);
+            return returns(4.0f);
+        };
+        const double open = duck_run(0.0f), ducked = duck_run(1.0f);
+        CHECK(ducked < open * 0.75, "duck: returns %.1f open, %.1f ducked", open, ducked);
+        std::printf("duck: returns %.1f open, %.1f ducked; freeze %.3f then %.3f\n", open, ducked, loop1, loop2);
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
         static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR"};

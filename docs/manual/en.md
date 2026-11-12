@@ -28,7 +28,8 @@ techno, hypnotic techno, ambient and drone.
 | SAVE | PATTERNS view [PATRONES] | — |
 | SEQ | STEPS view [PASOS] | — |
 | ARP | random | **undo** |
-| ALGORITHM, REC | later phases | — |
+| REC | hold: **throw** the track to the delay | **freeze** the delay (on / off) |
+| ALGORITHM | a later phase | — |
 
 While HOME is held, the lower part of the screen shows this cheat sheet.
 
@@ -86,13 +87,21 @@ The send is taken after the level: a muted track stops sending, but the tail rin
 In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **Delay [ECO]:** type [TIPO: TAPE, BBD, PINGPONG], time [TIEMPO] in sixteenths, 1 to 16 (try 3, 5 or 7),
   feedback [REPITE] (at the top the delay feeds itself), tone [TONO] (each repeat darker).
-- **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level.
+- **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level,
+  DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms).
 - **Reverb (PLACA, a plate):** decay [CAÍDA], tone, movement [MOVER], level.
 
 Changing the time in TAPE bends the pitch, like a tape changing speed. Changing the type starts the delay
 empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit is halved.
 
 The effects belong to the project: they do not change with the pattern.
+
+### Dub gestures (REC)
+- **Hold REC:** throw. The selected track goes to the delay at full while you hold it, even with its send at 0.
+  Keep REC held and press other tracks to throw them too. On release, everything goes back to its send.
+- **HOME + REC:** freeze. The delay stops listening and repeats what it holds without fading; HOME + REC again
+  lets it go. While frozen the REC light stays on and the EFFECTS view shows FREEZE.
+- A frozen loop darkens very slowly over many turns (a side effect of the interpolation).
 
 ## 10. To come
 Master filter, compressor, modulation and scenes (phase 3b), harmony and generative tools (4), more engines (5), saving, names, clock and

@@ -16,7 +16,9 @@
  *          K1 for its chance (probabilidad), K2 for its condition (condición), K3 early or late (micro)
  *   ARP    random (aleatorio): the page shown, for the selected track; in the PATTERNS view, a whole new pattern.
  *          HOME+ARP undo (deshacer). ARP held + ALGORITHM: how much (cantidad). ARP held + a knob: lock it (bloquear)
- *   ALGORITHM, REC: later phases (fases siguientes), they say which */
+ *   REC    held: THROW, the selected track to the delay at full; REC held + a track button throws that one too.
+ *          HOME+REC: FREEZE the delay (congelar) on / off
+ *   ALGORITHM: a later phase (fase siguiente), it says which */
 #include "fastmath.h"
 #include "dsp/epk.h"
 
@@ -125,15 +127,16 @@ enum { NFXPAGES = 3 };
 static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB"};
 static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
-    {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, SLOT_NONE},
+    {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, EPK_FX_DUCK},
     {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
 };
 static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "TONO", "DESGASTE", "A REVERB", "NIVEL",
-                                                  "CAIDA", "TONO", "MOVER", "NIVEL"};
+                                                  "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
-    "Cuanto dura la cola", "Oscura o brillante", "Movimiento dentro de la placa", "Retorno de la reverb"};
+    "Cuanto dura la cola", "Oscura o brillante", "Movimiento dentro de la placa", "Retorno de la reverb",
+    "El bombo aparta eco y reverb"};
 static const char *const DLY_NAME[EPK_DLY_COUNT] = {"TAPE", "BBD", "PINGPONG"};
 
 /* ------------------------------------------------------------------ state (estado) */
@@ -634,7 +637,12 @@ static void input(void)
             ui.home_used = 1;
         if (k <= B_GLO) {                  /* FX SCL ENV LFO EDIT GLO: the six tracks */
             int t = (int)k;
-            if (ui.view == VIEW_MIX)
+            if ((btn >> B_REC & 1u) && !shift) {   /* REC held: throw this one too (throw también esta) */
+                char n[8];
+                epk_throw(t, 1);
+                int_str(t + 1, n);
+                app_say("THROW", n);
+            } else if (ui.view == VIEW_MIX)
                 shift ? toggle_solo(t) : toggle_mute(t);
             else
                 shift ? toggle_mute(t) : select_track(t);
@@ -659,8 +667,17 @@ static void input(void)
             t[1] = (char)('0' + (o < 0 ? -o : o));
             t[2] = 0;
             app_say("OCTAVA", t);
-        } else if (k == B_REC)
-            say_later(shift ? "FREEZE" : "THROW", "FASE 3");
+        } else if (k == B_REC && shift) {  /* HOME+REC: freeze (congelar) */
+            epk_freeze(!epk_frozen());
+            app_say(epk_frozen() ? "FREEZE" : "SIN FREEZE", "ECO");
+            ui.dirty_main = 1;
+        } else if (k == B_REC) {           /* REC: throw the selected track to the delay */
+            char n[8];
+            epk_throw(ui.track, 1);
+            int_str(ui.track + 1, n);
+            app_say("THROW", n);
+            ui.dirty_main = 1;
+        }
         else if (k == B_SEQ)
             set_view(ui.view == VIEW_STEPS ? VIEW_ORBIT : VIEW_STEPS);
         else if (k == B_ARP) {
@@ -674,6 +691,12 @@ static void input(void)
             else if (ui.view != VIEW_PATTERNS)
                 ui.bank = epk_bank_current();
         }
+    }
+    if (!(btn >> B_REC & 1u) && (ui.btn >> B_REC & 1u)) {   /* REC released: every throw ends */
+        int t;
+        for (t = 0; t < EPK_TRACKS; t++)
+            epk_throw(t, 0);
+        ui.dirty_main = 1;
     }
     if (!save && (ui.btn >> B_SAVE & 1u)) {   /* SAVE released: the PATTERNS view (vista de patrones) */
         if (!ui.save_used)
@@ -769,6 +792,8 @@ static void set_lights(void)
     }
     if (epk_playing())
         lit |= 1u << B_PLAY | LED_PLAY_GREEN;
+    if (epk_frozen() || (ui.btn >> B_REC & 1u))
+        lit |= 1u << B_REC;                /* REC lit: a throw or a freeze (throw o freeze) */
     if (ui.btn >> B_HOME & 1u)
         lit |= 1u << B_HOME;
     if (ui.view == VIEW_PATTERNS) {        /* blacks: the bank; whites: the current pattern, the queued one blinks */
@@ -1000,6 +1025,10 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     cv_text(10, 24, text_w(&FONT_M, v) > 100 ? &FONT_S : &FONT_M, v, C_TEXT);
     fx_str(EPK_FX_DLY_TIME, v);
     cv_text(10, 52, &FONT_S, v, C_TEXT);
+    if (epk_frozen())
+        cv_text(112 - text_w(&FONT_XS, "FREEZE"), 54, &FONT_XS, "FREEZE", C_SOLO);
+    else if (ui.btn >> B_REC & 1u)
+        cv_text(112 - text_w(&FONT_XS, "THROW"), 54, &FONT_XS, "THROW", C_MUTE);
     cv_rect(10, 74, 100, 3, C_RULE);
     cv_rect(10, 74, (int32_t)(epk_fx_get(EPK_FX_DLY_FEEDBACK) * 100.0f + 0.5f), 3, C_FX);
     cv_rect(120, 4, 108, 80, C_PANEL);                                /* the reverb */
@@ -1071,7 +1100,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
         cv_text(6, 19, &FONT_XS, "SELECT: tempo        PISTA: mute", C_TEXT);
         cv_text(6, 32, &FONT_XS, "ARP: deshacer        K1-K4: ajuste fino", C_TEXT);
         cv_text(6, 45, &FONT_XS, "PRESETS: envio al eco   En MEZCLA, PISTA: solo", C_TEXT);
-        cv_text(6, 58, &FONT_XS, "Soltar sin tocar nada: cambia de vista", C_LABEL);
+        cv_text(6, 58, &FONT_XS, "REC: freeze   Soltar solo: cambia de vista", C_LABEL);
         cv_blit(0, 168);
         return;
     }
@@ -1236,6 +1265,10 @@ int app_expect(const char *what, int *got)
         *got = epk_playing();
     else if (!strcmp(what, "tempo"))
         *got = (int)(epk_tempo() + 0.5f);
+    else if (!strcmp(what, "freeze"))
+        *got = epk_frozen();
+    else if (!strncmp(what, "throw", 5))
+        *got = epk_thrown(atoi(what + 5) - 1);
     else if (!strcmp(what, "fxpage"))
         *got = ui.fx_page;
     else if (!strncmp(what, "fx", 2) && what[2] >= '0' && what[2] <= '9') {   /* fxK: effect parameter K, x100 */

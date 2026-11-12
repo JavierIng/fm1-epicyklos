@@ -248,3 +248,32 @@ turn K1 10
 wait 50
 shot groove.png
 wait 1200
+# dub gestures (gestos de dub): REC held throws the selected track; REC held + a track throws that one too
+press REC
+wait 30
+expect throw6 1
+tap FX
+wait 30
+expect throw1 1
+expect track 5
+release REC
+wait 30
+expect throw6 0
+expect throw1 0
+# HOME+REC: freeze on and off
+press HOME
+tap REC
+release HOME
+wait 30
+expect freeze 1
+expect view 0
+tap HOME
+tap HOME
+wait 30
+expect view 2
+shot freeze.png
+press HOME
+tap REC
+release HOME
+wait 30
+expect freeze 0

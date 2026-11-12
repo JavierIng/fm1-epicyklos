@@ -27,6 +27,8 @@ constexpr int kDelayHalf = kDelayLen / 2;              // PINGPONG: one line per
 static int16_t g_delay_buf[kDelayLen] EPK_POOL;
 
 // ------------------------------------------------------------------ bus A: the delay (eco)
+// freeze (congelar): the input is cut and the loop writes back what it reads, untouched: it holds until released
+// (linear interpolation still darkens it slowly, over tens of repeats).
 // fx[EPK_FX_DLY_*]: TYPE, TIME (1..16 sixteenths; halved until it fits the buffer), FEEDBACK (past 0.9 it feeds
 // itself: the dub siren, held by the saturation), TONE (the loop's low-pass), WEAR (desgaste: TAPE wow, flutter and
 // drive; BBD a darker, noisier clock; PINGPONG a softer top).
@@ -55,7 +57,7 @@ struct Delay {
     static inline int16_t pack(float x) { return (int16_t)(fm_clampf(x, -1.0f, 1.0f) * 32767.0f); }
 
     // one half-rate sample in, a stereo pair out (una muestra a mitad de frecuencia)
-    void tick(float in, const float *fx, float bpm, float hsr, float &out_l, float &out_r) {
+    void tick(float in, const float *fx, float bpm, float hsr, int freeze, float &out_l, float &out_r) {
         const int ty = clampi((int)(fx[EPK_FX_DLY_TYPE] * (float)(EPK_DLY_COUNT - 1) + 0.5f), 0, EPK_DLY_COUNT - 1);
         if (ty != type) { type = ty; clear(); w = 0; cur = 0.0f; }      // another machine: an empty tape
         const int len = type == EPK_DLY_PINGPONG ? kDelayHalf : kDelayLen;
@@ -85,7 +87,18 @@ struct Delay {
         const float fb = fx[EPK_FX_DLY_FEEDBACK] * 1.1f;
         const float drive = type == EPK_DLY_TAPE ? 1.0f + 1.5f * wear : 1.0f;
 
-        if (type == EPK_DLY_PINGPONG) {                                 // left line, then right line, and back
+        if (freeze) {                                                   // the loop holds (el bucle se sostiene)
+            if (type == EPK_DLY_PINGPONG) {
+                const float yl = rd(0, len, w, delay), yr = rd(kDelayHalf, len, w, delay);
+                g_delay_buf[w] = pack(yr);
+                g_delay_buf[kDelayHalf + w] = pack(yl);
+                out_l = yl; out_r = yr;
+            } else {
+                const float y = rd(0, len, w, delay);
+                g_delay_buf[w] = pack(y);
+                out_l = out_r = y;
+            }
+        } else if (type == EPK_DLY_PINGPONG) {                          // left line, then right line, and back
             const float yl = rd(0, len, w, delay), yr = rd(kDelayHalf, len, w, delay);
             lp = fm_flush(lp + (yr - lp) * a);
             hp = fm_flush(hp + (lp - hp) * 0.025f);
@@ -192,16 +205,23 @@ struct Plate {
 struct Fx {
     Delay delay;
     Plate plate;
-    int half;
+    int half, freeze;
     float acc_a, acc_b;
     float prev_l, prev_r, cur_l, cur_r;
+    float duck_env, duck_gain;
 
-    void init() { delay.init(); plate.init(); half = 0; acc_a = acc_b = 0.0f; prev_l = prev_r = cur_l = cur_r = 0.0f; }
+    void init() {
+        delay.init(); plate.init(); half = 0; freeze = 0;
+        acc_a = acc_b = 0.0f; prev_l = prev_r = cur_l = cur_r = 0.0f; duck_env = 0.0f; duck_gain = 1.0f;
+    }
     void clear() { delay.clear(); plate.clear(); acc_a = acc_b = prev_l = prev_r = cur_l = cur_r = 0.0f; }
 
-    // a, b: the send buses (se suman al estéreo l, r)
-    void process(const float *a, const float *b, float *l, float *r, uint32_t n, const float *fx, float bpm, float sr) {
+    // a, b: the send buses; kick: track 1's signal, for the duck (se suman al estéreo l, r)
+    void process(const float *a, const float *b, const float *kick, float *l, float *r, uint32_t n, const float *fx,
+                 float bpm, float sr) {
         const float hsr = sr * 0.5f;
+        const float duck = fx[EPK_FX_DUCK];
+        const float duck_rel = fm_expf(-1.0f / (0.15f * sr));            // ~150 ms back up (vuelve en ~150 ms)
         const float dly_level = fx[EPK_FX_DLY_LEVEL] * fx[EPK_FX_DLY_LEVEL] * 1.5f;
         const float rev_level = fx[EPK_FX_REV_LEVEL] * fx[EPK_FX_REV_LEVEL] * 1.5f;
         const float to_rev = fx[EPK_FX_DLY_TO_REV];
@@ -210,18 +230,21 @@ struct Fx {
             acc_b += b[i];
             if (half) {
                 float dl, dr, vl, vr;
-                delay.tick(acc_a * 0.5f, fx, bpm, hsr, dl, dr);
+                delay.tick(acc_a * 0.5f, fx, bpm, hsr, freeze, dl, dr);
                 plate.tick(acc_b * 0.5f + (dl + dr) * 0.5f * to_rev, fx, hsr, vl, vr);
                 acc_a = acc_b = 0.0f;
                 prev_l = cur_l; prev_r = cur_r;
                 cur_l = dl * dly_level + vl * rev_level;
                 cur_r = dr * dly_level + vr * rev_level;
-                l[i] += (prev_l + cur_l) * 0.5f;                        // halfway to the new value (a medio camino)
-                r[i] += (prev_r + cur_r) * 0.5f;
+                l[i] += (prev_l + cur_l) * 0.5f * duck_gain;            // halfway to the new value (a medio camino)
+                r[i] += (prev_r + cur_r) * 0.5f * duck_gain;
             } else {
-                l[i] += cur_l;
-                r[i] += cur_r;
+                l[i] += cur_l * duck_gain;
+                r[i] += cur_r * duck_gain;
             }
+            // the duck (el duck): follows the kick, fast down, slow up
+            duck_env = fm_flush(fm_maxf(fm_fabsf(kick[i]), duck_env * duck_rel));
+            duck_gain += (1.0f - duck * fm_minf(duck_env * 4.0f, 1.0f) - duck_gain) * 0.01f;
             half ^= 1;
         }
     }

@@ -165,5 +165,13 @@
 - **Reverb PLACA** (bus B): topología de placa de Dattorro (1997) escrita para este proyecto, a 22 kHz en 16 bit (33 KB). **No es un port de Plateau**, como se había apuntado al principio; se inspira en el mismo algoritmo publicado. Controles: caída, tono, movimiento, nivel.
 - **Vista EFECTOS** en el ciclo de HOME (ÓRBITA → MEZCLA → EFECTOS) con páginas ECO, ECO 2 y REVERB.
 - Los efectos son del proyecto. Los buffers grandes y el estado del motor van al pool de RAM del aparato (no a .bss).
-- **Aún no hecho de la lista del eco:** cabezales múltiples, resonador en el feedback, duck por el bombo, throw/freeze, parada de cinta, dropouts, throws grabados, eco a la octava. Tampoco el flanger.
+- **Aún no hecho de la lista del eco:** cabezales múltiples, resonador en el feedback, parada de cinta, dropouts, throws grabados, eco a la octava. Tampoco el flanger.
 - Validación: el eco vuelve a su tiempo en los tres tipos, PINGPONG alterna lados, la placa deja cola estéreo, y con feedback y caída al máximo durante 20 s no hay valores inválidos ni saturación dura. 70 comprobaciones en el simulador.
+
+## Gestos de dub (2026-11-12)
+
+- **THROW:** mantener REC lanza la pista elegida al eco a tope (con fundido de ~8 ms, sin clic); REC mantenido + botón de pista lanza también esa. Al soltar REC vuelven todos.
+- **FREEZE:** HOME+REC activa/quita. El eco deja de escuchar y reescribe lo que lee sin filtro ni pérdida; el bucle se oscurece despacio por la interpolación.
+- **DUCK:** knob en ECO 2 (K4). Seguidor del bombo (pista 1) con ~150 ms de vuelta; baja los retornos de eco y reverb, por defecto 35 %.
+- Validación: el throw manda una pista con envío 0 al eco; con freeze el bucle sigue igual 4 s después y un golpe nuevo no entra; al quitarlo se apaga; el duck al 100 % deja los retornos en un tercio. 79 comprobaciones en el simulador.
+- **Pregunta abierta:** pasar de 6 a 8 pistas (como Groove OS, Hortator o el firmware Open de M-VAVE). Pendiente de Javier.
