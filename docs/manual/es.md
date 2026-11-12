@@ -125,7 +125,16 @@ que cambia es un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vue
 ## 8. Aleatorio (ARP)
 - **ARP:** cambia los parámetros de la página que estás viendo, en la pista elegida. No toca motor, longitud,
   división ni nivel.
-- **ARP en la vista PATRONES:** patrón nuevo entero (sonidos y secuencias de las seis pistas).
+- **ARP en la vista PATRONES:** patrón nuevo entero (sonidos y secuencias de las seis pistas). No es un bucle de
+  patrones: cada pulsación sale de una semilla distinta.
+  - El bombo sale de ocho familias: sin bombo, a negras (algo menos de la mitad de las veces), a negras con un golpe
+    fantasma al 50 %, roto (euclidiano de 3, 5 o 7), medio tiempo, 2-step, con puntillo (0-6-12) y en un ciclo
+    propio de 12, 14 o 15 pasos.
+  - Cada vez sale en una **tonalidad menor nueva**; la pantalla la dice ("TODO EN SOL m") y arriba a la derecha de
+    la vista PATRONES se ve la actual.
+  - **ARP mantenido + K1** (en la vista PATRONES): **tonalidad fija**. Los aleatorios siguientes se quedan en la
+    tonalidad actual (pone FIJA). Útil para que los patrones encajen entre sí. Otra vez, libre.
+  - Cada banco tiene su tonalidad: el A en re menor, los generados repartidos.
 - **HOME + ARP:** deshace el último aleatorio (un solo nivel).
 - **ARP mantenido + ALGORITHM:** cantidad (10-100 %). **ARP mantenido + un knob:** bloquea ese parámetro.
 

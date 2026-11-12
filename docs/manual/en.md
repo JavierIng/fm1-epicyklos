@@ -129,7 +129,16 @@ an offset over it changes, and a pattern change or PLAY starts again from what i
 ## 8. Random (ARP)
 - **ARP:** changes the parameters of the page shown, on the selected track. It never touches engine, length,
   division or level.
-- **ARP in the PATTERNS view:** a whole new pattern (sounds and sequences of all six tracks).
+- **ARP in the PATTERNS view:** a whole new pattern (sounds and sequences of all six tracks). It is not a loop of
+  patterns: each press comes from a different seed.
+  - The kick comes from eight families: none, four on the floor (a little under half the time), four with a ghost
+    hit at 50 %, broken (euclidean 3, 5 or 7), half time, 2-step, dotted (0-6-12) and a cycle of its own of 12, 14
+    or 15 steps.
+  - Each time it lands in a **new minor key**; the screen says it ("TODO EN SOL m", all in G minor) and the PATTERNS
+    view shows the current one top right.
+  - **ARP held + K1** (in the PATTERNS view): **key fixed** [FIJA]. The next randoms stay in the current key, so the
+    patterns fit together. Again, free [LIBRE].
+  - Each bank has its key: A in D minor, the generated ones spread.
 - **HOME + ARP:** undoes the last random (one level).
 - **ARP held + ALGORITHM:** amount (10-100 %). **ARP held + a knob:** locks that parameter.
 

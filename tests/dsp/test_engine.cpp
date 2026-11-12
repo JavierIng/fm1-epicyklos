@@ -1008,6 +1008,45 @@ int main() {
               epk_param_get(3, EPK_P_TONE), epk_param_get(3, EPK_P_ABSENCE), epk_param_get(3, EPK_P_SCOPE));
     }
 
+    // 25. The whole-pattern random (aleatorio general): many kicks, not mostly four on the floor; a new key each
+    //     time unless locked; banks keep one key each, A in D
+    {
+        epk_init(SR);
+        uint32_t seeds = 0x1F123BB5u;
+        uint32_t kicks[64];
+        int nk = 0, four = 0, keyseen = 0;
+        for (int i = 0; i < 200; i++) {
+            seeds ^= seeds << 13; seeds ^= seeds >> 17; seeds ^= seeds << 5;
+            epk_pattern_randomize(seeds);
+            epk_render(l, r, 256);
+            const uint32_t m = epk_pattern(0);
+            four += m == 0x1111u;
+            int seen = 0;
+            for (int k = 0; k < nk; k++) seen |= kicks[k] == m;
+            if (!seen && nk < 64) kicks[nk++] = m;
+            keyseen |= 1 << epk_key();
+        }
+        int nkeys = 0;
+        for (int k = 0; k < 12; k++) nkeys += keyseen >> k & 1;
+        CHECK(nk >= 12, "random: only %d different kicks in 200", nk);
+        CHECK(four < 100, "random: four on the floor %d of 200 (at most half)", four);
+        CHECK(nkeys >= 10, "random: only %d keys in 200", nkeys);
+        epk_random_key_lock(1);
+        const int k0 = epk_key();
+        int moved = 0;
+        for (int i = 0; i < 30; i++) {
+            epk_pattern_randomize(0x1234567u * (uint32_t)(i + 1));
+            epk_render(l, r, 256);
+            moved += epk_key() != k0;
+        }
+        CHECK(moved == 0, "key locked: changed %d times", moved);
+        epk_random_key_lock(0);
+        epk_pattern_select(0, 3);
+        epk_render(l, r, 256);
+        CHECK(epk_key() == 2, "bank A is in D (got %d)", epk_key());
+        std::printf("random: %d kicks, four on the floor %d/200, %d keys\n", nk, four, nkeys);
+    }
+
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {

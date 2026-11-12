@@ -248,3 +248,10 @@
 - De fábrica solo evolucionan los sintes (pistas 3-5); antes también platos y percusión, y eso movía el groove sin pedirlo.
 - Formato de guardado versión 2 (un parámetro más por pista). Lo guardado en versión 1 se convierte al leerlo (QUÉ = TODO), no se pierde.
 - Validación: RITMO mueve el ritmo y no el tono; SONIDO al revés; apagada vuelve al patrón y se queda; congelado no cambia en 8 compases y al soltar vuelve a moverse; los 16 patrones del banco A sin evolución en la batería; un objeto de versión 1 se convierte con sus valores. Gestos ARP + pista y HOME + PLAY probados en el simulador.
+
+## Aleatorio general más variado (2026-11-12)
+
+- Javier: "parece que se van repitiendo cada ciertos toques". Medido: no había bucle (200 pulsaciones = 200 patrones distintos), pero la receta era estrecha: el bombo solo tenía 4 variantes (60 % a negras), todo en re menor, mismos motores por pista, misma mezcla y efectos.
+- Ahora: 8 familias de bombo (sin, negras 38 %, negras + fantasma, roto euclidiano, medio tiempo, 2-step, puntillo, ciclo propio 12/14/15) → 22 bombos distintos en 200 y negras en 74/200. Tonalidad menor nueva en cada aleatorio general (las 12 aparecen), con **ARP + K1 en PATRONES = tonalidad fija**. Cada ranura recuerda su tonalidad (también al deshacer y al guardar en memoria); cada banco tiene una (A en re).
+- Sigue igual a propósito: los papeles y motores por pista y la mezcla/efectos (del proyecto). El "estilo" del aleatorio por banco (A ambient/jungle, B deep/dub, C hipnótico raw) va con los bancos de muestra por estilo.
+- Supuesto: siempre menor (eólico). Modos (dórico, frigio) quedan para el estilo por banco.

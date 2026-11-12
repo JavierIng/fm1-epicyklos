@@ -882,13 +882,16 @@ static void random_page(void)
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
+static const char *const KEY_NAME[12] = {"DO", "DO#", "RE", "RE#", "MI", "FA", "FA#", "SOL", "SOL#", "LA", "LA#", "SI"};
+static int random_said;
+
 static void random_pattern(void)           /* a whole new pattern in this slot (aleatorio general) */
 {
     ui.rng ^= plat_ms() * 2654435761u;
     rnd();
     epk_undo_save();
     epk_pattern_randomize(ui.rng);
-    app_say("ALEATORIO", "TODO");
+    random_said = 1;                       /* the key is said once the core has it (la tonalidad, al aplicarse) */
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -1102,6 +1105,10 @@ static void input(void)
                 int_str(ui.amount * 10, t);
                 str_cat(t, "%");
                 app_say("CANTIDAD", t);
+            } else if (ui.view == VIEW_PATTERNS && ENC_SLOT[k] == 0) {   /* ARP+K1: the key fixed or free */
+                epk_random_key_lock(!epk_random_key_locked());
+                app_say("TONALIDAD", epk_random_key_locked() ? "FIJA" : "LIBRE");
+                ui.dirty_main = ui.dirty_foot = 1;
             } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX && ui.view != VIEW_MOD) {
                 const int p = slot_param(ui.track, ui.page, ENC_SLOT[k]);
                 if (p >= 0) {
@@ -1606,9 +1613,15 @@ static void draw_foot(void)                       /* the page tabs and the four 
         cv_text(6, 5, &FONT_XS, q >= 0 ? "EN COLA" : v, q >= 0 ? C_SOLO : C_LABEL);
         cv_text(6, 18, &FONT_M, q >= 0 ? epk_pattern_name(ui.bank, q) : same
                 ? epk_pattern_name(ui.bank, epk_pattern_current()) : "ELIGE PATRON", C_TEXT);
-        cv_text(6, 44, &FONT_XS, "Negras: banco   Blancas: patron", C_LABEL);
-        cv_text(6, 57, &FONT_XS, "HOME+blanca: guardar aqui (2 veces)", C_LABEL);
-        cv_text(6, 70, &FONT_XS, "ARP: patron al azar   HOME+ARP: deshacer", C_LABEL);
+        {                                  /* the random's key, top right (tonalidad, arriba a la derecha) */
+            char kt[24];
+            kt[0] = 0;
+            str_cat(kt, KEY_NAME[epk_key()]);
+            str_cat(kt, epk_random_key_locked() ? " m FIJA" : " m");
+            cv_text(234 - text_w(&FONT_XS, kt), 5, &FONT_XS, kt, epk_random_key_locked() ? C_SOLO : C_LABEL);
+        }
+        cv_text(6, 44, &FONT_XS, "HOME+blanca: guardar (2 veces)", C_LABEL);
+        cv_text(6, 57, &FONT_XS, "ARP: azar  HOME+ARP: deshacer  ARP+K1: tono", C_LABEL);
         cv_blit(0, 168);
         return;
     }
@@ -1743,6 +1756,14 @@ void app_frame(void)
     static uint32_t last_head;
     uint32_t now = plat_ms(), t;
     input();
+    if (random_said && ++random_said > 4) {   /* a few frames on, the core has applied it (ya aplicado) */
+        char kt[24] = "TODO EN ";
+        str_cat(kt, KEY_NAME[epk_key()]);
+        str_cat(kt, " m");
+        app_say("ALEATORIO", kt);
+        random_said = 0;
+        ui.dirty_main = 1;
+    }
     speak();
     set_lights();
     for (t = 0; t < EPK_TRACKS; t++) {        /* a step moved: the orbit and the steps are redrawn (paso nuevo) */
@@ -1824,6 +1845,10 @@ int app_expect(const char *what, int *got)
         *got = ui.page;
     else if (!strncmp(what, "evo", 3) && what[3] >= '1' && what[3] <= '6' && !what[4])   /* evolution on (evoN) */
         *got = epk_evolve_enabled(what[3] - '1');
+    else if (!strcmp(what, "keylock"))
+        *got = epk_random_key_locked();
+    else if (!strcmp(what, "key"))             /* 0 = C .. 11 = B */
+        *got = epk_key();
     else if (!strcmp(what, "evohold"))
         *got = epk_evolve_held();
     else if (!strcmp(what, "saves"))           /* saves done (guardados) */

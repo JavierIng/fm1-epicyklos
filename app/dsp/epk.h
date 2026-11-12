@@ -204,6 +204,10 @@ int epk_absent(int track);                     /* resting this stretch (en ausen
 void epk_evolve_enable(int track, int on);
 int epk_evolve_enabled(int track);
 void epk_evolve_hold(int on);
+/* the whole-pattern random (aleatorio general): a new minor key each time, unless locked (tonalidad fija) */
+void epk_random_key_lock(int on);
+int epk_random_key_locked(void);
+int epk_key(void);                             /* the key in use: 0 = C .. 11 = B (A and factory: 2, D) */
 int epk_evolve_held(void);
 
 /* Saving (guardar): a pattern as it sounds now (with its evolution) goes to a slot of any bank. The core packs it;

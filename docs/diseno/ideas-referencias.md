@@ -137,3 +137,18 @@ Apuntadas para ir viendo; ninguna está comprometida.
   1. **El instrumento dentro del DAW:** el núcleo de sonido ya es C++ portable sin dependencias (fue una regla desde el principio), así que se puede envolver en un plugin. La pantalla del emulador también podría ir dentro. Trabajo: el envoltorio del plugin (JUCE, iPlug2 o DPF; las dos últimas encajan bien con GPL), firmar y notarizar en Mac para AU.
   2. **Controlar el FM-1 desde el DAW:** necesita un mapa MIDI (CC por parámetro) en el aparato, que es fase 6. Con eso, un plugin o una plantilla de Ableton podría mover sus knobs.
   - Orden lógico: primero el mapa MIDI del aparato (fase 6); después el plugin.
+
+## EPICYKLOS escritorio: plugin / app para el modular (idea del 12 nov, 13:20; versión futura, no para el FM-1)
+
+Javier: un VST de este emulador para Mac/Win/Linux que genere los patrones y los saque por **MIDI** (a la OXI One) o por **CV a través de audio** a sus módulos de Eurorack; que el audio del modular **vuelva** para pasar por los efectos (eco, placa, MAREA, master) y salga por la RME o el Analog Heat. 8 pistas. Mantener los motores internos, pero poder elegir por pista si se sacan los comandos fuera. Incluso que un seguidor de envolvente mueva por CV el cutoff de un filtro del modular.
+
+Viabilidad (análisis, nada probado):
+- **Núcleo:** el DSP ya es C++ portable sin dependencias; 8 pistas en escritorio no tienen el problema de panel ni de CPU del FM-1. Falta que acepte 48/96 kHz (hoy supone 44,1 kHz en buffers y coeficientes; a revisar).
+- **Envoltorio:** CLAP/VST3/AU. Con licencia GPL-3.0 encajan iPlug2 (zlib) o DPF (ISC); JUCE 8 va con AGPL o licencia comercial: revisar compatibilidad antes de elegirlo. AU necesita firmar y notarizar en Mac.
+- **Por pista, salida:** INTERNO (motor) / MIDI (canal y nota) / CV (gate + tono 1V/oct + una modulación) / INTERNO + fuera.
+- **MIDI desde un plugin en Ableton:** la salida MIDI de plugins está limitada según formato y DAW (hay que comprobarlo en Live). Alternativas: app independiente con puertos MIDI virtuales/USB hacia la OXI, o un dispositivo Max for Live solo para el MIDI.
+- **CV por audio:** necesita salidas **acopladas en DC**. Comprobar si las salidas de la RME de Javier lo son; si no, un interfaz/módulo DC (tipo Expert Sleepers ES-8/ES-9). El tono 1V/oct necesita **calibración** por salida (cuántos voltios da a fondo de escala). Ableton ya tiene CV Tools; nuestro valor no es sacar CV, es el secuenciador generativo (euclidiano, polimetría, EVOLUCIÓN, escenas) y los efectos.
+- **Retorno del modular:** entradas de audio (plugin de efecto con sidechain o app con varias entradas) → cadena de efectos → salida. **Latencia de ida y vuelta** del interfaz: no importa para modular lento (cutoff por seguidor), sí para timing fino; compensar con el DESPLAZA por pista.
+- **Seguidor → CV:** el seguidor de envolvente ya existe en MOD; añadir un destino "salida CV n". Funciona igual sobre audio interno o sobre el que vuelve del modular.
+- **Relación:** solapa con el proyecto de plugin MIDI de Javier (VST3/AU para ambient); valorar base común.
+- **Orden propuesto:** D1 núcleo a 48/96 kHz + plugin instrumento con sync al tempo del DAW · D2 8 pistas · D3 salida MIDI por pista (OXI One) · D4 CV por audio con calibración · D5 entradas de audio a los efectos · D6 seguidor y LFO → CV. Proyecto aparte del firmware; empezar cuando el firmware esté en fase 6.

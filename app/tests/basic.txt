@@ -458,3 +458,18 @@ tap PLAY
 wait 30
 release HOME
 expect evohold 0
+# PATTERNS view: ARP held + K1 = the random's key fixed / free
+tap SAVE
+wait 30
+press ARP
+turn K1 1
+wait 30
+release ARP
+wait 30
+expect keylock 1
+shot tonalidad.png
+press ARP
+turn K1 1
+wait 30
+release ARP
+expect keylock 0
