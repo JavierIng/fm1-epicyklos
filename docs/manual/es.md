@@ -25,7 +25,7 @@ para dub techno, techno hipnótico, ambient y drone.
 | K1-K4 | los 4 parámetros de la página | ajuste fino |
 | OCT- / OCT+ | octava del teclado | — |
 | SAVE | vista PATRONES | en PATRONES, HOME + tecla blanca: **guardar** |
-| SEQ | vista PASOS | — |
+| SEQ | vista PASOS | modo **ESCENAS** (teclas negras) |
 | ARP | aleatorio; mantenido + pista: evolución sí / no | **deshacer** |
 | REC | mantener: **throw** de la pista al eco | **freeze** del eco (activa / quita) |
 | ALGORITHM | fase siguiente | **filtro del master**, desde cualquier vista |
@@ -154,6 +154,10 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
 ## 9. Efectos de envío (vista EFECTOS)
 Cada pista manda parte de su sonido al **eco (A)** y a la **reverb (B)** desde la página MEZCLA (K3 y K4). El
 envío sale después del nivel: si silencias una pista deja de enviar, pero la cola sigue sonando.
+- **Envío PRE (antes del nivel):** en la página MEZCLA, **HOME + K3** (o K4) cambia ese envío a PRE; el knob pasa a
+  llamarse "A PRE" o "B PRE". En PRE el envío no depende del NIVEL: puedes bajar la pista a 0 y dejar sonando solo
+  su eco o su reverb (pista "fantasma", muy de dub). Cada pista tiene un solo ajuste PRE para A y B a la vez. Es de la
+  mezcla, como NIVEL y PAN: no cambia al cambiar de patrón. Ojo: el MUTE sí corta también el envío PRE.
 
 En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **ECO:** TIPO (TAPE, BBD, PINGPONG), TIEMPO (en semicorcheas, de 1 a 16: prueba 3, 5 o 7), REPITE (arriba del
@@ -171,7 +175,14 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
   SATURA (cinta: calor y redondez). Al final hay siempre un limitador suave.
 
 - **MAREA** (páginas MAREA, MAREA 2 y MAREA 3): ver el apartado siguiente.
-- En la parte baja se ven la página anterior, la actual y la siguiente, y el número de página (1/8 … 8/8).
+- **DIGITAL** (al final del master: después del compresor y la cinta, antes del limitador):
+  - **BITS:** NO, o de 16 a 4 bits (reducción de resolución: grano, luego ruido áspero).
+  - **MUESTREO:** NO, o de /1 a /32 (baja la frecuencia de muestreo: aliasing metálico).
+  - **STUTTER:** SÍ/NO. Al ponerlo en SÍ graba el trozo que está sonando y lo repite hasta que lo quitas; entra y
+    sale en ~5 ms. **REPITE** es la longitud: 1/4, 1/8, 1/16 o 1/32 de compás, al tempo. Si a ese tempo no cabe (máximo
+    0,74 s), se divide por dos. Pensado para escenas: mantén la escena STUTTER y suelta.
+  - La repetición se guarda a media frecuencia y en 16 bits: suena algo más oscura que el original.
+- En la parte baja se ven la página anterior, la actual y la siguiente, y el número de página (1/9 … 9/9).
 
 Al cambiar el TIEMPO en TAPE el tono se desliza, como una cinta que cambia de velocidad. Al cambiar de TIPO el
 eco empieza vacío. El tiempo máximo es 1,5 s (0,75 s en PINGPONG); si no cabe, se divide por dos.
@@ -235,7 +246,28 @@ muestra las cuatro moviéndose y a dónde van.
   o el NIVEL de cada pista. La modulación se suma a lo que marque el knob sin moverlo.
 - De inicio, el LFO 1 mueve el tono del eco (+25 %, 8 compases).
 
-## 11. Pendiente
-Siguiente: escenas (con REDUCCIÓN de bits/frecuencia y STUTTER). Después: más motores, guardado del
-proyecto (mezcla, efectos, tempo), nombres, borrar un patrón guardado, reloj y MIDI (fase 6), prueba en el aparato
-(7, solo cuando se decida).
+## 11. Escenas (HOME + SEQ)
+Una escena es una foto de varios ajustes (hasta 8) a la que entras y de la que sales con una tecla, con un fundido.
+Hay 8 escenas en el proyecto.
+- **HOME + SEQ:** entra o sale del modo ESCENAS. En este modo las **teclas negras 1-8** son las escenas (y no tocan
+  notas). Arriba se ve "ESC" y las escenas que están sonando.
+- **Mantener una tecla negra:** la escena entra mientras la mantienes; al soltar, sale con el mismo fundido.
+- **HOME + tecla negra:** la deja puesta (o la quita). Una escena puesta tiene su tecla encendida.
+- **Mientras mantienes una escena:**
+  - La pantalla muestra su nombre, una barra de cuánto ha entrado, el fundido y lo que fija.
+  - **Gira un knob** para grabar su valor en la escena: en EFECTOS, el parámetro de esa página; en FLOW, sus ajustes;
+    en las vistas de pista, el parámetro de la página actual de la pista elegida (P1-P6 delante del nombre).
+  - **SELECT:** el fundido: AL MOMENTO, 1/16, 1/8, 1/4, 1/2, 1, 2 o 4 compases. Va al tempo.
+  - **ARP:** vacía la escena.
+- Los ajustes continuos se deslizan durante el fundido. Los de pasos (un tipo, un orden, SÍ/NO) cambian a mitad del
+  fundido. Si dos escenas tocan lo mismo, manda la de número más alto.
+- Las escenas no mueven los knobs: al salir, todo vuelve a donde estaba.
+- **De fábrica:** 1 SUMERGIR (filtro cerrado y eco largo, 1 compás), 2 CATEDRAL (todo reverb, 2 compases), 3 CINTA
+  ROTA (cinta y desgaste), 4 DIGITAL (bits y muestreo), 5 TÚNEL (fino y lejos, 1/2 compás), 6 SECO (sin eco ni
+  reverb), 7 STUTTER (repite 1/16), 8 ECO INFINITO (el eco a 97 % y ninguna pista le envía: lo que hay se queda).
+- **Aún no se guardan** al apagar: vuelven a las de fábrica (guardado del proyecto, fase 6).
+
+## 12. Pendiente
+Siguiente: guardado del proyecto (mezcla, efectos, escenas, tempo), nombres, borrar un patrón guardado, reloj y MIDI
+(fase 6). Después: más motores, bancos de demostración por estilo, prueba en el aparato (7, solo cuando se decida).
+- FILL ya no tiene atajo: HOME + PLAY ahora congela la EVOLUCIÓN.

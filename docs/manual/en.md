@@ -26,7 +26,7 @@ techno, hypnotic techno, ambient and drone.
 | K1-K4 | the page's 4 parameters | fine adjust |
 | OCT- / OCT+ | keyboard octave | — |
 | SAVE | PATTERNS view [PATRONES] | in PATTERNS, HOME + white key: **save** |
-| SEQ | STEPS view [PASOS] | — |
+| SEQ | STEPS view [PASOS] | **SCENES** mode [ESCENAS] (black keys) |
 | ARP | random; held + track: evolution on / off | **undo** |
 | REC | hold: **throw** the track to the delay | **freeze** the delay (on / off) |
 | ALGORITHM | a later phase | **master filter**, from any view |
@@ -159,6 +159,10 @@ Each track has its own LFO, saved with the pattern. While the sequencer runs it 
 ## 9. Send effects (EFFECTS view [EFECTOS])
 Each track sends part of its sound to the **delay (A)** and the **reverb (B)** from the MIX page (K3 and K4).
 The send is taken after the level: a muted track stops sending, but the tail rings on.
+- **PRE send (before the level):** on the MIX page, **HOME + K3** (or K4) switches that send to PRE; the knob is
+  then called "A PRE" or "B PRE". In PRE the send ignores the LEVEL: pull the track down to 0 and only its delay or
+  reverb keeps sounding (a "ghost" track, very dub). Each track has one PRE setting for A and B together. It belongs
+  to the mix, like LEVEL and PAN: it does not change with the pattern. Note: MUTE still cuts a PRE send too.
 
 In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **Delay [ECO]:** type [TIPO: TAPE, BBD, PINGPONG], time [TIEMPO] in sixteenths, 1 to 16 (try 3, 5 or 7),
@@ -178,7 +182,14 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
   off) and saturation [SATURA] (tape: warmth and roundness). A soft limiter always sits at the end.
 
 - **MAREA** (pages MAREA, MAREA 2 and MAREA 3): see the next section.
-- The bottom row shows the page before, this one and the next, and the page number (1/8 … 8/8).
+- **DIGITAL** (at the end of the master: after the compressor and tape, before the limiter):
+  - **BITS:** off [NO], or 16 down to 4 bits (lower resolution: grain, then harsh noise).
+  - **Sample rate [MUESTREO]:** off, or /1 to /32 (lowers the sample rate: metallic aliasing).
+  - **STUTTER:** on/off [SÍ/NO]. Switching it on records the slice that is playing and repeats it until you switch
+    it off; it fades in and out in ~5 ms. **Length [REPITE]:** 1/4, 1/8, 1/16 or 1/32 of a bar, in time. If it does
+    not fit at that tempo (0.74 s at most), it is halved. Made for scenes: hold the STUTTER scene and let go.
+  - The repeat is stored at half rate and 16 bits: it sounds a little darker than the original.
+- The bottom row shows the page before, this one and the next, and the page number (1/9 … 9/9).
 
 Changing the time in TAPE bends the pitch, like a tape changing speed. Changing the type starts the delay
 empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit is halved.
@@ -241,7 +252,29 @@ the screen shows all four moving and where they go.
   each track's TONE or LEVEL. Modulation adds to the knob's setting without moving it.
 - By default LFO 1 moves the delay's tone (+25 %, 8 bars).
 
-## 11. To come
-Next: scenes (with bit/sample-rate reduction and stutter). Then: more engines, saving the project (mix,
-effects, tempo), names, erasing a saved pattern, clock and MIDI (phase 6), testing on the device (7, only when
-decided).
+## 11. Scenes (HOME + SEQ)
+A scene is a snapshot of several settings (up to 8) that you go into and out of with one key, with a fade. The
+project has 8 scenes.
+- **HOME + SEQ:** enters or leaves SCENES mode [ESCENAS]. In this mode the **black keys 1-8** are the scenes (they
+  do not play notes). The header shows "ESC" and the scenes that are in.
+- **Hold a black key:** the scene comes in while you hold it; on release it goes out with the same fade.
+- **HOME + black key:** latches it in (or takes it out). A latched scene has its key lit.
+- **While holding a scene:**
+  - The screen shows its name, a bar for how far in it is, the fade and what it sets.
+  - **Turn a knob** to store its value in the scene: in EFFECTS, that page's parameter; in FLOW, its settings; in
+    the track views, the current page's parameter of the selected track (P1-P6 before the name).
+  - **SELECT:** the fade [FUNDIDO]: at once [AL MOMENTO], 1/16, 1/8, 1/4, 1/2, 1, 2 or 4 bars. It follows the tempo.
+  - **ARP:** empties the scene.
+- Continuous settings glide during the fade. Stepped ones (a type, an order, on/off) switch halfway through. If two
+  scenes set the same thing, the higher number wins.
+- Scenes do not move the knobs: on the way out, everything returns to where it was.
+- **Factory:** 1 SUMERGIR (submerge: filter closed and long delay, 1 bar), 2 CATEDRAL (all reverb, 2 bars), 3 CINTA
+  ROTA (broken tape: saturation and wear), 4 DIGITAL (bits and sample rate), 5 TUNEL (tunnel: thin and far, 1/2 bar),
+  6 SECO (dry: no delay or reverb), 7 STUTTER (repeats 1/16), 8 ECO INFINITO (endless delay: feedback at 97 % and no
+  track sends to it, so what is there stays).
+- **Not yet saved** at power-off: they go back to the factory ones (project saving, phase 6).
+
+## 12. To come
+Next: saving the project (mix, effects, scenes, tempo), names, erasing a saved pattern, clock and MIDI (phase 6).
+Then: more engines, demo banks per style, testing on the device (7, only when decided).
+- FILL has no shortcut any more: HOME + PLAY now freezes EVOLUTION.

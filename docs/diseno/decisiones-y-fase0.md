@@ -275,3 +275,12 @@
 - Supuesto: con el filtro en SECO, el seguidor y el duck siguen viendo las pistas sin filtrar (el bombo de la pista 1 se toma antes del filtro).
 - Cambiar FILTRO EN mientras suena puede dar un pequeño salto (no hay fundido entre posiciones).
 - Validación: con ECO y REVERB quitados el retorno es 0,000 (activos 0,656) y vuelve al activarlos; LP cerrado en EFECTOS deja pasar las pistas (x7,9 de energía frente a TODO); en SECO sin retornos ≈ TODO; REV>ECO alimenta el eco y ECO>REV no; COMP>SAT y SAT>COMP suenan distinto; MAREA quitada suena idéntica a sin MAREA (diferencia 0,000000). Todo lo anterior intacto con los valores de inicio.
+
+## Envío PRE, DIGITAL y ESCENAS (2026-11-12)
+- **Envío PRE por pista** (HOME + K3/K4 en MEZCLA): un solo ajuste para A y B; es de la mezcla, no del patrón. El MUTE sigue cortando el envío PRE (decisión: MUTE = silencio total; opción "PRE ignora MUTE" queda abierta).
+- **DIGITAL** después de COMP/CINTA y antes del limitador: `Crush` (bits 16..4, sample hold /1..32) y `Stutter` (estéreo, media frecuencia, 16 bits, 16384 frames = 64 KB en `.pool`; máximo 0,74 s a 44,1 kHz; si no cabe se divide por dos). El firmware sigue cabiendo; CI en verde. CPU en el aparato: sin medir.
+- **ESCENAS**: 8 escenas × 8 locks, del proyecto. Destino = índice de efecto o `EPK_SCENE_TRACK + pista*32 + parámetro` (solo parámetros continuos de pista desde la UI; los de pasos cambian a amount > 0,5). Se aplican al final de `apply_mod`, sobre `fx_live` y `pm`: no mueven los knobs y al salir todo vuelve. Fundido por escena en 8 pasos (0 a 4 compases, al tempo). Si dos escenas fijan lo mismo, gana la de número más alto.
+- UI: HOME+SEQ modo escenas (las negras dejan de tocar notas); mantener = momentánea; HOME+negra = fija; knob con escena pulsada = grabar; SELECT = fundido; ARP = vaciar. En la lista de la escena los efectos llevan delante su página ("ECO 2 NIVEL", "REVERB NIVEL").
+- 8 de fábrica: SUMERGIR, CATEDRAL, CINTA ROTA, DIGITAL, TUNEL, SECO, STUTTER, ECO INFINITO.
+- **No se guardan al apagar** (fase 6, con el proyecto). FILL pierde su atajo HOME+PLAY (ahora congela la EVOLUCIÓN): pendiente buscarle otro.
+- Pruebas: bloque 28 en `test_engine.cpp` (envío PRE 0,706 con nivel 0; correlación del stutter 1,000; fundido a la mitad 0,50) y escenas en `basic.txt`. Nada escuchado aún.
