@@ -169,7 +169,9 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK",
                                                   "FILTRO", "RESO", "DOBLE", "COMP", "SATURA", "TIPO",
                                                   "PISTA", "MEZCLA", "VELOC", "SYNC", "MULTI", "RIZO", "DESFASE",
-                                                  "INVIERTE", "GRAVEDAD", "DESDE", "HASTA", "RESO", "ANCHO"};
+                                                  "INVIERTE", "GRAVEDAD", "DESDE", "HASTA", "RESO", "ANCHO",
+                                                  "MAREA", "ECO", "REVERB", "FILTRO", "COMP", "SATURA",
+                                                  "FILTRO EN", "ESPACIO", "DRIVE"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -180,10 +182,14 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Centro parada, derecha avanza, izq. vuelve", "HOME+VELOC: libre o al tempo", "Cuantos ciclos de ola caben",
     "Ondas pequenas sobre la ola", "Coloca la ola a mano", "Profundidad; a la izquierda, al reves",
     "Valles anchos, crestas finas", "Donde empieza la zona que se mueve", "Donde acaba la zona que se mueve",
-    "Bandas anchas o finas", "Bandas a izquierda y derecha; 0 mono"};
+    "Bandas anchas o finas", "Bandas a izquierda y derecha; 0 mono",
+    "MAREA activa o quitada", "Eco activo o quitado", "Reverb activa o quitada", "Filtro activo o quitado",
+    "Compresor activo o quitado", "Cinta activa o quitada",
+    "Todo, solo pistas o solo efectos", "Quien alimenta a quien (CRUCE)", "Compresor y cinta: en que orden"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
+static int view_is_flow(void);
 /* the filter's knobs change meaning with its type (cambian de sentido con el tipo) */
 static const char *fx_name(int p)
 {
@@ -192,6 +198,8 @@ static const char *fx_name(int p)
         return t == EPK_FLT_DJ ? "FILTRO" : "CORTE";
     if (p == EPK_FX_FLT_DOUBLE)
         return t == EPK_FLT_MORPH ? "FORMA" : "DOBLE";
+    if (p == EPK_FX_DLY_TO_REV && view_is_flow())
+        return "CRUCE";                                    /* either way in FLOW (en los dos sentidos) */
     return FX_NAME[p];
 }
 static const char *fx_hint(int p)
@@ -201,6 +209,8 @@ static const char *fx_hint(int p)
         return "Frecuencia de corte";
     if (p == EPK_FX_FLT_DOUBLE && t == EPK_FLT_MORPH)
         return "De paso bajo a banda a paso alto";
+    if (p == EPK_FX_DLY_TO_REV && view_is_flow())
+        return "Cuanto del primero entra al segundo";
     return FX_HINT[p];
 }
 static const char *const DLY_NAME[EPK_DLY_COUNT] = {"TAPE", "BBD", "PINGPONG"};
@@ -218,8 +228,10 @@ static const char *const DEST_NAME[EPK_DEST_COUNT] = {
     "NIVEL 1", "NIVEL 2", "NIVEL 3", "NIVEL 4", "NIVEL 5", "NIVEL 6"};
 
 /* ------------------------------------------------------------------ state (estado) */
-enum { VIEW_ORBIT, VIEW_MIX, VIEW_FX, VIEW_MOD, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME goes round the first four */
-static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "EFECTOS", "MOD", "PATRONES", "PASOS"};
+enum { VIEW_ORBIT, VIEW_MIX, VIEW_FX, VIEW_FLOW, VIEW_MOD, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME goes round the first five */
+static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "EFECTOS", "FLOW", "MOD", "PATRONES", "PASOS"};
+/* FLOW: the four knobs (K1..K4), and the six blocks the white keys 1..6 turn on and off */
+static const int8_t FLOW_PARAM[4] = {EPK_FX_FLT_PLACE, EPK_FX_SPACE_ORDER, EPK_FX_DRIVE_ORDER, EPK_FX_DLY_TO_REV};
 /* the keys, F3..G5: a white key's place among the whites (0..15), a black key's among the blacks (0..10) */
 static const int8_t WHITE_OF[NKEYS] = {0, -1, 1, -1, 2, -1, 3, 4, -1, 5, -1, 6, 7, -1, 8, -1, 9, -1, 10, 11, -1,
                                        12, -1, 13, 14, -1, 15};
@@ -262,6 +274,7 @@ static struct {
     float meters[EPK_TRACKS];
     uint8_t dirty_head, dirty_main, dirty_foot;
 } ui;
+static int view_is_flow(void) { return ui.view == VIEW_FLOW; }
 
 static float rnd(void)                     /* 0..1 */
 {
@@ -332,6 +345,15 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
     b[0] = 0;
     if (p == EPK_FX_DLY_TYPE)
         str_cat(b, DLY_NAME[(int)(v * (float)(EPK_DLY_COUNT - 1) + 0.5f)]);
+    else if (p >= EPK_FX_ON_MAREA && p <= EPK_FX_ON_SAT)
+        str_cat(b, v > 0.5f ? "SI" : "NO");
+    else if (p == EPK_FX_FLT_PLACE) {
+        static const char *const PL[EPK_PLACE_COUNT] = {"TODO", "SECO", "EFECTOS"};
+        str_cat(b, PL[(int)(v * (float)(EPK_PLACE_COUNT - 1) + 0.5f)]);
+    } else if (p == EPK_FX_SPACE_ORDER)
+        str_cat(b, v > 0.5f ? "REV>ECO" : "ECO>REV");
+    else if (p == EPK_FX_DRIVE_ORDER)
+        str_cat(b, v > 0.5f ? "SAT>COMP" : "COMP>SAT");
     else if (p == EPK_FX_FLT_TYPE)
         str_cat(b, FLT_TYPE_SHORT[flt_type()]);
     else if (p == EPK_FX_MAREA_SPEED) {               /* > 2 COMP, < 0.12 Hz, QUIETA */
@@ -779,7 +801,8 @@ static void set_view(int v)
         ui.page = PAGE_RHYTHM;
     if (v == VIEW_PATTERNS)
         ui.bank = epk_bank_current();
-    app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : v == VIEW_FX ? "ECO+REV" : v == VIEW_MOD ? "LFO+SEG" : "");
+    app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : v == VIEW_FX ? "ECO+REV" : v == VIEW_MOD ? "LFO+SEG" :
+            v == VIEW_FLOW ? "BLANCAS 1-6" : "");
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -827,6 +850,28 @@ static void turn_fx(int slot, int32_t detents, int fine)
     epk_fx_set(p, epk_fx_get(p) + (float)detents / (steps ? (float)(steps - 1) : fine ? 400.0f : 40.0f));
     ui.pop_fx = p;
     ui.pop_until = plat_ms() + 1000u;
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
+/* FLOW view: where the filter sits, the space's order, the drive's order, the cross (dónde y en qué orden) */
+static void turn_flow(int slot, int32_t detents, int fine)
+{
+    const int p = slot >= 0 && slot < 4 ? FLOW_PARAM[slot] : SLOT_NONE;
+    const int steps = p >= 0 ? epk_fx_steps(p) : 0;
+    if (p < 0)
+        return;
+    epk_fx_set(p, epk_fx_get(p) + (float)detents / (steps ? (float)(steps - 1) : fine ? 400.0f : 40.0f));
+    ui.pop_fx = p;
+    ui.pop_until = plat_ms() + 1000u;
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
+/* FLOW view: a white key 1..6 turns a block on or off (activa o quita un bloque) */
+static void flow_toggle(int block)
+{
+    const int p = EPK_FX_ON_MAREA + block;
+    epk_fx_set(p, epk_fx_get(p) > 0.5f ? 0.0f : 1.0f);
+    app_say(FX_NAME[p], epk_fx_get(p) > 0.5f ? "ACTIVO" : "QUITADO");
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -969,10 +1014,11 @@ static void input(void)
     keys = touch_keys();
     const int choosing = ui.view == VIEW_PATTERNS || save;   /* the keys choose banks and patterns */
     const int stepping = !choosing && ui.view == VIEW_STEPS; /* the white keys are steps */
+    const int flowing = !choosing && ui.view == VIEW_FLOW;   /* the white keys 1..6 are the blocks (bloques) */
     for (k = 0; k < NKEYS; k++) {
         uint32_t bit = 1u << k;
         const int down = (keys & bit) && !(ui.keys & bit), up = !(keys & bit) && (ui.keys & bit);
-        if ((choosing || stepping) && up && ui.key_note[k] >= 0) {   /* a note held from before */
+        if ((choosing || stepping || flowing) && up && ui.key_note[k] >= 0) {   /* a note held from before */
             epk_note_off(ui.track, ui.key_note[k]);
             ui.key_note[k] = -1;
         }
@@ -992,6 +1038,11 @@ static void input(void)
             }
             if (down && save)
                 ui.save_used = 1;          /* SAVE was held for this: no view change on its release */
+            continue;
+        }
+        if (flowing) {
+            if (down && WHITE_OF[k] >= 0 && WHITE_OF[k] < 6)
+                flow_toggle(WHITE_OF[k]);
             continue;
         }
         if (stepping) {
@@ -1138,7 +1189,7 @@ static void input(void)
                 epk_random_key_lock(!epk_random_key_locked());
                 app_say("TONALIDAD", epk_random_key_locked() ? "FIJA" : "LIBRE");
                 ui.dirty_main = ui.dirty_foot = 1;
-            } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX && ui.view != VIEW_MOD) {
+            } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX && ui.view != VIEW_MOD && ui.view != VIEW_FLOW) {
                 const int p = slot_param(ui.track, ui.page, ENC_SLOT[k]);
                 if (p >= 0) {
                     ui.locked ^= 1u << p;
@@ -1184,6 +1235,8 @@ static void input(void)
             turn_step(ENC_SLOT[k], e);
         else if (ui.view == VIEW_FX)
             turn_fx(ENC_SLOT[k], e, shift);
+        else if (ui.view == VIEW_FLOW)
+            turn_flow(ENC_SLOT[k], e, shift);
         else if (ui.view == VIEW_MOD)
             turn_mod(ENC_SLOT[k], e, shift);
         else
@@ -1236,6 +1289,17 @@ static void set_lights(void)
                 keys_lit |= 1u << key_at(WHITE_OF, s);
         }
         plat_lights(lit | 1u << B_SEQ, keys_lit, dim, keys_dim, 1);
+        return;
+    }
+    if (ui.view == VIEW_FLOW) {            /* whites 1..6: lit = on, dim = off (activo / quitado) */
+        uint32_t keys_lit = 0, keys_dim = 0;
+        int s;
+        for (s = 0; s < 6; s++) {
+            keys_dim |= 1u << key_at(WHITE_OF, s);
+            if (epk_fx_get(EPK_FX_ON_MAREA + s) > 0.5f)
+                keys_lit |= 1u << key_at(WHITE_OF, s);
+        }
+        plat_lights(lit, keys_lit, dim, keys_dim, 1);
         return;
     }
     plat_lights(lit, ui.keys, dim, 0, 1);
@@ -1576,6 +1640,64 @@ static void draw_mod(void)                         /* the four sources, moving, 
     }
 }
 
+/* FLOW: the chain as it runs, each block lit when on (la cadena tal como corre) */
+static void flow_box(int32_t x, int32_t y, int32_t w, int num, const char *name, const char *sub, int on)
+{
+    char n[2] = {(char)('0' + num), 0};
+    cv_rect(x, y, w, 34, C_PANEL);
+    cv_rect(x, y, 3, 34, on ? C_FX : C_RULE);
+    if (num)
+        cv_text(x + 7, y + 3, &FONT_XS, n, on ? C_SOLO : C_RULE);
+    cv_text(x + (num ? 17 : 7), y + 3, &FONT_XS, name, on ? C_TEXT : C_RULE);
+    cv_text(x + 7, y + 19, &FONT_XS, on ? sub : "QUITADO", on ? C_LABEL : C_MUTE);
+}
+static void flow_arrow(int32_t x0, int32_t x1, int32_t y, uint16_t c)   /* ---> */
+{
+    cv_rect(x0, y, x1 - x0, 1, c);
+    cv_rect(x1 - 3, y - 2, 1, 5, c);
+    cv_rect(x1 - 2, y - 1, 1, 3, c);
+}
+static void draw_flow(void)
+{
+    char v[16], w[24];
+    const int on[6] = {epk_fx_get(EPK_FX_ON_MAREA) > 0.5f, epk_fx_get(EPK_FX_ON_DLY) > 0.5f,
+                       epk_fx_get(EPK_FX_ON_REV) > 0.5f, epk_fx_get(EPK_FX_ON_FLT) > 0.5f,
+                       epk_fx_get(EPK_FX_ON_COMP) > 0.5f, epk_fx_get(EPK_FX_ON_SAT) > 0.5f};
+    const int place = (int)(epk_fx_get(EPK_FX_FLT_PLACE) * (float)(EPK_PLACE_COUNT - 1) + 0.5f);
+    const int rev_first = epk_fx_get(EPK_FX_SPACE_ORDER) > 0.5f, sat_first = epk_fx_get(EPK_FX_DRIVE_ORDER) > 0.5f;
+    /* 1: the tracks and MAREA on its track (las pistas y MAREA en la suya) */
+    fx_str(EPK_FX_MAREA_TRACK, v);
+    flow_box(2, 4, 70, 0, "PISTAS", "6 MOTORES", 1);
+    flow_arrow(74, 84, 21, C_RULE);
+    flow_box(86, 4, 78, 1, "MAREA", v, on[0]);
+    flow_arrow(166, 176, 21, C_RULE);
+    cv_text(180, 8, &FONT_XS, "ENVIOS", C_LABEL);
+    cv_text(180, 22, &FONT_XS, "A Y B", C_LABEL);
+    /* 2: the space (el espacio): delay and reverb, and which feeds the other */
+    flow_box(rev_first ? 140 : 2, 48, 98, 2, "ECO", rev_first ? "RECIBE LA REV" : "MANDA A REV", on[1]);
+    flow_box(rev_first ? 2 : 140, 48, 98, 3, "REVERB", rev_first ? "MANDA AL ECO" : "RECIBE EL ECO", on[2]);
+    flow_arrow(102, 138, 65, C_FX);
+    int_str((int32_t)(epk_fx_get(EPK_FX_DLY_TO_REV) * 100.0f + 0.5f), v);
+    cv_text(120 - text_w(&FONT_XS, v) / 2, 52, &FONT_XS, v, C_LABEL);
+    /* 3: the master (el master): the filter where FLOW puts it, compressor and tape in their order, the limiter */
+    {
+        static const char *const WHERE[EPK_PLACE_COUNT] = {"EN TODO", "EN PISTAS", "EN EFECTOS"};
+        const int32_t y = 96;
+        w[0] = 0;
+        str_cat(w, FLT_TYPE_SHORT[flt_type()]);
+        flow_box(2, y, 64, 4, "FILTRO", WHERE[place], on[3]);
+        flow_arrow(66, 72, y + 17, C_RULE);
+        flow_box(72, y, 56, sat_first ? 6 : 5, sat_first ? "CINTA" : "COMP", sat_first ? "SATURA" : "BUS",
+                 on[sat_first ? 5 : 4]);
+        flow_arrow(128, 134, y + 17, C_RULE);
+        flow_box(134, y, 56, sat_first ? 5 : 6, sat_first ? "COMP" : "CINTA", sat_first ? "BUS" : "SATURA",
+                 on[sat_first ? 4 : 5]);
+        flow_arrow(190, 196, y + 17, C_RULE);
+        flow_box(196, y, 42, 0, "LIM", "SALE", 1);
+        (void)w;
+    }
+}
+
 static void draw_main(void)
 {
     cv_begin(240, 144, C_BG);
@@ -1587,6 +1709,8 @@ static void draw_main(void)
         draw_steps();
     else if (ui.view == VIEW_FX)
         draw_fx();
+    else if (ui.view == VIEW_FLOW)
+        draw_flow();
     else if (ui.view == VIEW_MOD)
         draw_mod();
     else if (ui.view == VIEW_ORBIT)
@@ -1677,6 +1801,24 @@ static void draw_foot(void)                       /* the page tabs and the four 
                 cv_rect(m0 < m1 ? m0 : m1, 63, (m0 < m1 ? m1 - m0 : m0 - m1) + 1, 3, C_FX);
             } else if (!steps || i != 2)
                 cv_rect(cx + 4, 63, (int32_t)(val * 48.0f + 0.5f), 3, C_FX);
+        }
+        cv_blit(0, 168);
+        return;
+    }
+    if (ui.view == VIEW_FLOW) {               /* FLOW's four knobs (los cuatro knobs de FLOW) */
+        cv_text(x, 3, &FONT_XS, "FLOW", C_FX);
+        cv_text(x + 40, 3, &FONT_XS, "Blancas 1-6: activar / quitar", C_LABEL);
+        for (i = 0; i < 4; i++) {
+            const int p = FLOW_PARAM[i], steps = epk_fx_steps(p);
+            const int32_t cx = i * 60 + 2;
+            cv_rect(cx, 18, 56, 52, C_PANEL);
+            fx_str(p, v);
+            cv_text(cx + 4, 22, &FONT_XS, fx_name(p), C_LABEL);
+            cv_text(cx + 4, 36, text_w(&FONT_M, v) > 50 ? (text_w(&FONT_S, v) > 50 ? &FONT_XS : &FONT_S) : &FONT_M, v,
+                    C_TEXT);
+            cv_rect(cx + 4, 63, 48, 3, C_RULE);
+            if (!steps)
+                cv_rect(cx + 4, 63, (int32_t)(epk_fx_get(p) * 48.0f + 0.5f), 3, C_FX);
         }
         cv_blit(0, 168);
         return;
@@ -1878,6 +2020,8 @@ int app_expect(const char *what, int *got)
         *got = epk_random_key_locked();
     else if (!strcmp(what, "key"))             /* 0 = C .. 11 = B */
         *got = epk_key();
+    else if (!strncmp(what, "on", 2) && what[2] >= '1' && what[2] <= '6' && !what[3])   /* FLOW block onN */
+        *got = epk_fx_get(EPK_FX_ON_MAREA + what[2] - '1') > 0.5f;
     else if (!strcmp(what, "evohold"))
         *got = epk_evolve_held();
     else if (!strcmp(what, "saves"))           /* saves done (guardados) */

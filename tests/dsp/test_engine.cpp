@@ -1151,6 +1151,109 @@ int main() {
         std::printf("track LFO: sine %.2f/%.2f, drift %.2f..%.2f\n", q1, q3, lo, hi);
     }
 
+    // 27. FLOW: a block off is not heard (and not computed); the filter's place; which of delay and reverb feeds the
+    //     other; compressor and tape in either order; MAREA off sounds as no MAREA
+    {
+        auto run = [&](float sec, double *energy) {                  // render, energy of the last half (energía)
+            const long total = (long)(sec * SR);
+            double e = 0.0;
+            for (long d = 0; d < total; d += 256) {
+                epk_render(l, r, 256);
+                if (d > total / 2) for (int i = 0; i < 256; i++) e += (double)l[i] * l[i] + (double)r[i] * r[i];
+            }
+            if (energy) *energy = e;
+        };
+        auto fresh = [&]() {
+            epk_init(SR);
+            epk_pattern_select(0, 3);
+            epk_render(l, r, 256);
+            for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f); }
+            epk_play(1);
+        };
+        // delay and reverb off: no return at all (sin retorno)
+        fresh();
+        for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_SEND_A, 0.8f); epk_param_set(t, EPK_P_SEND_B, 0.8f); }
+        run(1.0f, nullptr);
+        epk_fx_meter();
+        run(0.5f, nullptr);
+        const float with_fx = epk_fx_meter();
+        epk_fx_set(EPK_FX_ON_DLY, 0.0f);
+        epk_fx_set(EPK_FX_ON_REV, 0.0f);
+        run(0.1f, nullptr);
+        epk_fx_meter();
+        run(0.5f, nullptr);
+        const float without = epk_fx_meter();
+        CHECK(with_fx > 0.01f && without == 0.0f, "ECO and REVERB off: return %.4f (on: %.4f)", without, with_fx);
+        epk_fx_set(EPK_FX_ON_DLY, 1.0f);
+        run(0.5f, nullptr);
+        epk_fx_meter();
+        run(0.5f, nullptr);
+        CHECK(epk_fx_meter() > 0.01f, "ECO back on: it returns again");
+        // the filter's place (dónde va el filtro): a closed low-pass on everything is darker than on the returns only
+        double e_all, e_fx, e_dry;
+        fresh();
+        epk_fx_set(EPK_FX_FLT_TYPE, (float)EPK_FLT_LP / (EPK_FLT_COUNT - 1));
+        epk_fx_set(EPK_FX_FLT, 0.05f);
+        run(2.0f, &e_all);
+        fresh();
+        epk_fx_set(EPK_FX_FLT_TYPE, (float)EPK_FLT_LP / (EPK_FLT_COUNT - 1));
+        epk_fx_set(EPK_FX_FLT, 0.05f);
+        epk_fx_set(EPK_FX_FLT_PLACE, 1.0f);                         // on the returns only (en efectos)
+        run(2.0f, &e_fx);
+        fresh();
+        epk_fx_set(EPK_FX_FLT_TYPE, (float)EPK_FLT_LP / (EPK_FLT_COUNT - 1));
+        epk_fx_set(EPK_FX_FLT, 0.05f);
+        epk_fx_set(EPK_FX_FLT_PLACE, 0.5f);                         // on the tracks (seco), the returns off
+        epk_fx_set(EPK_FX_ON_DLY, 0.0f);
+        epk_fx_set(EPK_FX_ON_REV, 0.0f);
+        run(2.0f, &e_dry);
+        CHECK(e_fx > 2.0 * e_all, "filter on the returns: the tracks pass open (%.1f vs %.1f on everything)", e_fx, e_all);
+        CHECK(e_dry < 1.6 * e_all && e_dry > 0.3 * e_all, "filter on the tracks with no returns ~ on everything (%.2f)",
+              e_dry / e_all);
+        // the space's order (orden del espacio): only bus B fed, reverb return at 0, cross at 1: the delay sounds
+        // only when the reverb feeds it
+        double e_dr, e_rd;
+        for (int order = 0; order < 2; order++) {
+            fresh();
+            for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_SEND_A, 0.0f); epk_param_set(t, EPK_P_SEND_B, 0.9f);
+                                                   epk_param_set(t, EPK_P_LEVEL, 0.0f); }
+            epk_fx_set(EPK_FX_REV_LEVEL, 0.0f);
+            epk_fx_set(EPK_FX_DLY_TO_REV, 1.0f);
+            epk_fx_set(EPK_FX_SPACE_ORDER, (float)order);
+            run(2.0f, order ? &e_rd : &e_dr);
+        }
+        CHECK(e_dr < 1e-6 && e_rd > 1e-3, "REVERB > ECO feeds the delay (%.6f) and ECO > REVERB does not (%.6f)", e_rd, e_dr);
+        // drive order: different (distinto) with both on, the same with the compressor off
+        double e_cs, e_sc;
+        for (int order = 0; order < 2; order++) {
+            fresh();
+            epk_fx_set(EPK_FX_COMP, 0.9f);
+            epk_fx_set(EPK_FX_SAT, 0.9f);
+            epk_fx_set(EPK_FX_DRIVE_ORDER, (float)order);
+            run(1.5f, order ? &e_sc : &e_cs);
+        }
+        CHECK(std::fabs(e_cs - e_sc) > 0.01 * e_cs, "COMP>SAT and SAT>COMP sound the same (%.2f / %.2f)", e_cs, e_sc);
+        // MAREA off sounds as no MAREA at all (track 3 sending nothing, so the tails match)
+        static float ref[22050];
+        fresh();
+        for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_SEND_A, 0.0f); epk_param_set(t, EPK_P_SEND_B, 0.0f); }
+        epk_fx_set(EPK_FX_MAREA_TRACK, 0.0f);
+        run(1.0f, nullptr);
+        for (int k = 0; k < 22050; k += 256) { epk_render(l, r, 256); for (int i = 0; i < 256 && k + i < 22050; i++) ref[k + i] = l[i]; }
+        fresh();
+        for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_SEND_A, 0.0f); epk_param_set(t, EPK_P_SEND_B, 0.0f); }
+        epk_fx_set(EPK_FX_ON_MAREA, 0.0f);
+        run(1.0f, nullptr);
+        float worst = 0.0f;
+        for (int k = 0; k < 22050; k += 256) {
+            epk_render(l, r, 256);
+            for (int i = 0; i < 256 && k + i < 22050; i++) worst = std::fmax(worst, std::fabs(l[i] - ref[k + i]));
+        }
+        CHECK(worst < 1e-3f, "MAREA off differs from no MAREA by %.5f", worst);
+        std::printf("FLOW: returns %.3f -> %.3f off; filter on returns x%.1f; REV>ECO %.4f; MAREA off diff %.6f\n", with_fx,
+                    without, e_fx / e_all, e_rd, worst);
+    }
+
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {

@@ -9,7 +9,7 @@ expect pattern 1
 # SAVE: the PATTERNS view (patrones); stopped, a white key changes at once (pattern 4 ORBITA = key 6)
 tap SAVE
 wait 30
-expect view 4
+expect view 5
 key 6 down
 wait 30
 key 6 up
@@ -99,10 +99,41 @@ expect senda3 75
 expect view 2
 wait 1200
 shot fx2.png
-# HOME again: the MOD view (modulación): SELECT the source, K3 the destination, HOME+K3 the second one
 tap HOME
 wait 30
 expect view 3
+expect on2 1
+key 2 down
+wait 30
+key 2 up
+wait 30
+expect on2 0
+key 7 down
+wait 30
+key 7 up
+wait 30
+expect on5 0
+turn K2 1
+wait 30
+tap PLAY
+wait 1500
+shot flow.png
+tap PLAY
+wait 30
+key 2 down
+wait 30
+key 2 up
+key 7 down
+wait 30
+key 7 up
+turn K2 -1
+wait 30
+expect on2 1
+expect on5 1
+# HOME again: the MOD view (modulación): SELECT the source, K3 the destination, HOME+K3 the second one
+tap HOME
+wait 30
+expect view 4
 turn SELECT 2
 wait 30
 expect modpage 2
@@ -116,7 +147,7 @@ release HOME
 wait 30
 expect mod3_4 9
 expect mod3_5 60
-expect view 3
+expect view 4
 tap PLAY
 wait 1200
 shot mod.png
@@ -177,7 +208,7 @@ tap FX
 wait 30
 tap SEQ
 wait 30
-expect view 5
+expect view 6
 expect page 2
 key w5 down
 wait 30
@@ -228,7 +259,7 @@ expect undo 0
 # banks (bancos): black key = bank, white key = pattern. Bank C, pattern 5
 tap SAVE
 wait 30
-expect view 4
+expect view 5
 key b2 down
 wait 30
 key b2 up
@@ -373,6 +404,8 @@ tap HOME
 wait 30
 tap HOME
 wait 30
+tap HOME
+wait 30
 expect view 0
 tap ENV
 wait 30
@@ -391,7 +424,7 @@ shot evolucion.png
 # after 3 s it is forgotten; two presses save
 tap SAVE
 wait 30
-expect view 4
+expect view 5
 key 3 down
 wait 30
 key 3 up

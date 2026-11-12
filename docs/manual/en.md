@@ -19,7 +19,7 @@ techno, hypnotic techno, ambient and drone.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | select track 1-6 | mute the track |
 | (in the MIX view) | mute the track | solo the track |
-| HOME | tap: ORBIT → MIX → EFFECTS → MOD [ÓRBITA / MEZCLA / EFECTOS / MOD] | the shift key |
+| HOME | tap: ORBIT → MIX → EFFECTS → FLOW → MOD [ÓRBITA / MEZCLA / EFECTOS / FLOW / MOD] | the shift key |
 | PLAY | start / stop | **freeze the evolution** of every track |
 | SELECT | change page | **tempo** (1 BPM per click) |
 | PRESETS | track level | the track's send to the delay |
@@ -206,6 +206,22 @@ what its manual describes, but the algorithm is our own and does not sound the s
 - Modulation destinations: MAR VELOC, MAR MULTI, MAR RIZO, MAR DESFASE, MAR GRAVEDAD and MAR MEZCLA.
 - By default it sits on track 3, fully wet (mix 100), travelling forwards at about 3 s a cycle, full width.
 
+### FLOW: the effects chain (HOME to FLOW)
+The screen draws the chain as it runs: the tracks, MAREA on its track, the sends, the delay and the reverb, and the
+master (filter, compressor, tape and limiter). Each block has a number.
+- **White keys 1-6:** turn a block on or off: 1 MAREA, 2 delay [ECO], 3 REVERB, 4 filter [FILTRO], 5 COMP, 6 tape
+  [CINTA] (saturation). Lit keys are the blocks that are on. A block turned off fades out in ~10 ms (no click) and is
+  no longer computed: on the FM-1 that frees CPU (*pending on the device*). Back on, the delay or reverb start empty.
+- **K1 filter at [FILTRO EN]:** where the master filter sits: all [TODO] (as before), dry [SECO] (the tracks only:
+  echoes and reverb ring open while you close it, the classic dub move) or effects [EFECTOS] (the returns only).
+- **K2 space [ESPACIO]:** ECO>REV (the delay feeds the reverb, as before) or REV>ECO (the reverb feeds the delay:
+  echoes of a cloud).
+- **K3 drive:** COMP>SAT or SAT>COMP. Tape before the compressor sounds more held; after it, dirtier.
+- **K4 cross [CRUCE]:** how much of the first in SPACE goes into the second. It is the same knob as A REVERB on the
+  ECO 2 page; in FLOW it works either way.
+- The final limiter cannot be removed. FLOW belongs to the project, like the effects.
+- There is no free reordering: only these fixed options, so no combination breaks the sound.
+
 ### Dub gestures (REC)
 - **Hold REC:** throw. The selected track goes to the delay at full while you hold it, even with its send at 0.
   Keep REC held and press other tracks to throw them too. On release, everything goes back to its send.
@@ -226,6 +242,6 @@ the screen shows all four moving and where they go.
 - By default LFO 1 moves the delay's tone (+25 %, 8 bars).
 
 ## 11. To come
-Next: the FLOW view (effects chain), scenes. Then: more engines, saving the project (mix,
+Next: scenes (with bit/sample-rate reduction and stutter). Then: more engines, saving the project (mix,
 effects, tempo), names, erasing a saved pattern, clock and MIDI (phase 6), testing on the device (7, only when
 decided).

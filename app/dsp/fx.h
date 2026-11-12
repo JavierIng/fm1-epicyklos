@@ -209,8 +209,10 @@ struct Fx {
     float acc_a, acc_b;
     float prev_l, prev_r, cur_l, cur_r;
     float duck_env, duck_gain;
+    float dly_g, rev_g;                           // FLOW: on 1 .. off 0, gliding ~10 ms (sin clics)
 
     void init() {
+        dly_g = rev_g = 1.0f;
         delay.init(); plate.init(); half = 0; freeze = 0;
         acc_a = acc_b = 0.0f; prev_l = prev_r = cur_l = cur_r = 0.0f; duck_env = 0.0f; duck_gain = 1.0f;
     }
@@ -224,18 +226,32 @@ struct Fx {
         const float duck_rel = fm_expf(-1.0f / (0.15f * sr));            // ~150 ms back up (vuelve en ~150 ms)
         const float dly_level = fx[EPK_FX_DLY_LEVEL] * fx[EPK_FX_DLY_LEVEL] * 1.5f;
         const float rev_level = fx[EPK_FX_REV_LEVEL] * fx[EPK_FX_REV_LEVEL] * 1.5f;
-        const float to_rev = fx[EPK_FX_DLY_TO_REV];
+        const float to_rev = fx[EPK_FX_DLY_TO_REV];                     // the cross (cruce), either way
+        const int rev_first = fx[EPK_FX_SPACE_ORDER] > 0.5f;
+        const float dly_t = fx[EPK_FX_ON_DLY] > 0.5f ? 1.0f : 0.0f, rev_t = fx[EPK_FX_ON_REV] > 0.5f ? 1.0f : 0.0f;
+        const float glide = 1.0f / (0.010f * hsr);
+        if (dly_t > 0.0f && dly_g <= 0.0f) delay.clear();                // back on: from empty (vuelve vacío)
+        if (rev_t > 0.0f && rev_g <= 0.0f) plate.clear();
         for (uint32_t i = 0; i < n; i++) {
             acc_a += a[i];
             acc_b += b[i];
             if (half) {
-                float dl, dr, vl, vr;
-                delay.tick(acc_a * 0.5f, fx, bpm, hsr, freeze, dl, dr);
-                plate.tick(acc_b * 0.5f + (dl + dr) * 0.5f * to_rev, fx, hsr, vl, vr);
+                float dl = 0.0f, dr = 0.0f, vl = 0.0f, vr = 0.0f;
+                dly_g = dly_g < dly_t ? fm_minf(dly_g + glide, dly_t) : fm_maxf(dly_g - glide, dly_t);
+                rev_g = rev_g < rev_t ? fm_minf(rev_g + glide, rev_t) : fm_maxf(rev_g - glide, rev_t);
+                const int run_d = dly_g > 0.0f, run_r = rev_g > 0.0f;     // off: not computed (no se calcula)
+                if (!rev_first) {
+                    if (run_d) delay.tick(acc_a * 0.5f * dly_g, fx, bpm, hsr, freeze, dl, dr);
+                    if (run_r) plate.tick((acc_b * 0.5f + (dl + dr) * 0.5f * to_rev * dly_g) * rev_g, fx, hsr, vl, vr);
+                } else {                                                 // REVERB > ECO: the plate into the delay
+                    if (run_r) plate.tick(acc_b * 0.5f * rev_g, fx, hsr, vl, vr);
+                    if (run_d)
+                        delay.tick((acc_a * 0.5f + (vl + vr) * 0.5f * to_rev * rev_g) * dly_g, fx, bpm, hsr, freeze, dl, dr);
+                }
                 acc_a = acc_b = 0.0f;
                 prev_l = cur_l; prev_r = cur_r;
-                cur_l = dl * dly_level + vl * rev_level;
-                cur_r = dr * dly_level + vr * rev_level;
+                cur_l = dl * dly_level * dly_g + vl * rev_level * rev_g;
+                cur_r = dr * dly_level * dly_g + vr * rev_level * rev_g;
                 l[i] += (prev_l + cur_l) * 0.5f * duck_gain;            // halfway to the new value (a medio camino)
                 r[i] += (prev_r + cur_r) * 0.5f * duck_gain;
             } else {

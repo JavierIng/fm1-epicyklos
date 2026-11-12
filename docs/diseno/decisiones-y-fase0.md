@@ -266,3 +266,12 @@
 - De fábrica (banco A): el acorde respira hacia el eco (seno, 4 compases, +30) y el bajo hace DERIVA de tono (+25).
 - Validación: CANT 0 no mueve nada en 2 compases; seno de 1 compás a TONO +100 da 1,00 a 1/4 y 0,00 a 3/4, y −100 lo invierte; GOLPES y ROTAR dan ≥ 4 ritmos distintos en 2 compases; DERIVA se queda en ±1, recorre más de 0,3 y no repite entre ciclos; un objeto de versión 2 se convierte con sus valores y el LFO a 0.
 - **Ableton Link (pregunta de Javier):** no va por Bluetooth (Link es IP). El chip del FM-1 tiene Wi-Fi y fm1-base lo soporta, pero el modo Wi-Fi excluye Bluetooth y audio USB y deja menos RAM; portar Link (GPL-2.0+, compatible) sería trabajo propio. Para Ableton: audio USB multicanal (hasta 10 canales en fm1-base) + MIDI USB para el clock, en la fase 6. Bluetooth audio (A2DP) solo va a auriculares/altavoces, con 150-200 ms: no sirve para un DAW.
+
+## Vista FLOW (2026-11-12)
+
+- Lo acordado tras "no se nota el cambio… un menú flow para cambiar el orden de los fx… activar o desactivar": la cadena dibujada, activar/quitar por bloque y algunas opciones de orden fijas, **sin orden libre**.
+- Vista nueva en el ciclo de HOME: ÓRBITA → MEZCLA → EFECTOS → **FLOW** → MOD. Teclas blancas 1-6 = MAREA, ECO, REVERB, FILTRO, COMP, CINTA (luz = activo). K1 FILTRO EN (TODO / SECO / EFECTOS), K2 ESPACIO (ECO>REV / REV>ECO), K3 DRIVE (COMP>SAT / SAT>COMP), K4 CRUCE (el antiguo A REVERB, ahora en el sentido que diga ESPACIO).
+- Quitar = fundido de ~10 ms y después no se calcula (en el FM-1, CPU libre: sin medir). Eco, reverb y filtro vuelven vacíos. El limitador no se quita.
+- Supuesto: con el filtro en SECO, el seguidor y el duck siguen viendo las pistas sin filtrar (el bombo de la pista 1 se toma antes del filtro).
+- Cambiar FILTRO EN mientras suena puede dar un pequeño salto (no hay fundido entre posiciones).
+- Validación: con ECO y REVERB quitados el retorno es 0,000 (activos 0,656) y vuelve al activarlos; LP cerrado en EFECTOS deja pasar las pistas (x7,9 de energía frente a TODO); en SECO sin retornos ≈ TODO; REV>ECO alimenta el eco y ECO>REV no; COMP>SAT y SAT>COMP suenan distinto; MAREA quitada suena idéntica a sin MAREA (diferencia 0,000000). Todo lo anterior intacto con los valores de inicio.

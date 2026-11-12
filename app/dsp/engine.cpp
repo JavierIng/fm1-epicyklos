@@ -120,6 +120,7 @@ struct Engine {
     Mod mod;
     Marea marea;
     int marea_on;                          // the track it was on last block (para vaciarla al moverla)
+    float marea_g;                         // FLOW: MAREA on 1 .. off 0 (sin clics)
     float ins_l[kBlock], ins_r[kBlock];    // the insert's stereo out (salida estéreo del inserto)
     float fx_live[EPK_FX_COUNT];           // the effects with the modulation on
     int32_t sixteenths;                    // since play (desde PLAY), for the LFOs
@@ -719,17 +720,26 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const int is_kick = &t == &g.tr[0];
     const float gl = fm_cosf(pan * 1.5707963f), gr = fm_sinf(pan * 1.5707963f);   // equal power (potencia constante)
     // MAREA on this track: the voice goes through it and comes out stereo; PAN works as a balance (balance)
-    const int ins = (int)(g.fx_live[EPK_FX_MAREA_TRACK] * 6.0f + 0.5f) == (int)(&t - g.tr) + 1;
-    if (ins) g.marea.process(g.buf, g.ins_l, g.ins_r, n, g.fx_live, g.bpm, g.sr);
+    // FLOW: MAREA off glides out (~10 ms) and then is not computed (no se calcula)
+    const float marea_t = g.fx_live[EPK_FX_ON_MAREA] > 0.5f ? 1.0f : 0.0f, marea_step = 1.0f / (0.010f * g.sr);
+    const int ins = (int)(g.fx_live[EPK_FX_MAREA_TRACK] * 6.0f + 0.5f) == (int)(&t - g.tr) + 1 &&
+                    (marea_t > 0.0f || g.marea_g > 0.0f);
+    if (ins) {
+        if (marea_t > 0.0f && g.marea_g <= 0.0f) g.marea.clear();    // back on: from empty (vuelve vacía)
+        g.marea.process(g.buf, g.ins_l, g.ins_r, n, g.fx_live, g.bpm, g.sr);
+    }
     float peak = t.meter;
     for (uint32_t i = 0; i < n; i++) {
         t.gain += (target - t.gain) * 0.003f;                        // ~8 ms: mutes do not click
         t.lvl_s += (lvl - t.lvl_s) * 0.003f;                         // a modulated level glides (sin escalones)
-        const float s = (ins ? (g.ins_l[i] + g.ins_r[i]) * 0.5f : g.buf[i]) * t.lvl_s * t.gain;
+        float s = g.buf[i] * t.lvl_s * t.gain;
         if (ins) {
-            const float k = t.lvl_s * t.gain;
-            l[i] += g.ins_l[i] * k * gl;                             // the same law as a mono track
-            r[i] += g.ins_r[i] * k * gr;
+            const float k = t.lvl_s * t.gain, mg = g.marea_g, dry = g.buf[i] * (1.0f - mg);
+            g.marea_g = mg < marea_t ? fm_minf(mg + marea_step, marea_t) : fm_maxf(mg - marea_step, marea_t);
+            const float wl = g.ins_l[i] * mg + dry, wr = g.ins_r[i] * mg + dry;
+            s = (wl + wr) * 0.5f * k;
+            l[i] += wl * k * gl;                                     // the same law as a mono track
+            r[i] += wr * k * gr;
         } else {
             l[i] += s * gl;
             r[i] += s * gr;
@@ -768,13 +778,17 @@ void epk_init(float sample_rate) {
                                             // MAREA on track 3, to be heard: all wet, ~3 s a cycle forwards, two
                                             // cycles, some ripple and pull, narrowish bands, full width
                                             3.0f / 6.0f, 1.0f, 0.75f, 0.0f, 0.25f, 0.35f, 0.0f, 1.0f, 0.35f,
-                                            0.22f, 0.93f, 0.60f, 1.0f};
+                                            0.22f, 0.93f, 0.60f, 1.0f,
+                                            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,   // FLOW: all on (todo activo)
+                                            0.0f, 0.0f, 0.0f};                  // filter on all, delay > reverb,
+                                                                                // compressor > tape
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();
     g.mod.init();
     g.marea.init();
     g.marea_on = 0;
+    g.marea_g = 1.0f;
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx_live[i] = g.fx[i];
     g.meter_fx = 0.0f;
     g.sr = sample_rate;
@@ -893,6 +907,7 @@ void apply_mod(uint32_t n) {
 
 void epk_render(float *left, float *right, uint32_t frames) {
     drain();
+    const int place = clampi((int)(g.fx[EPK_FX_FLT_PLACE] * (EPK_PLACE_COUNT - 1) + 0.5f), 0, EPK_PLACE_COUNT - 1);
     const int solo = any_solo();
     for (uint32_t i = 0; i < frames; i++) left[i] = right[i] = 0.0f;
     // the bar clock (reloj de compás) in sixteenths: a queued pattern comes in on the sample its bar starts
@@ -917,6 +932,8 @@ void epk_render(float *left, float *right, uint32_t frames) {
         apply_mod(n);
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
         g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx_live, g.bpm, g.sr);
+        if (place == EPK_PLACE_DRY) g.master.filter(left + done, right + done, n, g.fx_live, g.sr);   // FLOW
+        else if (place == EPK_PLACE_FX) g.master.filter(g.fx_l, g.fx_r, n, g.fx_live, g.sr);
         float fx_peak = g.meter_fx;
         for (uint32_t i = 0; i < n; i++) {                            // the returns (retornos)
             left[done + i] += g.fx_l[i];
@@ -930,7 +947,8 @@ void epk_render(float *left, float *right, uint32_t frames) {
             if (n == until) g.bar_fire = 1;
         }
     }
-    g.master.process(left, right, frames, g.fx_live, g.sr);              // filter, compressor, tape (filtro, comp, cinta)
+    if (place == EPK_PLACE_ALL) g.master.filter(left, right, frames, g.fx_live, g.sr);   // on everything (en todo)
+    g.master.dynamics(left, right, frames, g.fx_live, g.sr);         // compressor and tape (comp y cinta)
     float peak = g.meter_master;
     for (uint32_t i = 0; i < frames; i++) {                           // the master (salida): a soft clip
         left[i] = fm_tanhf(left[i] * 0.9f);
@@ -950,7 +968,9 @@ void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COU
 float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
 int epk_fx_steps(int param) {
     return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT :
-           param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : param == EPK_FX_MAREA_SYNC ? 2 : 0;
+           param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : param == EPK_FX_MAREA_SYNC ? 2 :
+           (param >= EPK_FX_ON_MAREA && param <= EPK_FX_ON_SAT) ? 2 : param == EPK_FX_FLT_PLACE ? EPK_PLACE_COUNT :
+           param == EPK_FX_SPACE_ORDER || param == EPK_FX_DRIVE_ORDER ? 2 : 0;
 }
 float epk_marea_band(int b) { return g.marea.gain[clampi(b, 0, kMareaBands - 1)]; }
 float epk_marea_x(float hz) { return clamp01(fm_log2f(fm_maxf(hz, 1.0f) / kMareaLow) / kMareaOctaves); }

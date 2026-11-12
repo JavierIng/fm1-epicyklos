@@ -18,7 +18,7 @@ para dub techno, techno hipnótico, ambient y drone.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | elegir pista 1-6 | mute de la pista |
 | (en vista MEZCLA) | mute de la pista | solo de la pista |
-| HOME | toque: ÓRBITA → MEZCLA → EFECTOS → MOD | es la tecla de función |
+| HOME | toque: ÓRBITA → MEZCLA → EFECTOS → FLOW → MOD | es la tecla de función |
 | PLAY | arrancar / parar | **congelar la evolución** de todas las pistas |
 | SELECT | cambiar de página | **tempo** (1 BPM por clic) |
 | PRESETS | nivel de la pista | envío de la pista al eco |
@@ -199,6 +199,23 @@ controles hacen lo que su manual describe, pero el algoritmo es propio y no suen
 - Destinos de modulación: MAR VELOC, MAR MULTI, MAR RIZO, MAR DESFASE, MAR GRAVEDAD y MAR MEZCLA.
 - De inicio está en la pista 3, toda mojada (MEZCLA 100), avanzando a unos 3 s por vuelta y con ANCHO a tope.
 
+### FLOW: la cadena de efectos (HOME hasta FLOW)
+La pantalla dibuja la cadena tal como corre: las pistas, MAREA en su pista, los envíos, el eco y la reverb, y el
+master (filtro, compresor, cinta y limitador). Cada bloque tiene un número.
+- **Teclas blancas 1-6:** activan o quitan un bloque: 1 MAREA, 2 ECO, 3 REVERB, 4 FILTRO, 5 COMP, 6 CINTA
+  (saturación). Las teclas encendidas son los bloques activos. Al quitar uno, se funde en ~10 ms (sin clic) y deja
+  de calcularse: en el FM-1 eso libera CPU (*pendiente en el dispositivo*). Al volver, el eco o la reverb empiezan
+  vacíos.
+- **K1 FILTRO EN:** dónde va el filtro del master: TODO (como hasta ahora), SECO (solo las pistas: los ecos y la
+  reverb siguen abiertos mientras cierras, el gesto clásico de dub) o EFECTOS (solo los retornos).
+- **K2 ESPACIO:** ECO>REV (el eco alimenta la reverb, como hasta ahora) o REV>ECO (la reverb alimenta el eco: ecos
+  de una nube).
+- **K3 DRIVE:** COMP>SAT o SAT>COMP. La cinta antes del compresor suena más contenida; después, más sucia.
+- **K4 CRUCE:** cuánto del primero del ESPACIO entra en el segundo. Es el mismo knob que A REVERB en la página
+  ECO 2; en FLOW vale para los dos sentidos.
+- El limitador del final no se puede quitar. FLOW es del proyecto, como los efectos.
+- No hay orden libre: solo estas opciones fijas, para que no haya combinaciones que rompan el sonido.
+
 ### Gestos de dub (REC)
 - **Mantener REC:** throw. La pista elegida va al eco a tope mientras lo mantienes, aunque su envío esté a 0.
   Sin soltar REC, pulsa otras pistas para lanzarlas también. Al soltar, todo vuelve a su envío.
@@ -219,6 +236,6 @@ muestra las cuatro moviéndose y a dónde van.
 - De inicio, el LFO 1 mueve el tono del eco (+25 %, 8 compases).
 
 ## 11. Pendiente
-Siguiente: la vista FLOW (cadena de efectos), escenas. Después: más motores, guardado del
+Siguiente: escenas (con REDUCCIÓN de bits/frecuencia y STUTTER). Después: más motores, guardado del
 proyecto (mezcla, efectos, tempo), nombres, borrar un patrón guardado, reloj y MIDI (fase 6), prueba en el aparato
 (7, solo cuando se decida).

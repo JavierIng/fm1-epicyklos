@@ -104,8 +104,17 @@ enum {
     EPK_FX_MAREA_TO,      /* .. to; outside it the bands keep their level (hasta) */
     EPK_FX_MAREA_RESO,    /* wide .. narrow bands (bandas anchas .. finas) */
     EPK_FX_MAREA_WIDTH,   /* the bands alternate left / right; 0 mono (ancho estéreo) */
+    /* FLOW (flujo): each block on or off (1 / 0; off it is not computed: less CPU), and three fixed orders */
+    EPK_FX_ON_MAREA, EPK_FX_ON_DLY, EPK_FX_ON_REV, EPK_FX_ON_FLT, EPK_FX_ON_COMP, EPK_FX_ON_SAT,
+    EPK_FX_FLT_PLACE,     /* EPK_PLACE_*: where the master filter sits (dónde va el filtro) */
+    EPK_FX_SPACE_ORDER,   /* EPK_SPACE_*: which of delay and reverb feeds the other, by CROSS (DLY_TO_REV) */
+    EPK_FX_DRIVE_ORDER,   /* EPK_DRIVE_*: compressor then tape, or tape then compressor */
     EPK_FX_COUNT
 };
+/* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */
+enum { EPK_PLACE_ALL, EPK_PLACE_DRY, EPK_PLACE_FX, EPK_PLACE_COUNT };
+enum { EPK_SPACE_DLY_REV, EPK_SPACE_REV_DLY };   /* ECO > REVERB / REVERB > ECO */
+enum { EPK_DRIVE_COMP_SAT, EPK_DRIVE_SAT_COMP };  /* COMP > SATURA / SATURA > COMP */
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
 
 /* a step's chance (probabilidad) and condition (condición): N:M plays on the Nth of every M cycles */
