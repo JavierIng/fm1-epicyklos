@@ -312,3 +312,10 @@
 - Memoria medida en CI: pool **300.488 B de 344.064 → 42,5 KB libres** (antes 26). Imagen 242.712 B.
 - Pruebas: predelay arriba 500 ms; shimmer sube el brillo de la cola (161 → 221 Hz de cruces); shimmer al máximo con caída al máximo 12 s sin valores inválidos ni picos > 1; ANCHO 0 = retornos mono; congelada y libre como antes. No escuchado.
 - Orden acordado: preparar la prueba en el aparato (medidor de CPU, procedimiento de instalación y vuelta al 801) antes de MACRO; MACRO irá en la pista 4 con unos pocos modelos de Plaits (MIT), medidos en RAM y CPU.
+
+## Reverb propia de la NUBE (2026-11-12)
+- Javier: "estaría bien que la nube tenga también reverb". Clouds tiene una reverb detrás de los granos; la NUBE sustituía a la placa y sonaba seca.
+- Segunda placa pequeña (la misma clase `Plate`, ahora con su buffer como parámetro) al 0,4 del tamaño de Dattorro, sin predelay ni shimmer: 7.804 muestras (15,6 KB, buffer propio `g_nverb_buf`). Ajustes por bloque: caída propia, tono 0,55, movimiento 0,35, difusión 1. Se suma a la salida de la nube (cantidad al cuadrado × 1,6). En REVERB 3, con TIPO = NUBE, K1 REVERB (inicio 0,45) y K2 CAIDA (0,65).
+- Memoria: pool 316.560 B de 344.064 → **27,5 KB libres** (antes 42,5). Es memoria que ya no queda para MACRO: si Plaits no cabe, esta reverb se puede reducir o quitar.
+- Pruebas: con densidad al centro, la cola de la nube sin reverb es 0 y con reverb 0,25 a los 1,2 s. Se corrigió la prueba del predelay (esperaba 0,5 s tras parar, lo mismo que el predelay máximo, y medía la cola de un golpe anterior).
+- Versión de prueba 0.1.1 compilada (Actions → Site, privada).

@@ -189,7 +189,10 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
     ve FREEZE.
   - En FLOW el bloque 3 se llama NUBE cuando está puesta.
   - **Shimmer en NUBE:** AFINA +12 y REPITE alto. Los granos vuelven a entrar una octava más arriba.
+  - **Reverb de la nube** (en REVERB 3, como en Clouds): los granos pasan por una placa pequeña propia. **REVERB**
+    es cuánta (viene en 45; 0 = la nube seca) y **CAIDA** cuánto dura. Con HOME + REC también se congela.
 - **REVERB 3:**
+  - En NUBE, los dos primeros knobs son **REVERB** y **CAIDA** de la nube (ver arriba).
   - **SHIMMER** (solo en PLACA): la cola sube de tono y vuelve a entrar en la reverb, así que va subiendo y
     brillando. 0 = NO. **INTERVALO:** +12 (octava), +7 (quinta), +19 (octava y quinta), +24 (dos octavas) o −12 (una
     octava abajo: se oscurece). Con la reverb congelada (HOME + REC) el shimmer se para.

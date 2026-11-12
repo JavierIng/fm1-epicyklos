@@ -191,7 +191,10 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
     at the top.
   - In FLOW, block 3 is called NUBE when it is on.
   - **Shimmer in NUBE:** pitch [AFINA] +12 and feedback [REPITE] high. Grains go back in an octave up.
+  - **The cloud's reverb** (on REVERB 3, as in Clouds): the grains go through a small plate of their own.
+    **REVERB** is how much (starts at 45; 0 = a dry cloud) and **decay [CAIDA]** how long. HOME + REC freezes it too.
 - **REVERB 3:**
+  - In NUBE, the first two knobs are the cloud's **REVERB** and **decay [CAIDA]** (see above).
   - **SHIMMER** (PLACA only): the tail is pitched up and fed back into the reverb, so it keeps climbing and
     shining. 0 = off [NO]. **Interval [INTERVALO]:** +12 (octave), +7 (fifth), +19 (octave and fifth), +24 (two
     octaves) or −12 (an octave down: darker). With the reverb frozen (HOME + REC) the shimmer stops.
