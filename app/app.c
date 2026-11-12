@@ -111,8 +111,8 @@ static const char *param_name(int track, int p)
     case EPK_P_LFO_AMT: return "CANT";
     case EPK_P_LEVEL: return "NIVEL";
     case EPK_P_PAN: return "PAN";
-    case EPK_P_SEND_A: return "A ECO";
-    case EPK_P_SEND_B: return "B REVERB";
+    case EPK_P_SEND_A: return epk_param_get(track, EPK_P_SEND_PRE) > 0.5f ? "A PRE" : "A ECO";
+    case EPK_P_SEND_B: return epk_param_get(track, EPK_P_SEND_PRE) > 0.5f ? "B PRE" : "B REVERB";
     default: return SND_NAME[epk_engine(track)][snd_index(p)];
     }
 }
@@ -137,8 +137,8 @@ static const char *param_hint(int track, int p)
     case EPK_P_LFO_AMT: return "Cuanto; negativo, al reves";
     case EPK_P_LEVEL: return "Volumen de la pista";
     case EPK_P_PAN: return "Izquierda o derecha";
-    case EPK_P_SEND_A: return "Cuanto va al eco";
-    case EPK_P_SEND_B: return "Cuanto va a la reverb";
+    case EPK_P_SEND_A: return "Al eco; HOME+girar: antes/despues fader";
+    case EPK_P_SEND_B: return "A la reverb; HOME+girar: pre/post";
     default: return SND_HINT[epk_engine(track)][snd_index(p)];
     }
 }
@@ -152,9 +152,9 @@ static int slot_param(int track, int page, int slot)
 }
 
 /* ------------------------------------------------------------------ the effects' pages (páginas de EFECTOS) */
-enum { NFXPAGES = 8, FXP_MAREA = 5 };
+enum { NFXPAGES = 9, FXP_MAREA = 5 };
 static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "FILTRO", "MASTER", "MAREA", "MAREA 2",
-                                                   "MAREA 3"};
+                                                   "MAREA 3", "DIGITAL"};
 static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
     {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, EPK_FX_DUCK},
@@ -164,6 +164,7 @@ static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_MAREA_TRACK, EPK_FX_MAREA_MIX, EPK_FX_MAREA_SPEED, EPK_FX_MAREA_MULTIPLY},
     {EPK_FX_MAREA_RIPPLE, EPK_FX_MAREA_OFFSET, EPK_FX_MAREA_INVERT, EPK_FX_MAREA_GRAVITY},
     {EPK_FX_MAREA_FROM, EPK_FX_MAREA_TO, EPK_FX_MAREA_RESO, EPK_FX_MAREA_WIDTH},
+    {EPK_FX_BITS, EPK_FX_SRR, EPK_FX_STUTTER, EPK_FX_STUT_DIV},   /* DIGITAL */
 };
 static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "TONO", "DESGASTE", "A REVERB", "NIVEL",
                                                   "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK",
@@ -171,7 +172,8 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "PISTA", "MEZCLA", "VELOC", "SYNC", "MULTI", "RIZO", "DESFASE",
                                                   "INVIERTE", "GRAVEDAD", "DESDE", "HASTA", "RESO", "ANCHO",
                                                   "MAREA", "ECO", "REVERB", "FILTRO", "COMP", "SATURA",
-                                                  "FILTRO EN", "ESPACIO", "DRIVE"};
+                                                  "FILTRO EN", "ESPACIO", "DRIVE",
+                                                  "BITS", "MUESTREO", "STUTTER", "REPITE"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -185,7 +187,9 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Bandas anchas o finas", "Bandas a izquierda y derecha; 0 mono",
     "MAREA activa o quitada", "Eco activo o quitado", "Reverb activa o quitada", "Filtro activo o quitado",
     "Compresor activo o quitado", "Cinta activa o quitada",
-    "Todo, solo pistas o solo efectos", "Quien alimenta a quien (CRUCE)", "Compresor y cinta: en que orden"};
+    "Todo, solo pistas o solo efectos", "Quien alimenta a quien (CRUCE)", "Compresor y cinta: en que orden",
+    "Menos bits: mas ruido digital", "Menos muestras: aliasing", "Repite lo que sonaba al activarlo",
+    "Cuanto repite: 1/4 .. 1/32"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
@@ -354,6 +358,24 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         str_cat(b, v > 0.5f ? "REV>ECO" : "ECO>REV");
     else if (p == EPK_FX_DRIVE_ORDER)
         str_cat(b, v > 0.5f ? "SAT>COMP" : "COMP>SAT");
+    else if (p == EPK_FX_BITS) {
+        if (v < 0.001f)
+            str_cat(b, "NO");
+        else
+            int_str((int32_t)(16.0f - 12.0f * v + 0.5f), b);
+    } else if (p == EPK_FX_SRR) {
+        if (v < 0.001f)
+            str_cat(b, "NO");
+        else {
+            str_cat(b, "/");
+            int_str((int32_t)(1.0f + 31.0f * v * v + 0.5f), b + 1);
+        }
+    } else if (p == EPK_FX_STUTTER)
+        str_cat(b, v > 0.5f ? "SI" : "NO");
+    else if (p == EPK_FX_STUT_DIV) {
+        static const char *const SD[EPK_STUT_COUNT] = {"1/4", "1/8", "1/16", "1/32"};
+        str_cat(b, SD[(int)(v * (float)(EPK_STUT_COUNT - 1) + 0.5f)]);
+    }
     else if (p == EPK_FX_FLT_TYPE)
         str_cat(b, FLT_TYPE_SHORT[flt_type()]);
     else if (p == EPK_FX_MAREA_SPEED) {               /* > 2 COMP, < 0.12 Hz, QUIETA */
@@ -813,6 +835,12 @@ static void turn_param(int page, int slot, int32_t detents, int fine)
     int steps;
     if (p < 0)
         return;
+    if (fine && (p == EPK_P_SEND_A || p == EPK_P_SEND_B)) {   /* HOME + a send: before or after the fader */
+        epk_param_set(ui.track, EPK_P_SEND_PRE, detents > 0 ? 1.0f : 0.0f);
+        app_say("ENVIOS", detents > 0 ? "PRE FADER" : "POST FADER");
+        ui.dirty_main = ui.dirty_foot = 1;
+        return;
+    }
     steps = epk_param_steps(p);
     v = epk_param_get(ui.track, p);
     if (p == EPK_P_HITS) {                 /* hits: one per detent; a pattern made by hand goes back to euclid */
@@ -1831,7 +1859,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
             x = cv_text(x, 3, &FONT_XS, FX_PAGE_NAME[ui.fx_page], C_FX) + 8;
             cv_text(x, 3, &FONT_XS, FX_PAGE_NAME[next], C_RULE);
             int_str(ui.fx_page + 1, pg);
-            str_cat(pg, "/8");
+            str_cat(pg, "/9");
             cv_text(236 - text_w(&FONT_XS, pg), 3, &FONT_XS, pg, C_LABEL);
         }
         for (i = 0; i < 4; i++) {

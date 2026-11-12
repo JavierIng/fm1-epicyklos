@@ -52,6 +52,7 @@ enum {
     EPK_P_PAN,        /* pan (panorama): 0 left, 0.5 centre, 1 right */
     EPK_P_SEND_A,     /* send to the delay (envío A), after the fader */
     EPK_P_SEND_B,     /* send to the reverb (envío B), after the fader */
+    EPK_P_SEND_PRE,   /* 1: both sends before the fader (pre-fader): the level does not touch them; mute does */
     EPK_P_COUNT
 };
 
@@ -109,12 +110,18 @@ enum {
     EPK_FX_FLT_PLACE,     /* EPK_PLACE_*: where the master filter sits (dónde va el filtro) */
     EPK_FX_SPACE_ORDER,   /* EPK_SPACE_*: which of delay and reverb feeds the other, by CROSS (DLY_TO_REV) */
     EPK_FX_DRIVE_ORDER,   /* EPK_DRIVE_*: compressor then tape, or tape then compressor */
+    /* DIGITAL: at the end of the master, before the limiter (al final del master) */
+    EPK_FX_BITS,          /* 0 off, up: 16 .. 4 bits (reducción de bits) */
+    EPK_FX_SRR,           /* 0 off, up: the sample rate divided by 1 .. 32 (reducción de frecuencia) */
+    EPK_FX_STUTTER,       /* 1: repeats the last division played from the moment it is turned on (repetición) */
+    EPK_FX_STUT_DIV,      /* EPK_STUT_*: what it repeats: 1/4, 1/8, 1/16, 1/32 */
     EPK_FX_COUNT
 };
 /* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */
 enum { EPK_PLACE_ALL, EPK_PLACE_DRY, EPK_PLACE_FX, EPK_PLACE_COUNT };
 enum { EPK_SPACE_DLY_REV, EPK_SPACE_REV_DLY };   /* ECO > REVERB / REVERB > ECO */
 enum { EPK_DRIVE_COMP_SAT, EPK_DRIVE_SAT_COMP };  /* COMP > SATURA / SATURA > COMP */
+enum { EPK_STUT_4, EPK_STUT_8, EPK_STUT_16, EPK_STUT_32, EPK_STUT_COUNT };
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
 
 /* a step's chance (probabilidad) and condition (condición): N:M plays on the Nth of every M cycles */

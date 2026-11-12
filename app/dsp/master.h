@@ -174,4 +174,79 @@ struct Master {
     }
 };
 
+// ------------------------------------------------------------------ DIGITAL: reduction and stutter (reducción)
+// Bits: the signal rounded to 2^b steps; frequency: each sample held for 1..32 samples (sin filtro: aliasing a
+// propósito, como BR/SRR).
+struct Crush {
+    float hold_l, hold_r, phase;
+    void init() { hold_l = hold_r = 0.0f; phase = 1.0f; }
+    void process(float *l, float *r, uint32_t n, const float *fx) {
+        const float bits = fx[EPK_FX_BITS], srr = fx[EPK_FX_SRR];
+        if (bits < 0.001f && srr < 0.001f) { phase = 1.0f; return; }
+        const float steps = fm_exp2f(16.0f - 12.0f * bits), inv = 1.0f / steps;
+        const float step = 1.0f / (1.0f + 31.0f * srr * srr);
+        for (uint32_t i = 0; i < n; i++) {
+            phase += step;
+            if (phase >= 1.0f) {
+                phase -= 1.0f;
+                hold_l = l[i]; hold_r = r[i];
+                if (bits >= 0.001f) {
+                    hold_l = fm_floorf(hold_l * steps + 0.5f) * inv;
+                    hold_r = fm_floorf(hold_r * steps + 0.5f) * inv;
+                }
+            }
+            l[i] = hold_l; r[i] = hold_r;
+        }
+    }
+};
+
+// STUTTER: from the moment it is turned on it records one division (live, as it plays), then repeats it until it is
+// turned off. Stereo at half rate in 16 bit: 16384 frames, 0.74 s; a division longer than that is halved.
+constexpr uint32_t kStutFrames = 16384;
+struct Stutter {
+    int16_t buf[kStutFrames][2];
+    uint32_t len, pos;            // half-rate frames (a media frecuencia)
+    int active, half;
+    float wet, prev_l, prev_r, cur_l, cur_r, acc_l, acc_r;
+    void init() { len = pos = 0; active = half = 0; wet = 0.0f; prev_l = prev_r = cur_l = cur_r = acc_l = acc_r = 0.0f; }
+    void process(float *l, float *r, uint32_t n, const float *fx, float bpm, float sr) {
+        const int on = fx[EPK_FX_STUTTER] > 0.5f;
+        if (!on && wet <= 0.0f) { active = 0; return; }
+        if (on && !active) {                                             // a new capture (captura nueva)
+            static const float kSixteenths[EPK_STUT_COUNT] = {4.0f, 2.0f, 1.0f, 0.5f};
+            const int d = (int)(fx[EPK_FX_STUT_DIV] * (float)(EPK_STUT_COUNT - 1) + 0.5f);
+            float frames = kSixteenths[d < 0 ? 0 : d >= EPK_STUT_COUNT ? EPK_STUT_COUNT - 1 : d] * 15.0f / bpm * sr * 0.5f;
+            while (frames > (float)kStutFrames) frames *= 0.5f;
+            len = (uint32_t)frames;
+            if (len < 64) len = 64;
+            pos = 0; active = 1; half = 0;
+        }
+        const float glide = 1.0f / (0.005f * sr);                       // ~5 ms in and out (entra y sale)
+        for (uint32_t i = 0; i < n; i++) {
+            acc_l += l[i]; acc_r += r[i];
+            if (half) {
+                const float il = acc_l * 0.5f, ir = acc_r * 0.5f;
+                acc_l = acc_r = 0.0f;
+                const uint32_t k = pos % len;
+                if (pos < len) {                                         // first pass: record what plays (graba)
+                    buf[k][0] = (int16_t)(fm_clampf(il, -1.0f, 1.0f) * 32767.0f);
+                    buf[k][1] = (int16_t)(fm_clampf(ir, -1.0f, 1.0f) * 32767.0f);
+                }
+                // a short window on each repeat: no click where the loop joins (ventana: sin clic en la unión)
+                const float wnd = fm_minf(1.0f, fm_minf((float)k, (float)(len - 1 - k)) * (1.0f / 24.0f));
+                prev_l = cur_l; prev_r = cur_r;
+                if (pos < len) { cur_l = il; cur_r = ir; }
+                else { cur_l = (float)buf[k][0] * (1.0f / 32767.0f) * wnd; cur_r = (float)buf[k][1] * (1.0f / 32767.0f) * wnd; }
+                pos++;
+            }
+            half ^= 1;
+            wet = on ? fm_minf(wet + glide, 1.0f) : fm_maxf(wet - glide, 0.0f);
+            const float ol = half ? (prev_l + cur_l) * 0.5f : cur_l, or_ = half ? (prev_r + cur_r) * 0.5f : cur_r;
+            l[i] += (ol - l[i]) * wet;
+            r[i] += (or_ - r[i]) * wet;
+        }
+        if (!on && wet <= 0.0f) active = 0;
+    }
+};
+
 }  // namespace epk
