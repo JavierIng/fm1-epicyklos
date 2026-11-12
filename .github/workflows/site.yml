@@ -1,4 +1,4 @@
-# Release build and site (versión de prueba + web del instalador) on GitHub Pages.
+# Release build and the installer site as a zip (versión de prueba + web del instalador, privada: se sirve en local).
 # Started by hand (Actions > Site > Run workflow) with a version; nothing is installed on any FM-1 by this.
 name: Site
 on:
@@ -9,7 +9,7 @@ on:
         required: true
         default: "0.1.0"
 permissions:
-  contents: write
+  contents: read
 jobs:
   site:
     runs-on: ubuntu-24.04
@@ -42,16 +42,11 @@ jobs:
           PATH="$PWD/tools/wasi-emcc:$PATH" python3 base/tools/build.py app --web --release "${{ inputs.version }}"
       - name: Site
         run: python3 base/tools/make_site.py app "app/build/epicyklos-${{ inputs.version }}.fwsc" "${{ inputs.version }}" app/build/site
+      - name: Zip the site (no se publica: solo un .zip para servirlo en local)
+        run: cd app/build && zip -qr "epicyklos-site-${{ inputs.version }}.zip" site
       - uses: actions/upload-artifact@v4
         with:
-          name: release-${{ inputs.version }}
-          path: app/build/epicyklos-${{ inputs.version }}.fwsc
-      - name: Push the site to gh-pages
-        run: |
-          cd app/build/site
-          git init -q -b gh-pages
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add -A
-          git commit -q -m "Site for EPICYKLOS ${{ inputs.version }} (from ${GITHUB_SHA::7})"
-          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
+          name: epicyklos-${{ inputs.version }}
+          path: |
+            app/build/epicyklos-${{ inputs.version }}.fwsc
+            app/build/epicyklos-site-${{ inputs.version }}.zip
