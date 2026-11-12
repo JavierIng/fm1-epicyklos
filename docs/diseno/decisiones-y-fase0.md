@@ -199,3 +199,10 @@
 - El filtro del master queda con DJ, LP, HP, BP, NOTCH y MORPH.
 - Validación: con MEZCLA 0 la pista suena igual que sin MAREA; en otra pista no toca la 3; moviéndose el color cambia x2,6 en el tiempo y quieta no (x1,06); ESTÉREO separa los lados; mojado queda en ~70 % de la energía seca; nada inválido en los extremos. 97 comprobaciones en el simulador.
 - **Abierto:** 32 bandas o varias MAREA a la vez cuando se conozca la CPU real; freeze propio de la ola (hoy VELOC 0 la detiene).
+
+## MAREA rehecha según el manual de Slink (2026-11-12)
+
+- Javier pasó la captura de la interfaz de Slink Filter; los controles se han rehecho según su manual de usuario público: RATE (con SYNC, freeze y reverse) → **VELOC** bipolar (centro quieta, derecha avanza, izquierda vuelve; HOME+VELOC libre/tempo, 32 compases a 1/4); **MULTI** (ciclos), **RIZO** (onda senoidal añadida), **DESFASE** (fase a mano), **INVIERTE** (profundidad bipolar), **GRAVEDAD** (atracción hacia abajo), **MEZCLA**; área **DESDE/HASTA** (fuera, las bandas quedan a su nivel; pendiente fija de 1 octava, ganancia fija 0 dB); bandas en **puntos fijos** (16, 40 Hz–15 kHz) repartidas a izquierda/derecha con **ANCHO**. RESO se mantiene.
+- Supuestos propios (el manual no da la fórmula): la ola es un seno con un segundo seno de rizo a 3,3× y −1,7× de velocidad; GRAVEDAD eleva la altura a una potencia (1–9); la pendiente y la ganancia del área no se pueden ajustar. Los LFO/SEQ/envolvente propios de Slink no se copian: se usa la vista MOD.
+- Pantalla: la curva de la ola sobre las frecuencias, bordes del área punteados y velocidad arriba.
+- Validación: MEZCLA 0 = seco; en otra pista no toca la 3; quieta no cambia el color (x1,04), en marcha sí (x2,1); ANCHO 0 es mono exacto; VELOC centro = 0, por debajo negativa, con TEMPO arriba = 1/4 de compás por ciclo; INVIERTE al centro deja todo plano; una banda fuera del área no se mueve y una dentro sí; mojado ~88 % de la energía seca. 99 comprobaciones en el simulador.

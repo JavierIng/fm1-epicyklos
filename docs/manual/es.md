@@ -105,17 +105,23 @@ Los efectos son del proyecto: no cambian al cambiar de patrón.
 
 ### MAREA: banco de filtros con olas
 Un efecto que se pone **en la pista que elijas**, pensado para acordes, pads y diseño sonoro. Son 16 filtros de
-banda cuyo volumen mueven varias olas que se cruzan, como agua. Inspirado en el Slink de Hypnus Records (solo la
-idea; no es el mismo algoritmo).
+banda (de 40 Hz a 15 kHz, en puntos fijos) cuyo volumen mueve una ola. Inspirado en el Slink de Hypnus Records: los
+controles hacen lo que su manual describe, pero el algoritmo es propio y no suena igual.
 - **MAREA:** PISTA (en cuál va; hay una sola MAREA, si la pones en otra pista se mueve), MEZCLA (seco a mojado),
-  VELOC (0 = el agua se queda quieta), FORMA (de una ola suave a oleaje picado).
-- **MAREA 2:** LONGITUD (cuántas olas caben en las bandas), PROFUND (cuánto se hunden los valles), ESTÉREO (la
-  derecha lee el agua más allá: el sonido se abre y se mueve entre los lados), RANGO (bandas más graves o agudas).
-- **MAREA 3:** RESO (bandas anchas o finas; finas suena más a resonancias).
-- La pantalla dibuja las 16 bandas: arriba la izquierda, abajo la derecha.
+  VELOC y MULTI.
+  - **VELOC** tiene el cero en el centro: a la derecha la ola avanza (sube hacia los agudos), a la izquierda vuelve, y
+    en el centro se queda **quieta** con su forma. **HOME + VELOC** cambia entre LIBRE (Hz) y TEMPO (de 32 compases a
+    1/4 de compás por ciclo).
+  - **MULTI:** cuántos ciclos de ola caben a lo ancho.
+- **MAREA 2:** RIZO (ondas pequeñas encima de la ola), DESFASE (coloca la ola a mano; con un LFO, la barre),
+  INVIERTE (profundidad: 100 entera, 0 nada, −100 al revés: las crestas pasan a valles), GRAVEDAD (tira de la ola
+  hacia abajo: valles anchos y crestas finas; arriba del todo, formas extremas).
+- **MAREA 3:** DESDE y HASTA (la zona del espectro donde actúa la ola; fuera de ella las bandas suenan a su nivel, sin
+  moverse), RESO (bandas anchas o finas) y ANCHO (las bandas se reparten a izquierda y derecha; 0 = mono).
+- La pantalla dibuja la ola sobre las frecuencias, con los bordes de la zona punteados. Arriba a la izquierda se ve
+  la velocidad (> avanza, < vuelve; en amarillo si va al tempo).
 - Sale en estéreo: el PAN de esa pista funciona como balance. Los envíos A y B reciben ya el sonido con MAREA.
-- Destinos de modulación: MAR VELOC, MAR FORMA, MAR ESTÉREO, MAR RANGO y MAR MEZCLA (un LFO lento sobre RANGO, o
-  un seguidor sobre FORMA, la hacen respirar).
+- Destinos de modulación: MAR VELOC, MAR MULTI, MAR RIZO, MAR DESFASE, MAR GRAVEDAD y MAR MEZCLA.
 - De inicio está en la pista 3 con MEZCLA 75.
 
 ### Gestos de dub (REC)

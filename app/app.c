@@ -133,15 +133,15 @@ static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
     {EPK_FX_FLT_TYPE, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_FLT_DOUBLE},
     {EPK_FX_COMP, EPK_FX_SAT, SLOT_NONE, SLOT_NONE},
-    {EPK_FX_MAREA_TRACK, EPK_FX_MAREA_MIX, EPK_FX_MAREA_SPEED, EPK_FX_MAREA_SHAPE},
-    {EPK_FX_MAREA_LENGTH, EPK_FX_MAREA_DEPTH, EPK_FX_MAREA_STEREO, EPK_FX_MAREA_RANGE},
-    {EPK_FX_MAREA_RESO, SLOT_NONE, SLOT_NONE, SLOT_NONE},
+    {EPK_FX_MAREA_TRACK, EPK_FX_MAREA_MIX, EPK_FX_MAREA_SPEED, EPK_FX_MAREA_MULTIPLY},
+    {EPK_FX_MAREA_RIPPLE, EPK_FX_MAREA_OFFSET, EPK_FX_MAREA_INVERT, EPK_FX_MAREA_GRAVITY},
+    {EPK_FX_MAREA_FROM, EPK_FX_MAREA_TO, EPK_FX_MAREA_RESO, EPK_FX_MAREA_WIDTH},
 };
 static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "TONO", "DESGASTE", "A REVERB", "NIVEL",
                                                   "CAIDA", "TONO", "MOVER", "NIVEL", "DUCK",
                                                   "FILTRO", "RESO", "DOBLE", "COMP", "SATURA", "TIPO",
-                                                  "PISTA", "MEZCLA", "VELOC", "FORMA", "LONGITUD", "PROFUND", "ESTEREO",
-                                                  "RANGO", "RESO"};
+                                                  "PISTA", "MEZCLA", "VELOC", "SYNC", "MULTI", "RIZO", "DESFASE",
+                                                  "INVIERTE", "GRAVEDAD", "DESDE", "HASTA", "RESO", "ANCHO"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -149,9 +149,10 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "El bombo aparta eco y reverb", "Izquierda cierra, derecha adelgaza", "Resonancia del filtro",
     "Un segundo pico sobre el corte", "Pega la mezcla; mas es mas bombeo", "Cinta: calor y redondez",
     "DJ, bajo, alto, banda, notch, morph", "La pista donde va (una sola)", "Seco o mojado",
-    "Lo rapido que se mueve el agua (0 quieta)", "De ola suave a oleaje picado", "Cuantas olas caben en las bandas",
-    "Cuanto se hunden los valles", "La derecha lee el agua mas alla", "Bandas graves o agudas",
-    "Bandas anchas o finas"};
+    "Centro parada, derecha avanza, izq. vuelve", "HOME+VELOC: libre o al tempo", "Cuantos ciclos de ola caben",
+    "Ondas pequenas sobre la ola", "Coloca la ola a mano", "Profundidad; a la izquierda, al reves",
+    "Valles anchos, crestas finas", "Donde empieza la zona que se mueve", "Donde acaba la zona que se mueve",
+    "Bandas anchas o finas", "Bandas a izquierda y derecha; 0 mono"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
@@ -184,7 +185,7 @@ static const char *const LFO_RATE_NAME[EPK_LFO_RATE_COUNT] = {"1/16", "1/8", "1/
                                                              "4 COMP", "8 COMP", "16 COMP", "32 COMP"};
 static const char *const DEST_NAME[EPK_DEST_COUNT] = {
     "NADA", "FILTRO", "RESO", "ECO TIEMPO", "ECO REPITE", "ECO TONO", "ECO NIVEL", "REV CAIDA", "REV NIVEL",
-    "MAR VELOC", "MAR FORMA", "MAR ESTEREO", "MAR RANGO", "MAR MEZCLA",
+    "MAR VELOC", "MAR MULTI", "MAR RIZO", "MAR DESFASE", "MAR GRAVEDAD", "MAR MEZCLA",
     "TONO 1", "TONO 2", "TONO 3", "TONO 4", "TONO 5", "TONO 6",
     "NIVEL 1", "NIVEL 2", "NIVEL 3", "NIVEL 4", "NIVEL 5", "NIVEL 6"};
 
@@ -293,6 +294,7 @@ static void micro_str(int micro, char *b)             /* a step's micro-timing i
 }
 
 static void int_str(int32_t v, char *b);
+static void hz_text(float hz, char *b);
 static void fx_str(int p, char *b)                    /* an effect's value as the screen shows it */
 {
     const float v = epk_fx_get(p);
@@ -301,7 +303,38 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         str_cat(b, DLY_NAME[(int)(v * (float)(EPK_DLY_COUNT - 1) + 0.5f)]);
     else if (p == EPK_FX_FLT_TYPE)
         str_cat(b, FLT_TYPE_SHORT[flt_type()]);
-    else if (p == EPK_FX_MAREA_TRACK) {
+    else if (p == EPK_FX_MAREA_SPEED) {               /* > 2 COMP, < 0.12 Hz, QUIETA */
+        const float hz = epk_marea_speed();
+        if (hz == 0.0f)
+            str_cat(b, "QUIETA");
+        else {
+            char n[12];
+            str_cat(b, hz > 0.0f ? "> " : "< ");
+            if (epk_fx_get(EPK_FX_MAREA_SYNC) > 0.5f) {
+                const float bars = epk_tempo() / (240.0f * (hz > 0.0f ? hz : -hz));
+                if (bars >= 1.0f) {
+                    int_str((int32_t)(bars + 0.5f), n);
+                    str_cat(b, n);
+                    str_cat(b, " C");
+                } else
+                    str_cat(b, bars > 0.4f ? "1/2 C" : "1/4 C");
+            } else {
+                const int c = (int)((hz > 0.0f ? hz : -hz) * 100.0f + 0.5f);
+                int_str(c / 100, n);
+                str_cat(b, n);
+                n[0] = '.'; n[1] = (char)('0' + c / 10 % 10); n[2] = (char)('0' + c % 10); n[3] = 0;
+                str_cat(b, n);
+                str_cat(b, "Hz");
+            }
+        }
+    } else if (p == EPK_FX_MAREA_SYNC)
+        str_cat(b, v > 0.5f ? "TEMPO" : "LIBRE");
+    else if (p == EPK_FX_MAREA_FROM || p == EPK_FX_MAREA_TO)
+        hz_text(epk_marea_edge_hz(v), b);
+    else if (p == EPK_FX_MAREA_INVERT) {
+        const int c = (int)((v - 0.5f) * 200.0f + (v < 0.5f ? -0.5f : 0.5f));
+        int_str(c, b);
+    } else if (p == EPK_FX_MAREA_TRACK) {
         const int t = (int)(v * 6.0f + 0.5f);
         str_cat(b, t ? "PISTA " : "NINGUNA");
         if (t)
@@ -382,6 +415,24 @@ static void mod_str(int src, int param, char *b)       /* a modulation setting a
         if (c > 0)
             str_cat(b, "+");
         int_str(c, b + (c > 0));
+    }
+}
+
+static void hz_text(float hz, char *b)                 /* 267 Hz, 1.2k, 20k */
+{
+    char n[8];
+    b[0] = 0;
+    if (hz >= 1000.0f) {
+        const int d = (int)(hz / 100.0f + 0.5f);
+        int_str(d / 10, b);
+        if (d < 100) {
+            n[0] = '.'; n[1] = (char)('0' + d % 10); n[2] = 0;
+            str_cat(b, n);
+        }
+        str_cat(b, "k");
+    } else {
+        int_str((int32_t)(hz + 0.5f), b);
+        str_cat(b, " Hz");
     }
 }
 
@@ -591,6 +642,14 @@ static void turn_fx(int slot, int32_t detents, int fine)
     const int steps = p >= 0 ? epk_fx_steps(p) : 0;
     if (p < 0)
         return;
+    if (p == EPK_FX_MAREA_SPEED && fine) {          /* HOME+VELOC: free or locked to the tempo (libre o al tempo) */
+        char v[16];
+        epk_fx_set(EPK_FX_MAREA_SYNC, detents > 0 ? 1.0f : 0.0f);
+        fx_str(EPK_FX_MAREA_SYNC, v);
+        app_say("MAREA", v);
+        ui.dirty_main = ui.dirty_foot = 1;
+        return;
+    }
     epk_fx_set(p, epk_fx_get(p) + (float)detents / (steps ? (float)(steps - 1) : fine ? 400.0f : 40.0f));
     ui.pop_fx = p;
     ui.pop_until = plat_ms() + 1000u;
@@ -1176,24 +1235,42 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     char v[16];
     int t;
     const int32_t m = (int32_t)(fm_minf(ui.fx_meter * 1.5f, 1.0f) * 76.0f + 0.5f);
-    if (ui.fx_page >= FXP_MAREA) {                                    /* MAREA: the 16 bands, left up, right down */
+    if (ui.fx_page >= FXP_MAREA) {                                    /* MAREA: the wave over the frequencies */
         const int on = (int)(epk_fx_get(EPK_FX_MAREA_TRACK) * 6.0f + 0.5f);
-        int b;
+        const uint16_t c = on ? C_FX : C_RULE;
+        const int32_t x0 = 10, w = 212, top = 18, h = 56;
+        float lv[16];
+        int32_t x, k, prev_y = -1;
         cv_rect(4, 4, 224, 80, C_PANEL);
-        cv_text(10, 6, &FONT_XS, "MAREA", C_FX);
+        fx_str(EPK_FX_MAREA_SPEED, v);
+        cv_text(10, 4, &FONT_XS, v, epk_fx_get(EPK_FX_MAREA_SYNC) > 0.5f ? C_SOLO : C_LABEL);
         fx_str(EPK_FX_MAREA_TRACK, v);
-        cv_text(222 - text_w(&FONT_XS, v), 6, &FONT_XS, v, on ? (epk_audible(on - 1) ? TRACK_C[on - 1] : C_LABEL) : C_RULE);
-        cv_rect(10, 52, 212, 1, C_RULE);
-        for (b = 0; b < 16; b++) {
-            float gl, gr;
-            int32_t hl, hr;
-            const int32_t x = 12 + b * 13;
-            epk_marea_band(b, &gl, &gr);
-            hl = (int32_t)(gl * 30.0f + 0.5f);
-            hr = (int32_t)(gr * 28.0f + 0.5f);
-            cv_rect(x, 52 - hl, 9, hl, on ? C_FX : C_RULE);
-            cv_rect(x, 53, 9, hr, on ? dim_colour(C_FX) : C_RULE);
+        cv_text(222 - text_w(&FONT_XS, v), 4, &FONT_XS, v, on ? (epk_audible(on - 1) ? TRACK_C[on - 1] : C_LABEL) : C_RULE);
+        for (k = 0; k < 16; k++)
+            lv[k] = fm_clampf(epk_marea_band(k), 0.0f, 1.0f);
+        for (k = 0; k < 2; k++) {                                      /* the area's edges, dotted (bordes del área) */
+            const float e = epk_marea_x(epk_marea_edge_hz(epk_fx_get(k ? EPK_FX_MAREA_TO : EPK_FX_MAREA_FROM)));
+            const int32_t ex = x0 + (int32_t)(e * (float)w);
+            int32_t yy;
+            for (yy = top; yy < top + h; yy += 4)
+                cv_rect(ex, yy, 1, 2, C_LABEL);
         }
+        for (x = 0; x < w; x++) {                                      /* the curve (la curva) */
+            const float u = (float)x / (float)(w - 1) * 15.0f;
+            const int i = (int)u < 15 ? (int)u : 14;
+            const float g = lv[i] + (lv[i + 1] - lv[i]) * (u - (float)i);
+            const int32_t y = top + h - 1 - (int32_t)(g * (float)(h - 3));
+            if (prev_y >= 0) {
+                const int32_t y1 = prev_y < y ? prev_y : y, y2 = prev_y < y ? y : prev_y;
+                cv_rect(x0 + x, y1, 1, y2 - y1 + 2, c);
+            } else
+                cv_rect(x0 + x, y, 1, 2, c);
+            if ((x & 1) == 0)
+                cv_rect(x0 + x, y + 3, 1, top + h - y - 3, on ? RGB(14, 40, 44) : C_PANEL);   /* the water (agua) */
+            prev_y = y;
+        }
+        cv_text(10, 74, &FONT_XS, "40", C_RULE);
+        cv_text(222 - text_w(&FONT_XS, "15k"), 74, &FONT_XS, "15k", C_RULE);
     } else if (ui.fx_page >= 3) {                                     /* the master: filter and compressor */
         const int32_t gr = (int32_t)(fm_minf(ui.comp_gr / 12.0f, 1.0f) * 96.0f + 0.5f);
         float hz;

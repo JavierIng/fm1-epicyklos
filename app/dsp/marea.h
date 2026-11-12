@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
-// MAREA (marea): a bank of 16 band-pass filters whose levels are moved by "waves", inserted on one track. Inspired
-// by Hypnus Records' Slink Filter (a bank of band-passes animated by phase-shifted sine waves): only the idea,
-// written for this project; no code from it.
-// The wave: four sines across the bank, each with its own length and speed, some travelling the other way, added
-// up. SHAPE goes from one smooth swell (only the first) to choppy water (all four); the right channel reads the
-// same water further along (STEREO). Levels are worked out every 16 samples and glide (se deslizan).
-// Rules: no heap, float only.
+// MAREA (marea): a bank of 16 band-pass filters whose levels a travelling wave moves, inserted on one track.
+// Inspired by Hypnus Records' Slink Filter; its controls follow what Slink's public user manual says they do (RATE,
+// SYNC, freeze, reverse, MULTIPLY, RIPPLE, OFFSET, INVERT, GRAVITY, MIX, an area where the wave acts, bands split
+// left/right at fixed frequencies with a width). The algorithm is ours, written for this project: no code from it.
+//
+// The wave, across the bank (x 0..1 from the lowest band to the highest):
+//   w = sin(x*MULTIPLY + phase + OFFSET) + RIPPLE * sin(3.3 x*MULTIPLY - 1.7 phase + 2 OFFSET), normalised to -1..1
+//   GRAVITY pulls it down: h = ((w + 1) / 2) ^ (1 + 8 GRAVITY): wide valleys, thin crests ("wormholes" at the top)
+//   INVERT is the depth, bipolar: 1 full, 0.5 none, 0 upside down (al revés)
+//   outside the area (FROM .. TO, one octave of slope) a band keeps its level (fuera del área, nivel fijo)
+// Levels are worked out every 16 samples and glide (se deslizan). Rules: no heap, float only.
 #pragma once
 #include "epk.h"
 #include "fastmath.h"
@@ -15,76 +19,83 @@
 namespace epk {
 
 constexpr int kMareaBands = 16;
-// the four sines: how many waves fit across the bank, and their speed (negative: the other way)
-constexpr float kWaveLen[4] = {1.0f, 1.62f, 2.71f, 4.37f};
-constexpr float kWaveSpeed[4] = {1.0f, -0.73f, 1.31f, -1.87f};
+constexpr float kMareaLow = 40.0f, kMareaOctaves = 8.6f;        // fixed points: 40 Hz .. ~15.5 kHz (puntos fijos)
+
+inline float marea_band_hz(int b) { return kMareaLow * fm_exp2f((float)b * (kMareaOctaves / (float)(kMareaBands - 1))); }
+inline float marea_edge_hz(float v) { return 30.0f * fm_exp2f(v * 9.4f); }          // FROM / TO: 30 Hz .. 20 kHz
+// the wave's speed in cycles a second, signed (velocidad con signo); 0 in the middle of the knob (parada)
+inline float marea_speed_hz(float v, int sync, float bpm) {
+    const float s = (v - 0.5f) * 2.0f, a = fm_fabsf(s);
+    if (a < 0.04f) return 0.0f;                                  // the middle: frozen (congelada)
+    const float sign = s < 0.0f ? -1.0f : 1.0f;
+    if (sync) {                                                  // 32 bars .. 1/4 bar a cycle (ciclos por compás)
+        static const float kBars[8] = {32.0f, 16.0f, 8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f};
+        const int i = (int)((a - 0.04f) / 0.96f * 7.99f);
+        return sign * bpm / (240.0f * kBars[i]);
+    }
+    return sign * 0.01f * fm_exp2f((a - 0.04f) / 0.96f * 9.0f);  // 0.01 .. 5 Hz
+}
 
 struct Marea {
     Svf band[kMareaBands];
     SvfCoef coef[kMareaBands];
-    float g_l[kMareaBands], g_r[kMareaBands];     // each band's level, left and right (nivel de cada banda)
-    float phase[4];
-    float range_set, reso_set;                    // what the coefficients were made for (para qué se calcularon)
+    float gain[kMareaBands];                     // each band's level now (nivel de cada banda)
+    float phase;
+    float reso_set;
     int sub;
 
     void init() {
-        for (int b = 0; b < kMareaBands; b++) { band[b].clear(); g_l[b] = g_r[b] = 0.5f; }
-        for (int k = 0; k < 4; k++) phase[k] = 0.25f * (float)k;
-        range_set = reso_set = -1.0f;
-        sub = 0;
+        for (int b = 0; b < kMareaBands; b++) { band[b].clear(); gain[b] = 1.0f; }
+        phase = 0.0f; reso_set = -1.0f; sub = 0;
     }
     void clear() { for (int b = 0; b < kMareaBands; b++) band[b].clear(); }
 
+    // the level a band would have now (para la pantalla también)
+    static float band_target(int b, const float *fx, float phase) {
+        const float x = (float)b / (float)(kMareaBands - 1);
+        const float mult = 0.5f + 5.5f * fx[EPK_FX_MAREA_MULTIPLY], ripple = fx[EPK_FX_MAREA_RIPPLE];
+        const float off = fx[EPK_FX_MAREA_OFFSET];
+        float w = fm_sin_turns(x * mult + phase + off) + ripple * fm_sin_turns(3.3f * x * mult - 1.7f * phase + 2.0f * off);
+        w /= 1.0f + ripple;
+        float h = fm_powf(0.5f + 0.5f * w, 1.0f + 8.0f * fx[EPK_FX_MAREA_GRAVITY]);   // gravity (gravedad)
+        const float d = (fx[EPK_FX_MAREA_INVERT] - 0.5f) * 2.0f;                         // depth -1..1
+        if (d < 0.0f) h = 1.0f - h;
+        const float g = 1.0f - fm_fabsf(d) + fm_fabsf(d) * h;
+        // the area (área): inside FROM..TO the wave acts, outside the band stays at its level
+        const float f = marea_band_hz(b);
+        const float lo = marea_edge_hz(fx[EPK_FX_MAREA_FROM]), hi = marea_edge_hz(fx[EPK_FX_MAREA_TO]);
+        const float a = fm_clampf(fm_log2f(f / lo) + 0.5f, 0.0f, 1.0f) * fm_clampf(fm_log2f(hi / f) + 0.5f, 0.0f, 1.0f);
+        return 1.0f + a * (g - 1.0f);
+    }
+
     // mono in, stereo out (mono entra, estéreo sale)
-    void process(const float *in, float *out_l, float *out_r, uint32_t n, const float *fx, float sr) {
-        const float mix = fx[EPK_FX_MAREA_MIX];
-        const float speed = fx[EPK_FX_MAREA_SPEED], shape = fx[EPK_FX_MAREA_SHAPE];
-        const float length = 0.35f + 2.65f * fx[EPK_FX_MAREA_LENGTH];             // waves across the bank
-        const float depth = fx[EPK_FX_MAREA_DEPTH], stereo = fx[EPK_FX_MAREA_STEREO] * 0.5f;
-        const float range = fx[EPK_FX_MAREA_RANGE], reso = fx[EPK_FX_MAREA_RESO];
-        if (fm_fabsf(range - range_set) > 0.002f || fm_fabsf(reso - reso_set) > 0.002f) {
-            range_set = range; reso_set = reso;                                    // the bank: 6.5 octaves
-            const float lo = 50.0f * fm_exp2f(range * 3.0f), k = 0.9f - 0.84f * reso;
-            for (int b = 0; b < kMareaBands; b++)
-                coef[b].set(lo * fm_exp2f((float)b * (6.5f / (float)(kMareaBands - 1))), k, sr);
+    void process(const float *in, float *out_l, float *out_r, uint32_t n, const float *fx, float bpm, float sr) {
+        const float mix = fx[EPK_FX_MAREA_MIX], width = fx[EPK_FX_MAREA_WIDTH];
+        const float reso = fx[EPK_FX_MAREA_RESO];
+        const int sync = fx[EPK_FX_MAREA_SYNC] > 0.5f;
+        const float hz = marea_speed_hz(fx[EPK_FX_MAREA_SPEED], sync, bpm);
+        if (fm_fabsf(reso - reso_set) > 0.002f) {
+            reso_set = reso;
+            const float k = 0.9f - 0.84f * reso;
+            for (int b = 0; b < kMareaBands; b++) coef[b].set(marea_band_hz(b), k, sr);
         }
-        // the four sines' weights: SHAPE 0 only the first, 1 all of them (oleaje picado)
-        float w[4];
-        w[0] = 1.0f;
-        for (int k = 1; k < 4; k++) w[k] = fm_clampf(shape * 3.0f - (float)(k - 1), 0.0f, 1.0f) * (1.0f - 0.15f * (float)k);
-        const float wsum = w[0] + w[1] + w[2] + w[3];
-        const float hz = 0.02f * fm_exp2f(speed * 7.5f) * (speed > 0.001f ? 1.0f : 0.0f);   // 0, 0.02 .. 3.6 Hz
+        // the bands split between the sides at fixed frequencies; WIDTH 0 = mono (ancho)
+        const float near = 1.0f + width, far = 1.0f - width;
         for (uint32_t i = 0; i < n; i++) {
             if (sub == 0) {
-                for (int k = 0; k < 4; k++) {
-                    phase[k] += kWaveSpeed[k] * hz * 16.0f / sr;
-                    phase[k] -= fm_floorf(phase[k]);
-                }
-                for (int b = 0; b < kMareaBands; b++) {
-                    const float x = (float)b / (float)kMareaBands * length;
-                    float sl = 0.0f, sr_ = 0.0f;
-                    for (int k = 0; k < 4; k++) {
-                        if (w[k] <= 0.0f) continue;
-                        sl += w[k] * fm_sin_turns(x * kWaveLen[k] + phase[k]);
-                        sr_ += w[k] * fm_sin_turns((x + stereo) * kWaveLen[k] + phase[k]);
-                    }
-                    // the water's height 0..1, then DEPTH: how far the troughs sink (cuánto se hunden los valles)
-                    const float hl = 0.5f + 0.5f * sl / wsum, hr = 0.5f + 0.5f * sr_ / wsum;
-                    const float tl = 1.0f - depth + depth * hl * hl, tr = 1.0f - depth + depth * hr * hr;
-                    g_l[b] += (tl - g_l[b]) * 0.3f;
-                    g_r[b] += (tr - g_r[b]) * 0.3f;
-                }
+                phase -= hz * 16.0f / sr;                                // forwards: the wave climbs (sube)
+                phase -= fm_floorf(phase);
+                for (int b = 0; b < kMareaBands; b++) gain[b] += (band_target(b, fx, phase) - gain[b]) * 0.3f;
             }
             sub = (sub + 1) & 15;
             float yl = 0.0f, yr = 0.0f;
             for (int b = 0; b < kMareaBands; b++) {
                 float bl, bb, bh;
                 band[b].tick(in[i], coef[b].a1, coef[b].a2, coef[b].a3, coef[b].k, bl, bb, bh);
-                const float y = bb * coef[b].k;                                    // unity at the peak
-                yl += y * g_l[b];
-                yr += y * g_r[b];
+                const float y = bb * coef[b].k * gain[b];                // unity at the peak
+                if (b & 1) { yl += y * far; yr += y * near; } else { yl += y * near; yr += y * far; }
             }
-            const float wet = 1.1f;                                                // the bank's make-up (compensación)
+            const float wet = 0.8f;                                      // the bank's make-up (compensación)
             out_l[i] = in[i] + (yl * wet - in[i]) * mix;
             out_r[i] = in[i] + (yr * wet - in[i]) * mix;
         }

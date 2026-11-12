@@ -456,7 +456,7 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const float gl = fm_cosf(pan * 1.5707963f), gr = fm_sinf(pan * 1.5707963f);   // equal power (potencia constante)
     // MAREA on this track: the voice goes through it and comes out stereo; PAN works as a balance (balance)
     const int ins = (int)(g.fx_live[EPK_FX_MAREA_TRACK] * 6.0f + 0.5f) == (int)(&t - g.tr) + 1;
-    if (ins) g.marea.process(g.buf, g.ins_l, g.ins_r, n, g.fx_live, g.sr);
+    if (ins) g.marea.process(g.buf, g.ins_l, g.ins_r, n, g.fx_live, g.bpm, g.sr);
     float peak = t.meter;
     for (uint32_t i = 0; i < n; i++) {
         t.gain += (target - t.gain) * 0.003f;                        // ~8 ms: mutes do not click
@@ -501,7 +501,9 @@ void epk_init(float sample_rate) {
                                             0.72f, 0.45f, 0.40f, 0.75f, 0.35f,
                                             0.5f, 0.30f, 0.0f, 0.30f, 0.15f,    // master: open, glue, a little tape
                                             0.0f,                               // the DJ filter
-                                            3.0f / 6.0f, 0.75f, 0.30f, 0.45f, 0.40f, 0.70f, 0.45f, 0.35f, 0.55f};   // MAREA on track 3
+                                            // MAREA on track 3: slow, forwards, two cycles, a little ripple and pull
+                                            3.0f / 6.0f, 0.75f, 0.62f, 0.0f, 0.25f, 0.30f, 0.0f, 1.0f, 0.30f,
+                                            0.22f, 0.93f, 0.45f, 0.80f};
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();
@@ -543,8 +545,8 @@ void epk_init(float sample_rate) {
 void apply_mod(uint32_t n) {
     static const int8_t kFxOf[EPK_DEST_TONE1] = {-1, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK,
                                                  EPK_FX_DLY_TONE, EPK_FX_DLY_LEVEL, EPK_FX_REV_DECAY, EPK_FX_REV_LEVEL,
-                                                 EPK_FX_MAREA_SPEED, EPK_FX_MAREA_SHAPE, EPK_FX_MAREA_STEREO,
-                                                 EPK_FX_MAREA_RANGE, EPK_FX_MAREA_MIX};
+                                                 EPK_FX_MAREA_SPEED, EPK_FX_MAREA_MULTIPLY, EPK_FX_MAREA_RIPPLE,
+                                                 EPK_FX_MAREA_OFFSET, EPK_FX_MAREA_GRAVITY, EPK_FX_MAREA_MIX};
     float peaks[EPK_TRACKS];
     for (int i = 0; i < EPK_TRACKS; i++) peaks[i] = g.tr[i].peak_block;
     const float pos16 = g.playing && g.sixteenths >= 0 ? (float)g.sixteenths + (float)g.bar_pos * (1.0f / 4294967296.0f) : 0.0f;
@@ -622,12 +624,14 @@ void epk_fx_set(int param, float value01) { if (param >= 0 && param < EPK_FX_COU
 float epk_fx_get(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx[param] : 0.0f; }
 int epk_fx_steps(int param) {
     return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT :
-           param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : 0;
+           param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : param == EPK_FX_MAREA_SYNC ? 2 : 0;
 }
-void epk_marea_band(int b, float *left, float *right) {
-    const int i = clampi(b, 0, kMareaBands - 1);
-    *left = g.marea.g_l[i];
-    *right = g.marea.g_r[i];
+float epk_marea_band(int b) { return g.marea.gain[clampi(b, 0, kMareaBands - 1)]; }
+float epk_marea_x(float hz) { return clamp01(fm_log2f(fm_maxf(hz, 1.0f) / kMareaLow) / kMareaOctaves); }
+float epk_marea_hz(int band) { return marea_band_hz(clampi(band, 0, kMareaBands - 1)); }
+float epk_marea_edge_hz(float v01) { return marea_edge_hz(v01); }
+float epk_marea_speed(void) {
+    return marea_speed_hz(g.fx_live[EPK_FX_MAREA_SPEED], g.fx_live[EPK_FX_MAREA_SYNC] > 0.5f, g.bpm);
 }
 float epk_fx_meter(void) { float m = g.meter_fx; g.meter_fx = 0.0f; return m; }
 void epk_mod_set(int src, int param, float value01) {

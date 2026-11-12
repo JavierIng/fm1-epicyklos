@@ -66,16 +66,21 @@ enum {
     EPK_FX_COMP,          /* bus compressor amount: threshold, ratio and makeup in one (compresor) */
     EPK_FX_SAT,           /* tape saturation (saturación de cinta) */
     EPK_FX_FLT_TYPE,      /* EPK_FLT_*: what the master filter is (tipo de filtro) */
-    /* MAREA (marea): a 16-band filterbank moved by waves, inserted on one track (inspired by Hypnus Records' Slink) */
+    /* MAREA (marea): a 16-band filterbank moved by a wave, inserted on one track (inspired by Hypnus Records' Slink;
+     * the controls follow what its manual says they do, see marea.h) */
     EPK_FX_MAREA_TRACK,   /* 0 none, 1..6 the track it is on (la pista donde está) */
     EPK_FX_MAREA_MIX,     /* dry .. wet (seco .. mojado) */
-    EPK_FX_MAREA_SPEED,   /* how fast the water moves; 0 still (quieta) */
-    EPK_FX_MAREA_SHAPE,   /* one smooth swell .. choppy water (oleaje suave .. picado) */
-    EPK_FX_MAREA_LENGTH,  /* how many waves fit across the bands (largo de la ola) */
-    EPK_FX_MAREA_DEPTH,   /* how far the troughs sink (profundidad) */
-    EPK_FX_MAREA_STEREO,  /* the right side reads the water further along (desfase estéreo) */
-    EPK_FX_MAREA_RANGE,   /* where the bank sits: low .. high (rango) */
+    EPK_FX_MAREA_SPEED,   /* bipolar: 0.5 frozen, above forwards, below backwards (congelada, adelante, atrás) */
+    EPK_FX_MAREA_SYNC,    /* 0 free (Hz), 1 locked to the tempo (al tempo) */
+    EPK_FX_MAREA_MULTIPLY,/* how many wave cycles across the bands (ciclos) */
+    EPK_FX_MAREA_RIPPLE,  /* a smaller sine ripple on the wave (rizo) */
+    EPK_FX_MAREA_OFFSET,  /* the wave's phase, by hand (desfase) */
+    EPK_FX_MAREA_INVERT,  /* depth, bipolar: 1 full, 0.5 none, 0 upside down (profundidad, invertida) */
+    EPK_FX_MAREA_GRAVITY, /* pulls the wave down: wide valleys, thin crests (gravedad) */
+    EPK_FX_MAREA_FROM,    /* the area where the wave acts: from .. (desde) */
+    EPK_FX_MAREA_TO,      /* .. to; outside it the bands keep their level (hasta) */
     EPK_FX_MAREA_RESO,    /* wide .. narrow bands (bandas anchas .. finas) */
+    EPK_FX_MAREA_WIDTH,   /* the bands alternate left / right; 0 mono (ancho estéreo) */
     EPK_FX_COUNT
 };
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
@@ -119,8 +124,13 @@ float epk_fx_meter(void);                      /* the returns' peak since the la
 /* The master filter's types (tipos). DJ: FLT below the middle closes a low-pass, above it opens a high-pass. LP, HP,
  * BP, NOTCH, MORPH: FLT is the cutoff, 30 Hz .. 19 kHz; in MORPH, FLT_DOUBLE morphs LP -> BP -> HP. */
 enum { EPK_FLT_DJ, EPK_FLT_LP, EPK_FLT_HP, EPK_FLT_BP, EPK_FLT_NOTCH, EPK_FLT_MORPH, EPK_FLT_COUNT };
-/* MAREA's 16 band levels now, for the screen (niveles de las bandas): b 0..15 */
-void epk_marea_band(int b, float *left, float *right);
+/* MAREA for the screen (para la pantalla): a band's level now (0..~1), where a band and an edge sit (0..1 across the
+ * screen), and the wave's speed in cycles a second (signed; 0 frozen) */
+float epk_marea_band(int b);
+float epk_marea_x(float hz);
+float epk_marea_hz(int band);
+float epk_marea_edge_hz(float v01);
+float epk_marea_speed(void);
 /* the cutoff of the continuous types for the screen (corte, para la pantalla) */
 float epk_master_cutoff(void);
 
@@ -138,7 +148,8 @@ enum { EPK_LFO_SINE, EPK_LFO_TRIANGLE, EPK_LFO_SAW, EPK_LFO_SQUARE, EPK_LFO_SH, 
 enum {
     EPK_DEST_NONE, EPK_DEST_FLT, EPK_DEST_FLT_RESO, EPK_DEST_DLY_TIME, EPK_DEST_DLY_FEEDBACK, EPK_DEST_DLY_TONE,
     EPK_DEST_DLY_LEVEL, EPK_DEST_REV_DECAY, EPK_DEST_REV_LEVEL,
-    EPK_DEST_MAREA_SPEED, EPK_DEST_MAREA_SHAPE, EPK_DEST_MAREA_STEREO, EPK_DEST_MAREA_RANGE, EPK_DEST_MAREA_MIX,
+    EPK_DEST_MAREA_SPEED, EPK_DEST_MAREA_MULTIPLY, EPK_DEST_MAREA_RIPPLE, EPK_DEST_MAREA_OFFSET, EPK_DEST_MAREA_GRAVITY,
+    EPK_DEST_MAREA_MIX,
     EPK_DEST_TONE1,                                   /* + track: a track's TONE (tono de la pista) */
     EPK_DEST_LEVEL1 = EPK_DEST_TONE1 + EPK_TRACKS,    /* + track: a track's LEVEL */
     EPK_DEST_COUNT = EPK_DEST_LEVEL1 + EPK_TRACKS

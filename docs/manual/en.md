@@ -109,20 +109,25 @@ empty. The longest time is 1.5 s (0.75 s in PINGPONG); a time that does not fit 
 
 The effects belong to the project: they do not change with the pattern.
 
-### MAREA: a filterbank moved by waves
-An effect you put **on the track you choose**, meant for chords, pads and sound design. Sixteen band-pass
-filters whose levels are moved by several crossing waves, like water. Inspired by Hypnus Records' Slink (the idea
-only; not the same algorithm).
+### MAREA: a filterbank moved by a wave
+An effect you put **on the track you choose**, meant for chords, pads and sound design. Sixteen band-pass filters
+(40 Hz to 15 kHz, at fixed points) whose levels a wave moves. Inspired by Hypnus Records' Slink: the controls do
+what its manual describes, but the algorithm is our own and does not sound the same.
 - **MAREA:** track [PISTA] (which one it is on; there is one MAREA, putting it on another track moves it), mix
-  [MEZCLA] (dry to wet), speed [VELOC] (0 = the water stands still), shape [FORMA] (one smooth swell to choppy).
-- **MAREA 2:** length [LONGITUD] (how many waves fit across the bands), depth [PROFUND] (how far the troughs
-  sink), stereo [ESTÉREO] (the right side reads the water further along: the sound opens and moves between the
-  sides), range [RANGO] (lower or higher bands).
-- **MAREA 3:** RESO (wide or narrow bands; narrow sounds more like resonances).
-- The screen draws the 16 bands: left on top, right below.
+  [MEZCLA] (dry to wet), speed [VELOC] and multiply [MULTI].
+  - **Speed** has zero in the middle: right, the wave travels forwards (up towards the highs), left it comes back,
+    and in the middle it stands **still** [QUIETA], keeping its shape. **HOME + speed** switches between free
+    [LIBRE] (Hz) and tempo [TEMPO] (32 bars to 1/4 bar a cycle).
+  - **Multiply:** how many wave cycles fit across.
+- **MAREA 2:** ripple [RIZO] (small waves on top of the wave), offset [DESFASE] (places the wave by hand; with an
+  LFO, sweeps it), invert [INVIERTE] (depth: 100 full, 0 none, −100 upside down: crests become troughs), gravity
+  [GRAVEDAD] (pulls the wave down: wide valleys and thin crests; at the top, extreme shapes).
+- **MAREA 3:** from and to [DESDE, HASTA] (the part of the spectrum where the wave acts; outside it the bands keep
+  their level, still), RESO (wide or narrow bands) and width [ANCHO] (the bands alternate left and right; 0 = mono).
+- The screen draws the wave over the frequencies, with the area's edges dotted. Top left shows the speed (> forwards,
+  < back; yellow when locked to the tempo).
 - It comes out in stereo: that track's PAN works as a balance. Sends A and B already get the sound with MAREA.
-- Modulation destinations: MAR VELOC, MAR FORMA, MAR ESTÉREO, MAR RANGO and MAR MEZCLA (a slow LFO on range, or a
-  follower on shape, makes it breathe).
+- Modulation destinations: MAR VELOC, MAR MULTI, MAR RIZO, MAR DESFASE, MAR GRAVEDAD and MAR MEZCLA.
 - By default it sits on track 3 with mix 75.
 
 ### Dub gestures (REC)

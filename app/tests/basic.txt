@@ -347,6 +347,16 @@ wait 30
 expect fx18 3
 turn K3 6
 wait 30
+press HOME
+turn K3 1
+release HOME
+wait 30
+expect fx21 1
+press HOME
+turn K3 -1
+release HOME
+wait 30
+expect fx21 0
 tap PLAY
 wait 2000
 shot marea.png
