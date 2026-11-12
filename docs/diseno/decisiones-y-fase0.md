@@ -174,4 +174,4 @@
 - **FREEZE:** HOME+REC activa/quita. El eco deja de escuchar y reescribe lo que lee sin filtro ni pérdida; el bucle se oscurece despacio por la interpolación.
 - **DUCK:** knob en ECO 2 (K4). Seguidor del bombo (pista 1) con ~150 ms de vuelta; baja los retornos de eco y reverb, por defecto 35 %.
 - Validación: el throw manda una pista con envío 0 al eco; con freeze el bucle sigue igual 4 s después y un golpe nuevo no entra; al quitarlo se apaga; el duck al 100 % deja los retornos en un tercio. 79 comprobaciones en el simulador.
-- **Pregunta abierta:** pasar de 6 a 8 pistas (como Groove OS, Hortator o el firmware Open de M-VAVE). Pendiente de Javier.
+- **6 u 8 pistas (decidido 12 nov):** seguimos con 6. Pasar a 8 (como Groove OS, Hortator o el firmware Open de M-VAVE) queda en espera para una actualización futura; el obstáculo no es el núcleo sino el acceso a las pistas 7 y 8 desde el panel y la CPU con motores pesados.
