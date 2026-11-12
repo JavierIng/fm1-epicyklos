@@ -290,7 +290,15 @@
 - **Seguimos con 6 pistas** (confirmado por Javier, 12 nov): las 8 pistas quedan descartadas por ahora.
 - Memoria: NUBE y PLACA comparten un buffer de 16 bit (22.050 muestras, 1 s mono a 22 kHz, 44 KB; la placa usa 33 KB de él). Coste medido en CI: **+11 KB de pool** (de 306.644 a 317.752 B de 344.064; quedan **26 KB**). Imagen 240.452 B de ~581 KB.
 - Motor propio con la idea de Clouds (MIT, crédito en CREDITS.md; no se ha portado código): 12 granos, captura mono repartida en estéreo, ventana de borde duro → triángulo → campana suave (TEXTURA), afinación por semitonos (±24), densidad con el centro en silencio (izq. regular, der. al azar), feedback (REPITE), freeze con HOME+REC (congela eco y nube a la vez). Sin modos espectrales.
-- UI: página NUBE tras REVERB (TIPO, POSICION, TAMANO, DENSIDAD); en NUBE la página REVERB pasa a REPITE, TEXTURA, AFINA, NIVEL. EFECTOS pasa a 10 páginas; DIGITAL muestra el panel del master (antes dibujaba MAREA por error).
+- UI: página tras REVERB (TIPO, POSICION, TAMANO, DENSIDAD; ahora se llama REVERB 2, ver abajo); en NUBE la página REVERB pasa a REPITE, TEXTURA, AFINA, NIVEL. EFECTOS pasa a 10 páginas; DIGITAL muestra el panel del master (antes dibujaba MAREA por error).
 - Coste de CPU: sin medir en el aparato; en el peor caso 12 granos con interpolación por muestra a 22 kHz. Si no llega, bajar a 8 granos.
 - Pruebas: bloque 29 (suena; congelada sigue sonando sin entrada; densidad al centro = silencio; extremos sin valores inválidos ni picos > 1; vuelta a PLACA) y la página en `basic.txt`. No escuchado.
 - Pendiente: destinos de modulación para NUBE (POSICIÓN, TAMAÑO), una escena de fábrica con NUBE.
+
+## PLACA como Plateau (2026-11-12)
+- Javier: "reverb tipo Plateau Valley, recuerda". Era lo decidido el 11 nov (ideas-referencias: PLACA = Plateau) y se quedó corto: la placa tenía la topología de Dattorro pero solo 4 controles (caída, tono, mover, nivel).
+- Añadido, con los controles de Plateau y código propio (Plateau es GPL-3.0, crédito en CREDITS.md): **PREDELAY** (0–240 ms), **TAMAÑO** (las líneas del tanque escaladas 0,25–1; los difusores y las dos líneas moduladas mantienen su sitio), **DIFUSIÓN** (ganancia de los 4 difusores de entrada), **corte de graves** fijo ~90 Hz a la entrada del tanque, **FREEZE** con HOME+REC (entrada a 0 y caída 0,9995). No hay control de corte de graves ni de modulación por separado (forma/profundidad): no caben en 4 knobs sin otra página.
+- **Sin memoria nueva:** el predelay (5.300 muestras) cabe en el buffer de 44 KB que ya tenía NUBE (21.998 de 22.050); un `static_assert` impide que crezca sin darse cuenta. Pool 317.844 B (+92). El tamaño máximo es el de Dattorro: Plateau llega a espacios más grandes; aquí no cabe.
+- UI: la página 4 de EFECTOS pasa a llamarse **REVERB 2**: TIPO + (PREDELAY, TAMAÑO, DIFUSIÓN) en PLACA, o + (POSICIÓN, TAMAÑO, DENSIDAD) en NUBE. FREEZE se ve en el panel de la reverb también con la placa.
+- Por defecto: predelay 24 ms, tamaño y difusión al 100 % (suena como antes salvo el corte de graves y el predelay).
+- Pruebas (bloque 30): predelay arriba retrasa la cola 240 ms; congelada se mantiene (1,57 frente a 1,39 antes de congelar: no crece más de 1,5×) y libre se apaga; tamaño, difusión y predelay movidos sin parar 10 s: sin valores inválidos ni picos > 1. No escuchado.

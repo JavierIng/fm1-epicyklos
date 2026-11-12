@@ -164,11 +164,19 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
   todo el eco se realimenta solo), TONO (cada repetición más oscura).
 - **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL,
   DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms).
-- **REVERB (PLACA):** CAÍDA, TONO, MOVER (movimiento interno), NIVEL.
-- **NUBE** (la página siguiente): la reverb puede ser **PLACA** o **NUBE**, una nube de granos con la idea del
-  módulo Clouds de Mutable Instruments (el código es propio). Escucha lo que le mandan los envíos B, guarda el último
-  segundo y lo reparte en trocitos (granos) por el estéreo.
-  - **TIPO:** PLACA o NUBE. Al cambiar, la reverb empieza vacía. Solo suena una de las dos (comparten memoria).
+- **REVERB (PLACA):** CAÍDA, TONO (lo oscura que es la cola), MOVER (movimiento interno), NIVEL.
+- **REVERB 2** (la página siguiente): K1 **TIPO** elige **PLACA** o **NUBE**; los otros tres knobs dependen del tipo.
+  Al cambiar de tipo, la reverb empieza vacía. Solo suena una de las dos (comparten memoria).
+- **PLACA**, a la manera de la reverb **Plateau** de Valley (sus controles; el código es propio): la placa clásica
+  de Dattorro, con un corte de graves fijo (~90 Hz) a la entrada para que no embarre.
+  - **PREDELAY:** silencio antes de la cola, de 0 a 240 ms (sale en ms). Separa el golpe de su reverb.
+  - **TAMAÑO:** de sala pequeña (25 %) a la placa entera (100). El máximo es el tamaño de siempre: no cabe más en
+    memoria. Moverlo mientras suena hace saltos y cambios de tono, como en Plateau.
+  - **DIFUSIÓN:** abajo se oyen los primeros ecos sueltos; arriba todo se funde desde el principio.
+  - **HOME + REC** congela también la placa: deja de entrar sonido y la cola se queda sonando.
+- **NUBE**: una nube de granos con la idea del módulo Clouds de Mutable Instruments (el código es propio). Escucha
+  lo que le mandan los envíos B, guarda el último segundo y lo reparte en trocitos (granos) por el estéreo. En
+  REVERB 2:
   - **POSICIÓN:** de dónde salen los granos: de lo que acaba de sonar (0) a casi un segundo atrás (100).
   - **TAMAÑO:** granos cortos (~20 ms, chisporroteo) a largos (~0,5 s, nube).
   - **DENSIDAD:** en el centro, NADA (no salen granos nuevos); a la izquierda, granos regulares (REG); a la derecha,

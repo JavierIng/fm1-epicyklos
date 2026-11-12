@@ -169,11 +169,18 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
   feedback [REPITE] (at the top the delay feeds itself), tone [TONO] (each repeat darker).
 - **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level,
   DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms).
-- **Reverb (PLACA, a plate):** decay [CAÍDA], tone, movement [MOVER], level.
-- **NUBE** (the next page): the reverb can be **PLACA** or **NUBE** (cloud), a cloud of grains on the idea of
-  Mutable Instruments' Clouds (our own code). It listens to the B sends, keeps the last second and scatters it in
-  small pieces (grains) across the stereo field.
-  - **Type [TIPO]:** PLACA or NUBE. Changing it starts the reverb empty. Only one of the two plays (they share memory).
+- **Reverb (PLACA, a plate):** decay [CAÍDA], tone (how dark the tail is), movement [MOVER], level.
+- **REVERB 2** (the next page): K1 **type [TIPO]** picks **PLACA** or **NUBE**; the other three knobs follow the
+  type. Changing it starts the reverb empty. Only one of the two plays (they share memory).
+- **PLACA**, in the manner of Valley's **Plateau** reverb (its controls; our own code): Dattorro's classic plate,
+  with a fixed low cut (~90 Hz) on its input so it does not muddy.
+  - **PREDELAY:** silence before the tail, 0 to 240 ms (shown in ms). It sets the hit apart from its reverb.
+  - **Size [TAMANO]:** small room (25 %) to the whole plate (100). The top is the size it always had: no more fits in
+    memory. Moving it while it plays jumps and bends the pitch, as in Plateau.
+  - **Diffusion [DIFUSION]:** down, you hear the first echoes apart; up, everything blurs from the start.
+  - **HOME + REC** freezes the plate too: nothing new comes in and the tail keeps ringing.
+- **NUBE** (cloud): a cloud of grains on the idea of Mutable Instruments' Clouds (our own code). It listens to the B
+  sends, keeps the last second and scatters it in small pieces (grains) across the stereo field. On REVERB 2:
   - **Position [POSICION]:** where grains come from: what just played (0) to almost a second back (100).
   - **Size [TAMANO]:** short grains (~20 ms, crackle) to long (~0.5 s, a cloud).
   - **Density [DENSIDAD]:** at the centre, none [NADA] (no new grains); left, regular grains [REG]; right, random
