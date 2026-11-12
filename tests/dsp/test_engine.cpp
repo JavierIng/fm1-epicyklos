@@ -1407,6 +1407,83 @@ int main() {
         std::printf("nube peak %.3f, frozen %.3f, plate after %.3f\n", on, frozen, plate);
     }
 
+    // 30. PLACA the way Plateau plays it: pre-delay holds the tail back; freeze keeps it with nothing coming in;
+    //     size moved while it plays and every extreme stay finite
+    {
+        // only the returns: every level at 0, the B sends pre-fader (solo retornos)
+        auto fresh = [&](float predelay) {
+            epk_init(SR);
+            epk_pattern_select(0, 3);
+            epk_render(l, r, 256);
+            for (int t = 0; t < EPK_TRACKS; t++) {
+                epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f);
+                epk_param_set(t, EPK_P_LEVEL, 0.0f); epk_param_set(t, EPK_P_SEND_PRE, 1.0f);
+                epk_param_set(t, EPK_P_SEND_A, 0.0f); epk_param_set(t, EPK_P_SEND_B, t == 0 ? 0.9f : 0.0f);
+            }
+            epk_fx_set(EPK_FX_REV_PREDELAY, predelay);
+            epk_fx_set(EPK_FX_REV_LEVEL, 1.0f);
+            for (long d = 0; d < (long)(0.5f * SR); d += 256) epk_render(l, r, 256);   // levels glide to 0 first
+            epk_play(1);
+        };
+        auto onset = [&]() {                                         // first sample of the tail (primera muestra)
+            for (long d = 0; d < (long)(1.0f * SR); d += 256) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++)
+                    if (std::fabs(l[i]) + std::fabs(r[i]) > 1e-3f) return (float)(d + i) / SR;
+            }
+            return 1.0f;
+        };
+        fresh(0.0f);
+        const float t0 = onset();
+        fresh(1.0f);
+        const float t1 = onset();
+        CHECK(t1 - t0 > 0.20f && t1 - t0 < 0.28f, "pre-delay at the top holds the tail ~240 ms (%.0f ms)",
+              (t1 - t0) * 1000.0f);
+        // freeze: the kick's send off, the tail stays; without freeze it dies
+        float before = 0.0f;
+        auto tail = [&](int frz) {
+            fresh(0.0f);
+            epk_fx_set(EPK_FX_REV_DECAY, 0.3f);
+            for (long d = 0; d < (long)(1.0f * SR); d += 256) epk_render(l, r, 256);
+            epk_fx_meter();
+            for (long d = 0; d < (long)(1.0f * SR); d += 256) epk_render(l, r, 256);
+            before = epk_fx_meter();
+            epk_freeze(frz);
+            epk_param_set(0, EPK_P_SEND_B, 0.0f);
+            for (long d = 0; d < (long)(4.0f * SR); d += 256) epk_render(l, r, 256);
+            epk_fx_meter();
+            for (long d = 0; d < (long)(1.0f * SR); d += 256) epk_render(l, r, 256);
+            const float pk = epk_fx_meter();
+            epk_freeze(0);
+            return pk;
+        };
+        const float held = tail(1);
+        const float held_before = before;
+        const float gone = tail(0);
+        CHECK(held < held_before * 1.5f, "frozen plate does not grow (%.3f, before %.3f)", held, held_before);
+        CHECK(held > 0.02f && gone < held * 0.05f, "frozen plate holds (%.3f), free one dies (%.5f)", held, gone);
+        // size swept while playing, diffusion and pre-delay at both ends: finite, no runaway
+        fresh(0.5f);
+        epk_param_set(0, EPK_P_SEND_B, 1.0f);
+        epk_fx_set(EPK_FX_REV_DECAY, 1.0f);
+        int bad = 0;
+        float peak = 0.0f;
+        for (int k = 0; k < 40; k++) {
+            epk_fx_set(EPK_FX_REV_SIZE, (k % 2) ? (float)(k % 7) / 6.0f : 1.0f - (float)(k % 5) / 4.0f);
+            epk_fx_set(EPK_FX_REV_DIFFUSION, (float)(k % 3) / 2.0f);
+            epk_fx_set(EPK_FX_REV_PREDELAY, (float)(k % 4) / 3.0f);
+            for (long d = 0; d < (long)(0.25f * SR); d += 256) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) {
+                    bad += !std::isfinite(l[i]) || !std::isfinite(r[i]);
+                    peak = std::fmax(peak, std::fabs(l[i]));
+                }
+            }
+        }
+        CHECK(bad == 0 && peak <= 1.0f, "PLACA swept: %d bad samples, peak %.3f", bad, peak);
+        std::printf("plate pre-delay %.0f ms; frozen %.3f, free %.5f\n", (t1 - t0) * 1000.0f, held, gone);
+    }
+
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {

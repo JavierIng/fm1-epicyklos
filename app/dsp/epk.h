@@ -143,6 +143,10 @@ enum {
     EPK_FX_NUBE_SIZE,     /* grain length, ~20 ms .. ~0.5 s (tamaño) */
     EPK_FX_NUBE_DENSITY,  /* centre none; left regular, right random, more towards the ends (densidad) */
     EPK_FX_NUBE_PITCH,    /* -24 .. +24 semitones, 49 steps (afinación) */
+    /* PLACA the way Plateau plays it (como Plateau): its second page */
+    EPK_FX_REV_PREDELAY,  /* 0 .. ~240 ms before the tail starts (predelay) */
+    EPK_FX_REV_SIZE,      /* the tank, small .. Dattorro's size (tamaño) */
+    EPK_FX_REV_DIFFUSION, /* input diffusion: 0 echoes you can hear .. 1 smeared at once (difusión) */
     EPK_FX_COUNT
 };
 /* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
 // EPICYKLOS send effects (efectos de envío): bus A, a delay with three types (TAPE, BBD, PINGPONG); bus B, PLACA,
-// a plate reverb, or NUBE, a granular cloud (nube de granos) on the same buffer. Both run at half the sample rate (a mitad de frecuencia) on 16-bit buffers, to fit the FM-1's
+// a plate reverb in the manner of Valley's Plateau, or NUBE, a granular cloud (nube de granos) on the same buffer. Both run at half the sample rate (a mitad de frecuencia) on 16-bit buffers, to fit the FM-1's
 // RAM: the delay 66 KB (1.5 s), bus B 44 KB (PLACA uses 33 of them; NUBE all, 1 s).
 // PLACA follows the plate topology Jon Dattorro published ("Effect Design, Part 1", J. Audio Eng. Soc., 1997): four
 // input diffusers and a figure-of-eight tank with two modulated all-passes. The delay lengths are his, scaled from
@@ -119,89 +119,121 @@ struct Delay {
 };
 
 // ------------------------------------------------------------------ bus B: PLACA (reverb de placa)
-// the lines, in order, inside one buffer: 4 input diffusers; left half: modulated all-pass, delay, all-pass, delay;
-// right half the same. Values are stored at half scale (headroom for the all-passes).
-constexpr int kVerbLines = 12;
-constexpr int kVerbLineLen[kVerbLines] = {105, 79, 281, 205, 512, 3300, 1334, 2757, 688, 3125, 1968, 2344};
-constexpr int kVerbLen = 105 + 79 + 281 + 205 + 512 + 3300 + 1334 + 2757 + 688 + 3125 + 1968 + 2344;
+// The plate the way Valley's Plateau (Dale Johnson) plays it: Dattorro's figure-of-eight tank with PRE-DELAY, SIZE
+// (the tank's lengths scaled), input DIFFUSION, a low cut into the tank and a FREEZE that holds the tail. Plateau's
+// controls, our own code at half rate on 16 bits; the largest size is Dattorro's own (memory).
+// The lines, in order, inside one buffer: 4 input diffusers; left half: modulated all-pass, delay, all-pass, delay;
+// right half the same; then the pre-delay. Values are stored at half scale (headroom for the all-passes).
+constexpr int kVerbLines = 13;
+constexpr int kVerbPre = 5300;                 // up to ~240 ms of pre-delay (predelay)
+constexpr int kVerbLineLen[kVerbLines] = {105, 79, 281, 205, 512, 3300, 1334, 2757, 688, 3125, 1968, 2344, kVerbPre};
+constexpr int kVerbLen = 105 + 79 + 281 + 205 + 512 + 3300 + 1334 + 2757 + 688 + 3125 + 1968 + 2344 + kVerbPre;
 constexpr int kNubeLen = 22050;                // NUBE: 1 s at the half rate, mono, 16-bit (44 KB)
 constexpr int kBusBLen = kNubeLen > kVerbLen ? kNubeLen : kVerbLen;
+static_assert(kVerbLen <= kNubeLen, "PLACA must fit in NUBE's buffer: no more memory (sin más memoria)");
 static int16_t g_verb_buf[kBusBLen] EPK_POOL;  // one buffer for bus B: PLACA or NUBE, never both (nunca las dos)
 
 struct Plate {
-    enum { IN1, IN2, IN3, IN4, L_MOD, L_DL1, L_AP, L_DL2, R_MOD, R_DL1, R_AP, R_DL2 };
-    int off[kVerbLines], w[kVerbLines];
-    float l_fb, r_fb, l_damp, r_damp, lfo;
+    enum { IN1, IN2, IN3, IN4, L_MOD, L_DL1, L_AP, L_DL2, R_MOD, R_DL1, R_AP, R_DL2, PRE };
+    int off[kVerbLines], w[kVerbLines], len[kVerbLines];
+    float l_fb, r_fb, l_damp, r_damp, lfo, hp, scale;
 
     void clear() {
         for (int i = 0; i < kVerbLen; i++) g_verb_buf[i] = 0;
-        l_fb = r_fb = l_damp = r_damp = 0.0f;
+        l_fb = r_fb = l_damp = r_damp = hp = 0.0f;
     }
     void init() {
         int o = 0;
-        for (int i = 0; i < kVerbLines; i++) { off[i] = o; w[i] = 0; o += kVerbLineLen[i]; }
-        lfo = 0.0f;
+        for (int i = 0; i < kVerbLines; i++) { off[i] = o; w[i] = 0; len[i] = kVerbLineLen[i]; o += kVerbLineLen[i]; }
+        lfo = 0.0f; scale = 1.0f;
         clear();
+    }
+    // SIZE (tamaño): the tank's lines scaled 0.25 .. 1; the diffusers and the pre-delay keep theirs
+    void set_size(float v) {
+        const float sc = 0.25f + 0.75f * v;
+        if (fm_fabsf(sc - scale) < 0.002f) return;
+        scale = sc;
+        for (int i = L_MOD; i <= R_DL2; i++) {
+            if (i == L_MOD || i == R_MOD) continue;                     // these read a moving tap: keep their room
+            int n = (int)((float)kVerbLineLen[i] * sc);
+            if (n < 16) n = 16;
+            len[i] = n;
+            if (w[i] >= n) w[i] = 0;
+        }
     }
     inline float rd(int line, int back) const {                         // back: 1 .. the line's length
         int i = w[line] - back;
-        if (i < 0) i += kVerbLineLen[line];
+        if (i < 0) i += len[line];
         return (float)g_verb_buf[off[line] + i] * (1.0f / 16384.0f);
     }
     inline void wr(int line, float x) {
         g_verb_buf[off[line] + w[line]] = (int16_t)(fm_clampf(x, -1.99f, 1.99f) * 16384.0f);
-        if (++w[line] >= kVerbLineLen[line]) w[line] = 0;
+        if (++w[line] >= len[line]) w[line] = 0;
     }
-    inline float allpass(int line, int len, float x, float g) {
-        const float d = rd(line, len), v = x - g * d;
+    inline float allpass(int line, int n, float x, float g) {
+        const float d = rd(line, n), v = x - g * d;
         wr(line, v);
         return d + g * v;
     }
-    inline float allpass_mod(int line, float len, float x, float g) {    // a length that moves (longitud que se mueve)
-        const int whole = (int)len;
-        const float frac = len - (float)whole;
+    inline float allpass_mod(int line, float n, float x, float g) {      // a length that moves (longitud que se mueve)
+        const int whole = (int)n;
+        const float frac = n - (float)whole;
         const float d0 = rd(line, whole), d1 = rd(line, whole + 1), d = d0 + (d1 - d0) * frac;
         const float v = x - g * d;
         wr(line, v);
         return d + g * v;
     }
     inline float delay(int line, float x) {
-        const float d = rd(line, kVerbLineLen[line]);
+        const float d = rd(line, len[line]);
         wr(line, x);
         return d;
     }
+    inline float tap(int line, int at) const {                          // an output tap, scaled with SIZE
+        int k = (int)((float)at * scale);
+        if (k < 1) k = 1;
+        if (k > len[line]) k = len[line];
+        return rd(line, k);
+    }
 
-    void tick(float in, const float *fx, float hsr, float &out_l, float &out_r) {
-        const float decay = 0.30f + 0.69f * fx[EPK_FX_REV_DECAY];
-        const float open = 0.12f + 0.88f * fx[EPK_FX_REV_TONE];         // the tank's low-pass: 1 = no damping
+    void tick(float in, const float *fx, float hsr, int freeze, float &out_l, float &out_r) {
+        const float decay = freeze ? 0.9995f : 0.30f + 0.69f * fx[EPK_FX_REV_DECAY];
+        const float open = freeze ? 1.0f : 0.12f + 0.88f * fx[EPK_FX_REV_TONE];   // the tank's low-pass
         const float depth = 1.0f + 10.0f * fx[EPK_FX_REV_MOD];
+        const float diff = fx[EPK_FX_REV_DIFFUSION];
         lfo += (0.4f + 1.1f * fx[EPK_FX_REV_MOD]) / hsr;
         if (lfo >= 1.0f) lfo -= 1.0f;
-        float x = in * 0.5f;
-        x = allpass(IN1, 105, x, 0.75f);
-        x = allpass(IN2, 79, x, 0.75f);
-        x = allpass(IN3, 281, x, 0.625f);
-        x = allpass(IN4, 205, x, 0.625f);
+        // the pre-delay (predelay): 0 .. ~240 ms; frozen, nothing new comes in (congelada, no entra nada)
+        float x = freeze ? 0.0f : in * 0.5f;
+        const int pre = (int)(fx[EPK_FX_REV_PREDELAY] * (float)(kVerbPre - 1));
+        if (pre > 0) {
+            wr(PRE, x);
+            x = rd(PRE, pre);
+        }
+        hp += (x - hp) * (2.0f * 3.14159265f * 90.0f / hsr);            // low cut ~90 Hz into the tank (graves fuera)
+        x -= hp;
+        x = allpass(IN1, 105, x, 0.75f * diff);
+        x = allpass(IN2, 79, x, 0.75f * diff);
+        x = allpass(IN3, 281, x, 0.625f * diff);
+        x = allpass(IN4, 205, x, 0.625f * diff);
         // the tank (el tanque): each half feeds the other
-        float l = allpass_mod(L_MOD, 498.0f + depth * fm_sin_turns(lfo), x + decay * r_fb, -0.7f);
+        float l = allpass_mod(L_MOD, 498.0f * scale + depth * fm_sin_turns(lfo), x + decay * r_fb, -0.7f);
         l = delay(L_DL1, l);
         l_damp = fm_flush(l_damp + (l - l_damp) * open);
-        l = allpass(L_AP, 1334, l_damp * decay, 0.5f);
+        l = allpass(L_AP, len[L_AP], l_damp * decay, 0.5f);
         const float l_out = delay(L_DL2, l);
-        float r = allpass_mod(R_MOD, 673.0f + depth * fm_sin_turns(lfo + 0.25f), x + decay * l_fb, -0.7f);
+        float r = allpass_mod(R_MOD, 673.0f * scale + depth * fm_sin_turns(lfo + 0.25f), x + decay * l_fb, -0.7f);
         r = delay(R_DL1, r);
         r_damp = fm_flush(r_damp + (r - r_damp) * open);
-        r = allpass(R_AP, 1968, r_damp * decay, 0.5f);
+        r = allpass(R_AP, len[R_AP], r_damp * decay, 0.5f);
         const float r_out = delay(R_DL2, r);
         l_fb = l_out; r_fb = r_out;
         // the output taps (tomas de salida), Dattorro's, scaled
-        out_l = 1.2f * (rd(R_DL1, 197) + rd(R_DL1, 2204) - rd(R_AP, 1418) + rd(R_DL2, 1479) - rd(L_DL1, 1475) -
-                        rd(L_AP, 139) - rd(L_DL2, 790));
-        out_r = 1.2f * (rd(L_DL1, 262) + rd(L_DL1, 2688) - rd(L_AP, 910) + rd(L_DL2, 1981) - rd(R_DL1, 1564) -
-                        rd(R_AP, 248) - rd(R_DL2, 90));
+        out_l = 1.2f * (tap(R_DL1, 197) + tap(R_DL1, 2204) - tap(R_AP, 1418) + tap(R_DL2, 1479) - tap(L_DL1, 1475) -
+                        tap(L_AP, 139) - tap(L_DL2, 790));
+        out_r = 1.2f * (tap(L_DL1, 262) + tap(L_DL1, 2688) - tap(L_AP, 910) + tap(L_DL2, 1981) - tap(R_DL1, 1564) -
+                        tap(R_AP, 248) - tap(R_DL2, 90));
     }
 };
-
 
 // ------------------------------------------------------------------ bus B, second type: NUBE (nube de granos)
 // The idea of Mutable Instruments' Clouds (Émilie Gillet, MIT): grains read from the last second of what the bus
@@ -314,7 +346,7 @@ struct Fx {
     void clear() { delay.clear(); if (rev_type == EPK_REV_NUBE) nube.clear(); else plate.clear(); acc_a = acc_b = prev_l = prev_r = cur_l = cur_r = 0.0f; }
 
     inline void bus_b(float in, const float *fx, float hsr, float &l, float &r) {
-        if (rev_type == EPK_REV_NUBE) nube.tick(in, fx, hsr, freeze, l, r); else plate.tick(in, fx, hsr, l, r);
+        if (rev_type == EPK_REV_NUBE) nube.tick(in, fx, hsr, freeze, l, r); else plate.tick(in, fx, hsr, freeze, l, r);
     }
     // a, b: the send buses; kick: track 1's signal, for the duck (se suman al estéreo l, r)
     void process(const float *a, const float *b, const float *kick, float *l, float *r, uint32_t n, const float *fx,
@@ -330,6 +362,7 @@ struct Fx {
         const float glide = 1.0f / (0.010f * hsr);
         if (dly_t > 0.0f && dly_g <= 0.0f) delay.clear();                // back on: from empty (vuelve vacío)
         const int type = fx[EPK_FX_REV_TYPE] > 0.5f ? EPK_REV_NUBE : EPK_REV_PLACA;
+        plate.set_size(fx[EPK_FX_REV_SIZE]);
         if (type != rev_type) {                                          // the other type: its buffer from empty
             rev_type = type;
             if (type == EPK_REV_NUBE) nube.clear(); else plate.clear();

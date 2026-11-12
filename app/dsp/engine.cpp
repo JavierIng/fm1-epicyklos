@@ -798,7 +798,9 @@ void epk_init(float sample_rate) {
                                             0.0f, 0.0f, 0.0f,                   // filter on all, delay > reverb,
                                                                                 // compressor > tape
                                             0.0f, 0.0f, 0.0f, 2.0f / 3.0f,      // DIGITAL off, stutter 1/16
-                                            0.0f, 0.30f, 0.45f, 0.72f, 0.5f};   // PLACA; NUBE: a little back,
+                                            0.0f, 0.30f, 0.45f, 0.72f, 0.5f,
+                                            0.10f, 1.0f, 1.0f};                 // PLACA: ~24 ms pre-delay, full size
+                                                                                // and diffusion (as before)   // PLACA; NUBE: a little back,
                                                                                 // mid grains, some random, unison
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();

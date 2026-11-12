@@ -154,7 +154,7 @@ static int slot_param(int track, int page, int slot)
 /* ------------------------------------------------------------------ the effects' pages (páginas de EFECTOS) */
 enum { FXP_ECO, FXP_ECO2, FXP_REV, FXP_NUBE, FXP_FLT, FXP_MASTER, FXP_MAREA, FXP_MAREA2, FXP_MAREA3, FXP_DIGITAL,
        NFXPAGES };
-static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "NUBE", "FILTRO", "MASTER", "MAREA",
+static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "REVERB 2", "FILTRO", "MASTER", "MAREA",
                                                    "MAREA 2", "MAREA 3", "DIGITAL"};
 static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
@@ -176,7 +176,8 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "MAREA", "ECO", "REVERB", "FILTRO", "COMP", "SATURA",
                                                   "FILTRO EN", "ESPACIO", "DRIVE",
                                                   "BITS", "MUESTREO", "STUTTER", "REPITE",
-                                                  "TIPO", "POSICION", "TAMANO", "DENSIDAD", "AFINA"};
+                                                  "TIPO", "POSICION", "TAMANO", "DENSIDAD", "AFINA",
+                                                  "PREDELAY", "TAMANO", "DIFUSION"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -194,7 +195,8 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Menos bits: mas ruido digital", "Menos muestras: aliasing", "Repite lo que sonaba al activarlo",
     "Cuanto repite: 1/4 .. 1/32",
     "Placa o nube de granos", "De donde: de ahora a 1 s atras", "Granos cortos o largos",
-    "Centro nada; izq. regular, der. al azar", "En semitonos, de -24 a +24"};
+    "Centro nada; izq. regular, der. al azar", "En semitonos, de -24 a +24",
+    "Silencio antes de la cola", "Sala pequena o grande", "Ecos sueltos o todo fundido"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
@@ -202,8 +204,11 @@ static int is_nube(void) { return epk_fx_get(EPK_FX_REV_TYPE) > 0.5f; }
 /* a page's knob: in NUBE the REVERB page is REPITE, TEXTURA, AFINA, NIVEL (en NUBE cambia la página REVERB) */
 static int fx_slot(int page, int slot)
 {
+    static const int8_t PLACA2[4] = {EPK_FX_REV_TYPE, EPK_FX_REV_PREDELAY, EPK_FX_REV_SIZE, EPK_FX_REV_DIFFUSION};
     if (page == FXP_REV && slot == 2 && is_nube())
         return EPK_FX_NUBE_PITCH;
+    if (page == FXP_NUBE && !is_nube())                    /* REVERB 2: the plate's, or the cloud's (placa o nube) */
+        return PLACA2[slot];
     return FX_PAGE_PARAM[page][slot];
 }
 static int view_is_flow(void);
@@ -395,7 +400,10 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         }
     } else if (p == EPK_FX_STUTTER)
         str_cat(b, v > 0.5f ? "SI" : "NO");
-    else if (p == EPK_FX_REV_TYPE)
+    else if (p == EPK_FX_REV_PREDELAY) {
+        int_str((int32_t)(v * 240.0f + 0.5f), b);
+        str_cat(b, " MS");
+    } else if (p == EPK_FX_REV_TYPE)
         str_cat(b, v > 0.5f ? "NUBE" : "PLACA");
     else if (p == EPK_FX_NUBE_PITCH) {
         const int st = (int)(v * (float)(EPK_NUBE_PITCH_STEPS - 1) + 0.5f) - 24;
@@ -1783,7 +1791,7 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     cv_rect(120, 4, 108, 1, ui.fx_page >= FXP_REV ? C_FX : C_RULE);
     cv_text(126, 8, &FONT_XS, "B  REVERB", ui.fx_page >= FXP_REV ? C_FX : C_LABEL);
     cv_text(126, 24, &FONT_M, is_nube() ? "NUBE" : "PLACA", C_TEXT);
-    if (is_nube() && epk_frozen())
+    if (epk_frozen())
         cv_text(222 - text_w(&FONT_XS, "FREEZE"), 54, &FONT_XS, "FREEZE", C_SOLO);
     cv_text(126, 52, &FONT_XS, is_nube() ? "REPITE" : "CAIDA", C_LABEL);
     cv_rect(126, 74, 96, 3, C_RULE);
