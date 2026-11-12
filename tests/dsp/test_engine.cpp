@@ -1345,6 +1345,68 @@ int main() {
         std::printf("pre-fader send %.3f; stutter repeat corr %.3f; fade half %.2f\n", pre, corr, half);
     }
 
+    // 29. NUBE (nube de granos), bus B's second type: it sounds; freeze keeps it going with nothing new in; density
+    //     at the centre makes no new grains; extremes stay finite; back to PLACA works
+    {
+        auto fresh = [&]() {
+            epk_init(SR);
+            epk_pattern_select(0, 3);
+            epk_render(l, r, 256);
+            for (int t = 0; t < EPK_TRACKS; t++) {
+                epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f);
+                epk_param_set(t, EPK_P_SEND_A, 0.0f); epk_param_set(t, EPK_P_SEND_B, 0.7f);
+            }
+            epk_fx_set(EPK_FX_REV_TYPE, 1.0f);
+            epk_fx_set(EPK_FX_REV_LEVEL, 1.0f);
+            epk_play(1);
+        };
+        auto fx_peak = [&](float sec) {
+            epk_fx_meter();
+            for (long d = 0; d < (long)(sec * SR); d += 256) epk_render(l, r, 256);
+            return epk_fx_meter();
+        };
+        fresh();
+        const float on = fx_peak(3.0f);
+        CHECK(on > 0.02f, "NUBE sounds (returns peak %.3f)", on);
+        // freeze, then silence the sends: the cloud keeps going from what it holds
+        epk_freeze(1);
+        for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_SEND_B, 0.0f);
+        fx_peak(0.5f);
+        const float frozen = fx_peak(2.0f);
+        CHECK(frozen > 0.01f, "frozen, nothing in: still grains (peak %.3f)", frozen);
+        // density at the centre: no new grains; after the last ones end (0.5 s at most), silence
+        epk_fx_set(EPK_FX_NUBE_DENSITY, 0.5f);
+        fx_peak(1.0f);
+        const float none = fx_peak(1.0f);
+        CHECK(none < 1e-4f, "density at the centre: silent (peak %.6f)", none);
+        epk_freeze(0);
+        // extremes (extremos): everything up, pitch at both ends, long grains; finite, not runaway
+        fresh();
+        epk_fx_set(EPK_FX_REV_DECAY, 1.0f);
+        epk_fx_set(EPK_FX_NUBE_SIZE, 1.0f);
+        epk_fx_set(EPK_FX_NUBE_DENSITY, 1.0f);
+        int bad = 0;
+        float peak = 0.0f;
+        for (int k = 0; k < 2; k++) {
+            epk_fx_set(EPK_FX_NUBE_PITCH, (float)k);
+            epk_fx_set(EPK_FX_REV_TONE, (float)k);
+            for (long d = 0; d < (long)(4.0f * SR); d += 256) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) {
+                    bad += !std::isfinite(l[i]) || !std::isfinite(r[i]);
+                    peak = std::fmax(peak, std::fabs(l[i]));
+                }
+            }
+        }
+        CHECK(bad == 0 && peak <= 1.0f, "NUBE at the extremes: %d bad samples, peak %.3f", bad, peak);
+        // the plate again (otra vez la placa)
+        epk_fx_set(EPK_FX_REV_TYPE, 0.0f);
+        epk_fx_set(EPK_FX_REV_DECAY, 0.7f);
+        const float plate = fx_peak(2.0f);
+        CHECK(plate > 0.02f, "back to PLACA it sounds (peak %.3f)", plate);
+        std::printf("nube peak %.3f, frozen %.3f, plate after %.3f\n", on, frozen, plate);
+    }
+
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {

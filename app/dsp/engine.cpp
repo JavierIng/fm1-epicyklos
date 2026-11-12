@@ -797,7 +797,9 @@ void epk_init(float sample_rate) {
                                             1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,   // FLOW: all on (todo activo)
                                             0.0f, 0.0f, 0.0f,                   // filter on all, delay > reverb,
                                                                                 // compressor > tape
-                                            0.0f, 0.0f, 0.0f, 2.0f / 3.0f};     // DIGITAL off, stutter 1/16
+                                            0.0f, 0.0f, 0.0f, 2.0f / 3.0f,      // DIGITAL off, stutter 1/16
+                                            0.0f, 0.30f, 0.45f, 0.72f, 0.5f};   // PLACA; NUBE: a little back,
+                                                                                // mid grains, some random, unison
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
     g.master.init();
@@ -1062,7 +1064,8 @@ int epk_fx_steps(int param) {
            param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : param == EPK_FX_MAREA_SYNC ? 2 :
            (param >= EPK_FX_ON_MAREA && param <= EPK_FX_ON_SAT) ? 2 : param == EPK_FX_FLT_PLACE ? EPK_PLACE_COUNT :
            param == EPK_FX_SPACE_ORDER || param == EPK_FX_DRIVE_ORDER || param == EPK_FX_STUTTER ? 2 :
-           param == EPK_FX_STUT_DIV ? EPK_STUT_COUNT : 0;
+           param == EPK_FX_STUT_DIV ? EPK_STUT_COUNT : param == EPK_FX_REV_TYPE ? EPK_REV_COUNT :
+           param == EPK_FX_NUBE_PITCH ? EPK_NUBE_PITCH_STEPS : 0;
 }
 float epk_marea_band(int b) { return g.marea.gain[clampi(b, 0, kMareaBands - 1)]; }
 float epk_marea_x(float hz) { return clamp01(fm_log2f(fm_maxf(hz, 1.0f) / kMareaLow) / kMareaOctaves); }

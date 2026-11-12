@@ -136,6 +136,13 @@ enum {
     EPK_FX_SRR,           /* 0 off, up: the sample rate divided by 1 .. 32 (reducción de frecuencia) */
     EPK_FX_STUTTER,       /* 1: repeats the last division played from the moment it is turned on (repetición) */
     EPK_FX_STUT_DIV,      /* EPK_STUT_*: what it repeats: 1/4, 1/8, 1/16, 1/32 */
+    /* bus B's type (tipo de la reverb): PLACA, or NUBE, grains from the last second (granos, idea de Clouds).
+     * In NUBE, REV_DECAY is the feedback (repite), REV_TONE the texture (textura); REV_MOD is not used */
+    EPK_FX_REV_TYPE,      /* EPK_REV_* */
+    EPK_FX_NUBE_POS,      /* where the grains come from: now .. 1 s back (posición) */
+    EPK_FX_NUBE_SIZE,     /* grain length, ~20 ms .. ~0.5 s (tamaño) */
+    EPK_FX_NUBE_DENSITY,  /* centre none; left regular, right random, more towards the ends (densidad) */
+    EPK_FX_NUBE_PITCH,    /* -24 .. +24 semitones, 49 steps (afinación) */
     EPK_FX_COUNT
 };
 /* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */
@@ -143,6 +150,8 @@ enum { EPK_PLACE_ALL, EPK_PLACE_DRY, EPK_PLACE_FX, EPK_PLACE_COUNT };
 enum { EPK_SPACE_DLY_REV, EPK_SPACE_REV_DLY };   /* ECO > REVERB / REVERB > ECO */
 enum { EPK_DRIVE_COMP_SAT, EPK_DRIVE_SAT_COMP };  /* COMP > SATURA / SATURA > COMP */
 enum { EPK_STUT_4, EPK_STUT_8, EPK_STUT_16, EPK_STUT_32, EPK_STUT_COUNT };
+enum { EPK_REV_PLACA, EPK_REV_NUBE, EPK_REV_COUNT };
+#define EPK_NUBE_PITCH_STEPS 49
 enum { EPK_DLY_TAPE, EPK_DLY_BBD, EPK_DLY_PINGPONG, EPK_DLY_COUNT };
 
 /* a step's chance (probabilidad) and condition (condición): N:M plays on the Nth of every M cycles */

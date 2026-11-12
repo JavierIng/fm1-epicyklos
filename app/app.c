@@ -152,13 +152,15 @@ static int slot_param(int track, int page, int slot)
 }
 
 /* ------------------------------------------------------------------ the effects' pages (páginas de EFECTOS) */
-enum { NFXPAGES = 9, FXP_MAREA = 5 };
-static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "FILTRO", "MASTER", "MAREA", "MAREA 2",
-                                                   "MAREA 3", "DIGITAL"};
+enum { FXP_ECO, FXP_ECO2, FXP_REV, FXP_NUBE, FXP_FLT, FXP_MASTER, FXP_MAREA, FXP_MAREA2, FXP_MAREA3, FXP_DIGITAL,
+       NFXPAGES };
+static const char *const FX_PAGE_NAME[NFXPAGES] = {"ECO", "ECO 2", "REVERB", "NUBE", "FILTRO", "MASTER", "MAREA",
+                                                   "MAREA 2", "MAREA 3", "DIGITAL"};
 static const int8_t FX_PAGE_PARAM[NFXPAGES][4] = {
     {EPK_FX_DLY_TYPE, EPK_FX_DLY_TIME, EPK_FX_DLY_FEEDBACK, EPK_FX_DLY_TONE},
     {EPK_FX_DLY_WEAR, EPK_FX_DLY_TO_REV, EPK_FX_DLY_LEVEL, EPK_FX_DUCK},
     {EPK_FX_REV_DECAY, EPK_FX_REV_TONE, EPK_FX_REV_MOD, EPK_FX_REV_LEVEL},
+    {EPK_FX_REV_TYPE, EPK_FX_NUBE_POS, EPK_FX_NUBE_SIZE, EPK_FX_NUBE_DENSITY},   /* NUBE */
     {EPK_FX_FLT_TYPE, EPK_FX_FLT, EPK_FX_FLT_RESO, EPK_FX_FLT_DOUBLE},
     {EPK_FX_COMP, EPK_FX_SAT, SLOT_NONE, SLOT_NONE},
     {EPK_FX_MAREA_TRACK, EPK_FX_MAREA_MIX, EPK_FX_MAREA_SPEED, EPK_FX_MAREA_MULTIPLY},
@@ -173,7 +175,8 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "INVIERTE", "GRAVEDAD", "DESDE", "HASTA", "RESO", "ANCHO",
                                                   "MAREA", "ECO", "REVERB", "FILTRO", "COMP", "SATURA",
                                                   "FILTRO EN", "ESPACIO", "DRIVE",
-                                                  "BITS", "MUESTREO", "STUTTER", "REPITE"};
+                                                  "BITS", "MUESTREO", "STUTTER", "REPITE",
+                                                  "TIPO", "POSICION", "TAMANO", "DENSIDAD", "AFINA"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -189,10 +192,20 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Compresor activo o quitado", "Cinta activa o quitada",
     "Todo, solo pistas o solo efectos", "Quien alimenta a quien (CRUCE)", "Compresor y cinta: en que orden",
     "Menos bits: mas ruido digital", "Menos muestras: aliasing", "Repite lo que sonaba al activarlo",
-    "Cuanto repite: 1/4 .. 1/32"};
+    "Cuanto repite: 1/4 .. 1/32",
+    "Placa o nube de granos", "De donde: de ahora a 1 s atras", "Granos cortos o largos",
+    "Centro nada; izq. regular, der. al azar", "En semitonos, de -24 a +24"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
+static int is_nube(void) { return epk_fx_get(EPK_FX_REV_TYPE) > 0.5f; }
+/* a page's knob: in NUBE the REVERB page is REPITE, TEXTURA, AFINA, NIVEL (en NUBE cambia la página REVERB) */
+static int fx_slot(int page, int slot)
+{
+    if (page == FXP_REV && slot == 2 && is_nube())
+        return EPK_FX_NUBE_PITCH;
+    return FX_PAGE_PARAM[page][slot];
+}
 static int view_is_flow(void);
 /* the filter's knobs change meaning with its type (cambian de sentido con el tipo) */
 static const char *fx_name(int p)
@@ -204,6 +217,10 @@ static const char *fx_name(int p)
         return t == EPK_FLT_MORPH ? "FORMA" : "DOBLE";
     if (p == EPK_FX_DLY_TO_REV && view_is_flow())
         return "CRUCE";                                    /* either way in FLOW (en los dos sentidos) */
+    if (p == EPK_FX_REV_DECAY && is_nube())
+        return "REPITE";
+    if (p == EPK_FX_REV_TONE && is_nube())
+        return "TEXTURA";
     return FX_NAME[p];
 }
 static const char *fx_hint(int p)
@@ -215,6 +232,10 @@ static const char *fx_hint(int p)
         return "De paso bajo a banda a paso alto";
     if (p == EPK_FX_DLY_TO_REV && view_is_flow())
         return "Cuanto del primero entra al segundo";
+    if (p == EPK_FX_REV_DECAY && is_nube())
+        return "Los granos vuelven a la nube";
+    if (p == EPK_FX_REV_TONE && is_nube())
+        return "Granos duros o suaves";
     return FX_HINT[p];
 }
 static const char *const DLY_NAME[EPK_DLY_COUNT] = {"TAPE", "BBD", "PINGPONG"};
@@ -374,7 +395,24 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         }
     } else if (p == EPK_FX_STUTTER)
         str_cat(b, v > 0.5f ? "SI" : "NO");
-    else if (p == EPK_FX_STUT_DIV) {
+    else if (p == EPK_FX_REV_TYPE)
+        str_cat(b, v > 0.5f ? "NUBE" : "PLACA");
+    else if (p == EPK_FX_NUBE_PITCH) {
+        const int st = (int)(v * (float)(EPK_NUBE_PITCH_STEPS - 1) + 0.5f) - 24;
+        if (st > 0)
+            str_cat(b, "+");
+        else if (st < 0)
+            str_cat(b, "-");
+        int_str(st < 0 ? -st : st, b + (st != 0));
+    } else if (p == EPK_FX_NUBE_DENSITY) {
+        const int d = (int)((v - 0.5f) * 200.0f + (v >= 0.5f ? 0.5f : -0.5f));
+        if (d > -4 && d < 4)
+            str_cat(b, "NADA");
+        else {
+            str_cat(b, d < 0 ? "REG " : "AZAR ");
+            int_str(d < 0 ? -d : d, b + (d < 0 ? 4 : 5));
+        }
+    } else if (p == EPK_FX_STUT_DIV) {
         static const char *const SD[EPK_STUT_COUNT] = {"1/4", "1/8", "1/16", "1/32"};
         str_cat(b, SD[(int)(v * (float)(EPK_STUT_COUNT - 1) + 0.5f)]);
     }
@@ -866,7 +904,7 @@ static void turn_param(int page, int slot, int32_t detents, int fine)
 /* EFFECTS view: one of the delay's or the reverb's knobs (un knob del eco o de la reverb) */
 static void turn_fx(int slot, int32_t detents, int fine)
 {
-    const int p = slot >= 0 ? FX_PAGE_PARAM[ui.fx_page][slot] : SLOT_NONE;
+    const int p = slot >= 0 ? fx_slot(ui.fx_page, slot) : SLOT_NONE;
     const int steps = p >= 0 ? epk_fx_steps(p) : 0;
     if (p < 0)
         return;
@@ -910,7 +948,7 @@ static void target_name(int tg, char *b)
         int pg, sl;
         for (pg = 0; pg < NFXPAGES; pg++)                  /* its page first: two "NIVEL" must not look alike */
             for (sl = 0; sl < 4; sl++)
-                if (FX_PAGE_PARAM[pg][sl] == tg && !b[0]) {
+                if (fx_slot(pg, sl) == tg && !b[0]) {
                     str_cat(b, FX_PAGE_NAME[pg]);
                     str_cat(b, " ");
                 }
@@ -942,7 +980,7 @@ static void scene_turn(int k, int32_t e)
     if (slot < 0)
         return;
     if (ui.view == VIEW_FX)
-        target = FX_PAGE_PARAM[ui.fx_page][slot];
+        target = fx_slot(ui.fx_page, slot);
     else if (ui.view == VIEW_FLOW)
         target = FLOW_PARAM[slot];
     else if (ui.view == VIEW_ORBIT || ui.view == VIEW_MIX) {
@@ -1668,7 +1706,7 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     char v[16];
     int t;
     const int32_t m = (int32_t)(fm_minf(ui.fx_meter * 1.5f, 1.0f) * 76.0f + 0.5f);
-    if (ui.fx_page >= FXP_MAREA) {                                    /* MAREA: the wave over the frequencies */
+    if (ui.fx_page >= FXP_MAREA && ui.fx_page <= FXP_MAREA3) {       /* MAREA: the wave over the frequencies */
         const int on = (int)(epk_fx_get(EPK_FX_MAREA_TRACK) * 6.0f + 0.5f);
         const uint16_t c = on ? C_FX : C_RULE;
         const int32_t x0 = 10, w = 212, top = 18, h = 56;
@@ -1704,12 +1742,12 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
         }
         cv_text(10, 74, &FONT_XS, "40", C_RULE);
         cv_text(222 - text_w(&FONT_XS, "15k"), 74, &FONT_XS, "15k", C_RULE);
-    } else if (ui.fx_page >= 3) {                                     /* the master: filter and compressor */
+    } else if (ui.fx_page >= FXP_FLT) {                               /* the master: filter and compressor */
         const int32_t gr = (int32_t)(fm_minf(ui.comp_gr / 12.0f, 1.0f) * 96.0f + 0.5f);
         float hz;
         cv_rect(4, 4, 112, 80, C_PANEL);
-        cv_rect(4, 4, 112, 1, ui.fx_page == 3 ? C_FX : C_RULE);
-        cv_text(10, 8, &FONT_XS, "FILTRO", ui.fx_page == 3 ? C_FX : C_LABEL);
+        cv_rect(4, 4, 112, 1, ui.fx_page == FXP_FLT ? C_FX : C_RULE);
+        cv_text(10, 8, &FONT_XS, "FILTRO", ui.fx_page == FXP_FLT ? C_FX : C_LABEL);
         cv_text(110 - text_w(&FONT_XS, FLT_TYPE_NAME[flt_type()]), 8, &FONT_XS, FLT_TYPE_NAME[flt_type()], C_TEXT);
         fx_str(EPK_FX_FLT, v);
         cv_text(10, 24, text_w(&FONT_M, v) > 100 ? &FONT_S : &FONT_M, v,
@@ -1719,8 +1757,8 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
             cv_rect(59, 70, 2, 11, C_LABEL);
         cv_rect(10 + (int32_t)(epk_fx_get(EPK_FX_FLT) * 96.0f), 71, 4, 9, C_FX);
         cv_rect(120, 4, 108, 80, C_PANEL);
-        cv_rect(120, 4, 108, 1, ui.fx_page == 4 ? C_FX : C_RULE);
-        cv_text(126, 8, &FONT_XS, "COMP", ui.fx_page == 4 ? C_FX : C_LABEL);
+        cv_rect(120, 4, 108, 1, ui.fx_page == FXP_MASTER ? C_FX : C_RULE);
+        cv_text(126, 8, &FONT_XS, "COMP", ui.fx_page == FXP_MASTER ? C_FX : C_LABEL);
         int_str((int32_t)(ui.comp_gr + 0.5f), v);
         str_cat(v, " dB");
         cv_text(126, 24, &FONT_M, v, C_TEXT);
@@ -1729,8 +1767,8 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
         cv_rect(126, 74, gr, 3, C_MUTE);
     } else {
     cv_rect(4, 4, 112, 80, C_PANEL);                                  /* the delay (eco) */
-    cv_rect(4, 4, 112, 1, ui.fx_page < 2 ? C_FX : C_RULE);
-    cv_text(10, 8, &FONT_XS, "A  ECO", ui.fx_page < 2 ? C_FX : C_LABEL);
+    cv_rect(4, 4, 112, 1, ui.fx_page < FXP_REV ? C_FX : C_RULE);
+    cv_text(10, 8, &FONT_XS, "A  ECO", ui.fx_page < FXP_REV ? C_FX : C_LABEL);
     fx_str(EPK_FX_DLY_TYPE, v);
     cv_text(10, 24, text_w(&FONT_M, v) > 100 ? &FONT_S : &FONT_M, v, C_TEXT);
     fx_str(EPK_FX_DLY_TIME, v);
@@ -1742,10 +1780,12 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     cv_rect(10, 74, 100, 3, C_RULE);
     cv_rect(10, 74, (int32_t)(epk_fx_get(EPK_FX_DLY_FEEDBACK) * 100.0f + 0.5f), 3, C_FX);
     cv_rect(120, 4, 108, 80, C_PANEL);                                /* the reverb */
-    cv_rect(120, 4, 108, 1, ui.fx_page == 2 ? C_FX : C_RULE);
-    cv_text(126, 8, &FONT_XS, "B  REVERB", ui.fx_page == 2 ? C_FX : C_LABEL);
-    cv_text(126, 24, &FONT_M, "PLACA", C_TEXT);
-    cv_text(126, 52, &FONT_XS, "CAIDA", C_LABEL);
+    cv_rect(120, 4, 108, 1, ui.fx_page >= FXP_REV ? C_FX : C_RULE);
+    cv_text(126, 8, &FONT_XS, "B  REVERB", ui.fx_page >= FXP_REV ? C_FX : C_LABEL);
+    cv_text(126, 24, &FONT_M, is_nube() ? "NUBE" : "PLACA", C_TEXT);
+    if (is_nube() && epk_frozen())
+        cv_text(222 - text_w(&FONT_XS, "FREEZE"), 54, &FONT_XS, "FREEZE", C_SOLO);
+    cv_text(126, 52, &FONT_XS, is_nube() ? "REPITE" : "CAIDA", C_LABEL);
     cv_rect(126, 74, 96, 3, C_RULE);
     cv_rect(126, 74, (int32_t)(epk_fx_get(EPK_FX_REV_DECAY) * 96.0f + 0.5f), 3, C_FX);
     }
@@ -1842,7 +1882,7 @@ static void draw_flow(void)
     cv_text(180, 22, &FONT_XS, "A Y B", C_LABEL);
     /* 2: the space (el espacio): delay and reverb, and which feeds the other */
     flow_box(rev_first ? 140 : 2, 48, 98, 2, "ECO", rev_first ? "RECIBE LA REV" : "MANDA A REV", on[1]);
-    flow_box(rev_first ? 2 : 140, 48, 98, 3, "REVERB", rev_first ? "MANDA AL ECO" : "RECIBE EL ECO", on[2]);
+    flow_box(rev_first ? 2 : 140, 48, 98, 3, is_nube() ? "NUBE" : "REVERB", rev_first ? "MANDA AL ECO" : "RECIBE EL ECO", on[2]);
     flow_arrow(102, 138, 65, C_FX);
     int_str((int32_t)(epk_fx_get(EPK_FX_DLY_TO_REV) * 100.0f + 0.5f), v);
     cv_text(120 - text_w(&FONT_XS, v) / 2, 52, &FONT_XS, v, C_LABEL);
@@ -2030,11 +2070,17 @@ static void draw_foot(void)                       /* the page tabs and the four 
             x = cv_text(x, 3, &FONT_XS, FX_PAGE_NAME[ui.fx_page], C_FX) + 8;
             cv_text(x, 3, &FONT_XS, FX_PAGE_NAME[next], C_RULE);
             int_str(ui.fx_page + 1, pg);
-            str_cat(pg, "/9");
+            str_cat(pg, "/");
+            {
+                int n = 0;                                 /* no strlen on the device (sin strlen) */
+                while (pg[n])
+                    n++;
+                int_str(NFXPAGES, pg + n);
+            }
             cv_text(236 - text_w(&FONT_XS, pg), 3, &FONT_XS, pg, C_LABEL);
         }
         for (i = 0; i < 4; i++) {
-            const int p = FX_PAGE_PARAM[ui.fx_page][i];
+            const int p = fx_slot(ui.fx_page, i);
             const int32_t cx = i * 60 + 2;
             cv_rect(cx, 18, 56, 52, C_PANEL);
             if (p < 0)
