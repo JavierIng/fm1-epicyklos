@@ -215,3 +215,12 @@
 - Resultado medido sobre una sierra sostenida: el cambio de color pasa de x1,22 a x3,08 con los valores de inicio.
 - MAREA ya iba antes del eco y la reverb (inserto de pista; los envíos reciben la señal procesada).
 - Pendiente de decidir: vista FLOW (cadena de efectos con activar/desactivar y, quizá, orden) y adelantar los motores de síntesis (ACORDE DUB, DRONE) para juzgar MAREA con pads reales.
+
+## Fase 4a: ACORDE DUB y DRONE (2026-11-12)
+
+- Orden acordado con Javier: motores primero (para juzgar MAREA, eco y reverb con sonidos reales), luego la vista FLOW, luego las escenas. Los patrones de muestra por estilo (A ambient/jungle, B deep/dub, C hipnótico raw) quedan anotados para después.
+- **ACORDE DUB** (pista 3): 4 voces de las tablas de Plaits Palette (Original, Colour Chords, Disastrous Peace, Tonnetz Walk; MIT, ya en CREDITS), cada una 2 sierras polyBLEP a −6/+7 cents, paso bajo resonante con envolvente propia (más corta que la de amplitud). La voz más grave se baja a la octava de la nota. `tools/chords_to_h.py` genera `app/dsp/chords.h` desde `assets/chords` con nombres cortos en ASCII.
+- **DRONE** (pista 5): sostiene (0,2–30 s tras el último golpe, luego ~2 s de caída), legato con portamento de 0,25 s, 3 osciladores (raíz, raíz separada, intervalo), timbre seno → triángulo → sierra → aire, DERIVA (paseo aleatorio lento de tono, separación y filtro). Al parar el secuenciador se apaga (`Voice::release`).
+- Pista 4 (bajo) sigue con la voz de prueba hasta que haya motor de bajo (LÍNEA o BÁLTICO).
+- Coste en el ordenador (no en el FM-1): ACORDE ~0,9× y DRONE ~1,4× la voz de prueba. Que ACORDE (8 sierras) salga más barato que la de prueba es sospechoso; la medida del ordenador no vale para decidir nada del aparato.
+- Validación: los dos suenan; cambiar de acorde cambia el contenido (1192 → 1302 cruces por segundo de octava a MIN9); los 70 acordes de las 4 tablas, limpios; el dron sigue a 2 s y se apaga tras parar. 103 comprobaciones en el simulador.

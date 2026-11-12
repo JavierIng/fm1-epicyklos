@@ -759,9 +759,69 @@ int main() {
         std::printf("marea: sway x%.2f moving, x%.2f frozen; width %.3f; wet %.0f %% of dry\n", sw3, sw2, sd4, 100 * e3 / e0);
     }
 
+    // 21. ACORDE DUB and DRONE: they sound; a chord is four notes (more pitch content than one); every table and
+    // chord is clean; the drone holds past a second and fades after the sequencer stops.
+    {
+        auto play = [&](int track, float ch, float table, float seconds, double &energy, double &cross) {
+            epk_init(SR);
+            for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == track);
+            epk_fx_set(EPK_FX_MAREA_TRACK, 0.0f);
+            epk_param_set(track, EPK_P_SEND_A, 0.0f);
+            epk_param_set(track, EPK_P_SEND_B, 0.0f);
+            epk_param_set(track, EPK_P_CHARACTER, ch);
+            epk_param_set(track, EPK_P_EXTRA1, table);
+            epk_param_set(track, EPK_P_DECAY, 0.8f);
+            epk_param_set(track, EPK_P_TONE, 0.7f);
+            epk_param_set(track, EPK_P_ATTACK, 0.0f);
+            epk_note_on(track, 50, 1.0f);
+            double e = 0.0; long zc = 0; float prev = 0.0f; int bad = 0;
+            for (int k = 0; k < (int)(seconds * SR / 256); k++) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) {
+                    bad += !std::isfinite(l[i]);
+                    e += (double)l[i] * l[i];
+                    zc += (l[i] > 0.0f) != (prev > 0.0f);
+                    prev = l[i];
+                }
+            }
+            energy = e; cross = (double)zc / seconds;
+            return bad;
+        };
+        CHECK(epk_engine(2) == EPK_ENG_ACORDE && epk_engine(4) == EPK_ENG_DRONE, "engines: track 3 %d, track 5 %d",
+              epk_engine(2), epk_engine(4));
+        double e1, c1, e2, c2;
+        int bad = play(2, 0.0f, 0.0f, 0.5f, e1, c1);                  // OCTAVA (Original, chord 0)
+        bad += play(2, 0.5f, 0.0f, 0.5f, e2, c2);                    // MIN9 (Original, chord 5)
+        CHECK(e1 > 10.0 && e2 > 10.0 && std::fabs(c2 - c1) > 50.0, "ACORDE sounds (%.0f, %.0f) and the chord changes it (%.0f / %.0f crossings a second)",
+              e1, e2, c1, c2);
+        for (int t = 0; t < epk_chord_tables(); t++)
+            for (int c = 0; c < epk_chord_count(t); c++) {
+                double e, x;
+                bad += play(2, (float)c / (float)(epk_chord_count(t) - 1), (float)t / (float)(epk_chord_tables() - 1), 0.05f, e, x);
+            }
+        CHECK(bad == 0 && epk_chord_count(3) == 24 && epk_chord_name(0, 5)[0] != 0,
+              "every chord of every table is clean (%d bad); %s has %d chords", bad, epk_chord_table_name(3), epk_chord_count(3));
+        // the drone: still there after 2 s, then the sequencer starts and stops: it fades
+        double ed, cd;
+        bad = play(4, 0.4f, 0.4f, 2.0f, ed, cd);
+        float late = 0.0f;
+        for (int k = 0; k < 20; k++) { epk_render(l, r, 256); for (int i = 0; i < 256; i++) late = std::fmax(late, std::fabs(l[i])); }
+        CHECK(bad == 0 && late > 0.05f, "DRONE holds: peak %.3f after 2 s", late);
+        epk_play(1);
+        epk_render(l, r, 256);
+        epk_play(0);
+        float tail = 0.0f;
+        for (int k = 0; k < (int)(5.0f * SR / 256); k++) {
+            epk_render(l, r, 256);
+            if (k > (int)(4.0f * SR / 256)) for (int i = 0; i < 256; i++) tail = std::fmax(tail, std::fabs(l[i]));
+        }
+        CHECK(tail < 0.002f, "DRONE fades after stop: %.4f at 4-5 s", tail);
+        std::printf("acorde: %.0f / %.0f crossings a second (octave / min9); drone peak %.3f at 2 s\n", c1, c2, late);
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
-        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR"};
+        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};
         double base = 0.0;
         for (int e = 0; e < EPK_ENG_COUNT; e++) {
             epk_init(SR);

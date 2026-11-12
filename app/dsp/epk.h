@@ -43,7 +43,13 @@ enum {
 };
 
 /* engines (motores) */
-enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_COUNT };
+enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_ACORDE, EPK_ENG_DRONE,
+       EPK_ENG_COUNT };
+/* ACORDE's chord tables (Plaits Palette, MIT): names for the screen (nombres de tablas y acordes) */
+int epk_chord_tables(void);
+int epk_chord_count(int table);
+const char *epk_chord_table_name(int table);
+const char *epk_chord_name(int table, int chord);
 
 /* the send effects (efectos de envío), the project's: bus A a delay, bus B the plate reverb PLACA. Each 0..1 */
 enum {

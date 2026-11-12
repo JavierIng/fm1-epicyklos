@@ -146,8 +146,8 @@ void push(uint8_t type, int track, int a, int b) {
 
 // ------------------------------------------------------------------ patterns: factory and generated
 // the engines by track (motores): kick, hats, clap / snare on 6, and the test voice until the other engines exist
-static const uint8_t kEngine[EPK_TRACKS] = {EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_TEST, EPK_ENG_TEST,
-                                            EPK_ENG_TEST, EPK_ENG_GOLPE};
+static const uint8_t kEngine[EPK_TRACKS] = {EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_ACORDE, EPK_ENG_TEST,
+                                            EPK_ENG_DRONE, EPK_ENG_GOLPE};
 
 void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1, float e2, int len, int hits,
               int rot, int div) {
@@ -180,6 +180,18 @@ void fill_factory(int pt) {
         float e2 = kEngine[i] == EPK_ENG_GRAVE ? 0.40f : kEngine[i] == EPK_ENG_METAL ? 0.30f : 0.0f;
         if (i == 0 && pt == 8) e2 = 0.75f;                           // ECLIPSE: more rumble (más rumble)
         if (i == 0 && pt == 13) e2 = 0.85f;                          // NADIR
+        if (kEngine[i] == EPK_ENG_ACORDE) {                          // dub chords: minor colours, the filter opening
+            static const uint8_t kChord[EPK_PATTERNS] = {5, 4, 6, 4, 5, 2, 4, 6, 4, 5, 3, 4, 7, 5, 6, 4};   // Original
+            set_spec(pt, i, k.note, (float)kChord[pt] / 10.0f, k.tone * 0.8f, k.decay * 0.85f, 0.0f, 0.35f + 0.3f * k.tone,
+                     k.length, k.hits, k.rotate, k.division);
+            continue;
+        }
+        if (kEngine[i] == EPK_ENG_DRONE) {                           // a fifth that drifts (una quinta que deriva)
+            set_spec(pt, i, k.note, 0.40f, k.tone + 0.08f, 0.55f + 0.4f * k.decay, 0.45f, 0.6f, k.length, k.hits, k.rotate,
+                     k.division);
+            g.bank[pt][i][EPK_P_ATTACK] = 0.35f;
+            continue;
+        }
         if (kEngine[i] == EPK_ENG_GOLPE) {                           // rim at the start, clap, snare at the peak
             if (pt == 4 || pt == 6 || pt == 10 || pt == 11) {        // PULSAR, PERIGEO, FOSFORO, CUASAR: a tom / conga
                 set_spec(pt, i, pt == 10 ? 57 : 50, pt == 11 ? 0.55f : 0.15f, 0.35f, 0.40f, 0.35f, 0.30f, k.length, k.hits,
@@ -228,8 +240,9 @@ void generate(int pt, uint32_t seed) {
     }
     {   // 3 stab (acorde)
         const int len = kLen[ri(r, 12)], hits = 1 + ri(r, len * 3 / 10 + 1);
-        const float ch = rr(r, 0.35f, 0.55f), tone = rr(r, 0.30f, 0.60f), dec = rr(r, 0.35f, 0.85f);
-        set_spec(pt, 2, scale_note(r, 50, 10), ch, tone, dec, 0.0f, 0.0f, len, hits, ri(r, len), EPK_DIV_1_16);
+        const float ch = r.unipolar(), tone = rr(r, 0.20f, 0.50f), dec = rr(r, 0.30f, 0.75f);
+        set_spec(pt, 2, scale_note(r, 50, 10), ch, tone, dec, (float)ri(r, 4) / 3.0f, rr(r, 0.2f, 0.7f), len, hits, ri(r, len),
+                 EPK_DIV_1_16);
     }
     {   // 4 bass (bajo)
         const int len = kLen[ri(r, 12)], hits = 2 + ri(r, len * 45 / 100 + 1);
@@ -241,7 +254,9 @@ void generate(int pt, uint32_t seed) {
         const int len = kDroneLen[ri(r, 3)], hits = 1 + ri(r, 3);
         const float tone = rr(r, 0.18f, 0.30f), dec = rr(r, 0.90f, 1.0f);
         const int div = r.unipolar() < 0.5f ? EPK_DIV_1_8 : EPK_DIV_1_4;
-        set_spec(pt, 4, scale_note(r, 38, 8), 0.5f, tone, dec, 0.0f, 0.0f, len, hits, 0, div);
+        set_spec(pt, 4, scale_note(r, 38, 8), rr(r, 0.1f, 0.8f), tone + 0.08f, dec * 0.9f, rr(r, 0.2f, 0.8f), (float)ri(r, 6) / 5.0f,
+                 len, hits, 0, div);
+        g.bank[pt][4][EPK_P_ATTACK] = rr(r, 0.2f, 0.6f);
     }
     {   // 6 GOLPE: clap, snare or rim; often the backbeat (2 y 4), otherwise a cycle of its own
         static const float kType[3] = {0.05f, 0.50f, 0.95f};
@@ -348,7 +363,7 @@ void drain() {
             g.playing = 0;
             g.bar_step = -1;
             if (g.queued >= 0) switch_pattern(g.queued, g.queued_bank);
-            for (Track &k : g.tr) { k.step = -1; k.pend[0].on = k.pend[1].on = 0; }
+            for (Track &k : g.tr) { k.step = -1; k.pend[0].on = k.pend[1].on = 0; k.voice.release(); }
         }
         g.q_read++;
     }
@@ -645,6 +660,13 @@ int epk_mod_steps(int src, int param) { return Mod::steps(src, param); }
 float epk_mod_out(int src) { return src >= 0 && src < EPK_MOD_SOURCES ? g.mod.s[src].out : 0.0f; }
 float epk_fx_live(int param) { return param >= 0 && param < EPK_FX_COUNT ? g.fx_live[param] : 0.0f; }
 float epk_param_live(int track, int param) { return valid(track) && param >= 0 && param < EPK_P_COUNT ? g.tr[track].pm[param] : 0.0f; }
+int epk_chord_tables(void) { return kChordTables; }
+int epk_chord_count(int table) { return kChordCount[clampi(table, 0, kChordTables - 1)]; }
+const char *epk_chord_table_name(int table) { return kChordTableName[clampi(table, 0, kChordTables - 1)]; }
+const char *epk_chord_name(int table, int chord) {
+    const int t = clampi(table, 0, kChordTables - 1);
+    return kChordName[t][clampi(chord, 0, kChordCount[t] - 1)];
+}
 float epk_comp_reduction(void) { const float r = g.master.gr_max; g.master.gr_max = 0.0f; return r; }
 float epk_master_cutoff(void) { return filter_cut_hz(g.fx[EPK_FX_FLT]); }
 int epk_master_filter(float *hz) {

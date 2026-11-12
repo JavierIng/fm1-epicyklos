@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **Fase 3b, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
+> Estado: **Fase 4a, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
 ## 1. Qué es
@@ -39,8 +39,21 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 - **GOLPE** (pista 6): palma, caja o aro. AFINA, TIPO (PALMA → CAJA → ARO), BRILLO, CAÍDA, CUERPO, COLA.
 - **TAMBOR** (se elige en MOTOR; por defecto en la pista 6 de algunos patrones): toms, congas y percusión
   metálica. AFINA, TIMBRE (de tom redondo a metálico), FM (brillo del ataque), CAÍDA, BARRIDO, CLICK.
-- **PRUEBA** (pistas 3-5): voz provisional hasta que lleguen los motores de las fases 4 y 5. Tiene ATAQUE
-  (página MOTOR, K4): el sonido entra de golpe o poco a poco.
+- **ACORDE DUB** (pista 3): el acorde de dub techno. Cuatro voces, cada una con dos sierras ligeramente
+  desafinadas, por un filtro paso bajo resonante con su propia envolvente.
+  - NOTA (la nota base), ACORDE (qué acorde de la tabla; en pantalla sale su nombre: MIN7, MIN9, SUS4…), TONO (dónde
+    se cierra el filtro) y CAÍDA.
+  - En la página MOTOR: TABLA (Original, Colour Chords, Disastrous Peace o Tonnetz Walk, las tablas de Plaits
+    Palette), ENVOLV (cuánto abre el filtro al golpear) y ATAQUE.
+  - En Tonnetz Walk los nombres (C, AM, F…) son relativos: con NOTA en re, "C" suena como un re mayor.
+- **DRONE** (pista 5): se **sostiene**. Cada golpe lo abre o lo mantiene; si cambia la nota, se desliza hasta ella.
+  - NOTA, TIMBRE (seno → triángulo → sierra → sierra con aire), TONO (filtro) y SOSTÉN (cuánto se mantiene tras el
+    último golpe: de 0,2 a 30 s; luego se apaga en unos 2 s).
+  - En la página MOTOR: DERIVA (vagabundeo lento de afinación, separación y filtro: lo que le da vida), INTERVALO
+    (la segunda voz: unísono, 3ª menor, cuarta, quinta, octava, quinta + octava) y ATAQUE (lo que tarda en entrar,
+    hasta 8 s).
+  - Al parar el secuenciador, el dron se apaga solo.
+- **PRUEBA** (pista 4, el bajo): voz provisional hasta que llegue un motor de bajo. Tiene ATAQUE (página MOTOR, K4).
 
 ## 5. Páginas (SELECT)
 SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA) · MEZCLA (NIVEL, PAN, A ECO, B REVERB).

@@ -120,3 +120,10 @@ Apuntadas para ir viendo; ninguna está comprometida.
 - **Riesgo:** la lista supera lo que cabe sonando a la vez; la CPU real no se conoce hasta probar en el aparato. Lo pesado, con interruptor de calidad.
 - **Flanger** (11 nov, 19:27): solo si la CPU lo permite. Es barato (una línea de retardo corta modulada, ~1-2 KB); encajaría como efecto de pista o dentro del delay. Sin decidir.
 - **Otros pendientes:** tap tempo; marca de "modificado" y nombre nuevo al aleatorizar un patrón; interfaz en inglés.
+
+## Patrones de muestra por estilo (pedido el 12 nov, para más adelante)
+
+- **Banco A:** 16 patrones más ambient y jungle.
+- **Banco B:** 16 patrones más deep y dub.
+- **Banco C:** 16 patrones de techno hipnótico, raw.
+- Javier puede pasar ejemplos de referencia si hacen falta. Se hará después de los motores de síntesis, la vista FLOW y las escenas, cuando haya sonidos con los que escribirlos. Requisito técnico: los bancos B y C pasan de generados a escritos a mano (hoy B–K salen de una semilla); jungle pide también breaks rápidos (división 1/32, swing y micro ya existen) y quizá un motor o modo de break.

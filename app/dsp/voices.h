@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
 // EPICYKLOS voices (motores de sonido): TEST (prueba), GRAVE (kick + rumble), METAL (808 / 909 hats and rides),
-// GOLPE (clap, snare, rim), TAMBOR (toms, congas, metallic percussion).
+// GOLPE (clap, snare, rim), TAMBOR (toms, congas, metallic percussion), ACORDE DUB (chords), DRONE.
 // Every voice is plain data with init / trigger / render; parameters arrive 0..1 (p[EPK_P_*]).
 // Rules: no heap, float only, no 64-bit multiplies.
 #pragma once
 #include "epk.h"
 #include "fastmath.h"
+#include "chords.h"
 
 namespace epk {
 
@@ -335,6 +336,147 @@ struct Tambor {
     }
 };
 
+// ------------------------------------------------------------------ shared: a polyBLEP saw (sierra sin aliasing)
+inline float blep_saw(float phase, float inc) {
+    float saw = 2.0f * phase - 1.0f;
+    if (phase < inc) { const float t = phase / inc; saw -= t + t - t * t - 1.0f; }
+    else if (phase > 1.0f - inc) { const float t = (phase - 1.0f) / inc; saw -= t * t + t + t + 1.0f; }
+    return saw;
+}
+
+// ------------------------------------------------------------------ ACORDE DUB (acorde dub)
+// Four voices from a chord table of Plaits Palette (Original, Colour Chords, Disastrous Peace, Tonnetz Walk: MIT,
+// see CREDITS.md), each two saws a few cents apart, through one resonant low-pass with its own envelope: the dub
+// stab. NOTE the root, CHARACTER the chord, TONE the cutoff, DECAY, EXTRA1 the table, EXTRA2 how far the filter
+// envelope opens, ATTACK.
+struct Acorde {
+    float ph[8], hz[8], amp, fenv, attack, ic1, ic2, root;
+    int chord_on, table_on;
+
+    void init(uint32_t seed) {
+        for (int i = 0; i < 8; i++) { ph[i] = (float)((seed >> i) & 7u) * 0.125f; hz[i] = 110.0f; }
+        amp = fenv = 0.0f; attack = 1.0f; ic1 = ic2 = 0.0f; root = 110.0f; chord_on = table_on = -1;
+        a1 = a2 = a3 = 0.0f;
+    }
+    void trigger(float h, float velocity) { root = h; amp = velocity; fenv = 1.0f; attack = 0.0f; chord_on = -1; }
+    void render(float *out, uint32_t n, const float *p, float sr) {
+        const int table = clampi((int)(p[EPK_P_EXTRA1] * (float)(kChordTables - 1) + 0.5f), 0, kChordTables - 1);
+        const int chord = clampi((int)(p[EPK_P_CHARACTER] * (float)(kChordCount[table] - 1) + 0.5f), 0, kChordCount[table] - 1);
+        if (chord != chord_on || table != table_on) {                // the voices' pitches (alturas)
+            chord_on = chord; table_on = table;
+            int low = 32767;
+            for (int v = 0; v < 4; v++) low = kChordCents[table][chord][v] < low ? kChordCents[table][chord][v] : low;
+            const int shift = (low / 1200) * 1200;                   // the lowest voice within the root's octave
+            for (int v = 0; v < 4; v++) {
+                const float c = (float)(kChordCents[table][chord][v] - shift);
+                hz[2 * v] = root * fm_exp2f((c - 6.0f) / 1200.0f);
+                hz[2 * v + 1] = root * fm_exp2f((c + 7.0f) / 1200.0f);
+            }
+        }
+        const float base = 60.0f * fm_exp2f(p[EPK_P_TONE] * 7.5f);                 // 60 Hz .. ~11 kHz
+        const float env_oct = p[EPK_P_EXTRA2] * 5.0f;
+        const float decay_s = 0.04f * fm_exp2f(p[EPK_P_DECAY] * 6.6f);              // 40 ms .. ~4 s
+        const float amp_mul = fm_expf(-6.9f / (decay_s * sr)), fenv_mul = fm_expf(-6.9f / (decay_s * 0.45f * sr));
+        const float attack_inc = 1.0f / (0.001f * fm_exp2f(p[EPK_P_ATTACK] * 10.5f) * sr);
+        const float k = 1.25f;                                                      // some resonance (resonancia)
+        for (uint32_t i = 0; i < n; i++) {
+            if ((i & 15u) == 0) {                                                   // the filter every 16 samples
+                const float fc = fm_minf(base * fm_exp2f(env_oct * fenv), sr * 0.45f);
+                const float g = fm_tanf(3.14159265f * fc / sr);
+                a1 = 1.0f / (1.0f + g * (g + k)); a2 = g * a1; a3 = g * a2;
+            }
+            float s = 0.0f;
+            for (int v = 0; v < 8; v++) {
+                const float inc = hz[v] / sr;
+                ph[v] += inc;
+                if (ph[v] >= 1.0f) ph[v] -= 1.0f;
+                s += blep_saw(ph[v], inc);
+            }
+            s *= 0.11f;
+            const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
+            ic1 = fm_flush(2.0f * v1 - ic1);
+            ic2 = fm_flush(2.0f * v2 - ic2);
+            out[i] = fm_tanhf(v2 * amp * attack * 1.6f);
+            if (attack < 1.0f) attack = fm_minf(attack + attack_inc, 1.0f);
+            else { amp = fm_flush(amp * amp_mul); fenv = fm_flush(fenv * fenv_mul); }
+        }
+    }
+    float a1, a2, a3;                          // the filter's coefficients (coeficientes)
+};
+
+// ------------------------------------------------------------------ DRONE (dron)
+// It sustains (se sostiene): a hit opens it at ATTACK speed, it holds for SUSTAIN (DECAY: 0.2 .. 30 s) and then
+// fades over 2 s; a new hit while it sounds keeps it going and glides to the new note (legato). Three oscillators:
+// the root, the root a little apart, and an INTERVAL voice (EXTRA2: unison, minor third, fourth, fifth, octave,
+// fifth + octave). CHARACTER morphs sine -> triangle -> saw -> saw with breath (aire); TONE a low-pass. DRIFT
+// (EXTRA1, deriva): a slow random walk of pitch, spread and filter, what keeps a drone alive.
+struct Drone {
+    float ph[3], hz, hz_to, amp, hold, ic1, ic2, drift_p, drift_f, drift_s, d_to_p, d_to_f, d_to_s;
+    int gate, sub;
+    Rng rng;
+
+    void init(uint32_t seed) {
+        ph[0] = 0.0f; ph[1] = 0.33f; ph[2] = 0.66f; hz = hz_to = 110.0f; amp = 0.0f; hold = 0.0f; ic1 = ic2 = 0.0f;
+        drift_p = drift_f = drift_s = d_to_p = d_to_f = d_to_s = 0.0f; gate = 0; sub = 0;
+        a1 = a2 = a3 = 0.0f; vel = 0.0f;
+        rng.init(seed ^ 0xD20E5u);
+    }
+    void trigger(float h, float velocity) {
+        hz_to = h;
+        if (amp < 0.001f) hz = h;                                    // silent: start on the note (empieza en la nota)
+        gate = 1; hold = -1.0f; vel = velocity;
+    }
+    void render(float *out, uint32_t n, const float *p, float sr) {
+        static const float kInterval[6] = {0.0f, 3.0f, 5.0f, 7.0f, 12.0f, 19.0f};
+        const float hold_s = 0.2f * fm_exp2f(p[EPK_P_DECAY] * 7.2f);               // 0.2 .. ~30 s
+        if (hold < 0.0f) hold = hold_s * sr;
+        const float rise = 1.0f - fm_expf(-1.0f / ((0.005f + 8.0f * p[EPK_P_ATTACK] * p[EPK_P_ATTACK]) * sr));
+        const float fall = 1.0f - fm_expf(-1.0f / (0.6f * sr));
+        const float glide = 1.0f - fm_expf(-1.0f / (0.25f * sr));
+        const float ch = p[EPK_P_CHARACTER], drift = p[EPK_P_EXTRA1];
+        const float iv = kInterval[clampi((int)(p[EPK_P_EXTRA2] * 5.0f + 0.5f), 0, 5)];
+        const float w_sine = clamp01(1.0f - ch * 3.0f), w_tri = clamp01(1.0f - fm_fabsf(ch * 3.0f - 1.0f));
+        const float w_saw = clamp01(ch * 3.0f - 1.0f), air = clamp01(ch * 3.0f - 2.0f);
+        for (uint32_t i = 0; i < n; i++) {
+            if (sub == 0) {                                          // every 32 samples: drift and filter
+                if (rng.unipolar() < 0.004f) {                       // a new place to wander to (nuevo rumbo)
+                    d_to_p = rng.bipolar(); d_to_f = rng.bipolar(); d_to_s = rng.unipolar();
+                }
+                drift_p += (d_to_p - drift_p) * 0.002f;
+                drift_f += (d_to_f - drift_f) * 0.002f;
+                drift_s += (d_to_s - drift_s) * 0.002f;
+                const float fc = fm_minf(50.0f * fm_exp2f(p[EPK_P_TONE] * 8.0f + drift * drift_f * 1.2f), sr * 0.45f);
+                const float g = fm_tanf(3.14159265f * fc / sr), k = 1.1f;
+                a1 = 1.0f / (1.0f + g * (g + k)); a2 = g * a1; a3 = g * a2;
+            }
+            sub = (sub + 1) & 31;
+            hz += (hz_to - hz) * glide;
+            const float base = hz * fm_exp2f(drift * drift_p * 0.25f / 12.0f);
+            const float spread = 0.002f + drift * 0.012f * drift_s;
+            const float f[3] = {base, base * (1.0f + spread), base * fm_exp2f(iv / 12.0f) * (1.0f - spread * 0.5f)};
+            float s = 0.0f;
+            for (int o = 0; o < 3; o++) {
+                const float inc = f[o] / sr;
+                ph[o] += inc;
+                if (ph[o] >= 1.0f) ph[o] -= 1.0f;
+                const float sine = fm_sin_turns(ph[o]);
+                const float tri = ph[o] < 0.5f ? 4.0f * ph[o] - 1.0f : 3.0f - 4.0f * ph[o];
+                s += sine * w_sine + tri * w_tri + blep_saw(ph[o], inc) * w_saw * 0.8f;
+            }
+            s = s * 0.3f + rng.bipolar() * air * 0.12f;
+            const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
+            ic1 = fm_flush(2.0f * v1 - ic1);
+            ic2 = fm_flush(2.0f * v2 - ic2);
+            if (gate) {
+                amp += (vel - amp) * rise;
+                if (--hold <= 0.0f) gate = 0;
+            } else amp = fm_flush(amp - amp * fall);
+            out[i] = fm_tanhf(v2 * amp * 1.4f);
+        }
+    }
+    float a1, a2, a3, vel;
+};
+
 // ------------------------------------------------------------------ a track's voice (la voz de una pista)
 // One engine at a time, in the same memory (una a la vez, en la misma memoria).
 struct Voice {
@@ -346,6 +488,8 @@ struct Voice {
         Metal metal;
         Golpe golpe;
         Tambor tambor;
+        Acorde acorde;
+        Drone drone;
     } u;
 
     void init(int eng, uint32_t sd) {
@@ -355,6 +499,8 @@ struct Voice {
         case EPK_ENG_METAL: u.metal.init(sd); break;
         case EPK_ENG_GOLPE: u.golpe.init(sd); break;
         case EPK_ENG_TAMBOR: u.tambor.init(sd); break;
+        case EPK_ENG_ACORDE: u.acorde.init(sd); break;
+        case EPK_ENG_DRONE: u.drone.init(sd); break;
         default: u.test.init(sd); break;
         }
     }
@@ -364,15 +510,20 @@ struct Voice {
         case EPK_ENG_METAL: u.metal.trigger(hz, velocity); break;
         case EPK_ENG_GOLPE: u.golpe.trigger(hz, velocity); break;
         case EPK_ENG_TAMBOR: u.tambor.trigger(hz, velocity); break;
+        case EPK_ENG_ACORDE: u.acorde.trigger(hz, velocity); break;
+        case EPK_ENG_DRONE: u.drone.trigger(hz, velocity); break;
         default: u.test.trigger(hz, velocity); break;
         }
     }
+    void release() { if (engine == EPK_ENG_DRONE) u.drone.gate = 0; }   // the sequencer stopped: let it fade
     void render(float *out, uint32_t n, const float *p, float sr) {
         switch (engine) {
         case EPK_ENG_GRAVE: u.grave.render(out, n, p, sr); break;
         case EPK_ENG_METAL: u.metal.render(out, n, p, sr); break;
         case EPK_ENG_GOLPE: u.golpe.render(out, n, p, sr); break;
         case EPK_ENG_TAMBOR: u.tambor.render(out, n, p, sr); break;
+        case EPK_ENG_ACORDE: u.acorde.render(out, n, p, sr); break;
+        case EPK_ENG_DRONE: u.drone.render(out, n, p, sr); break;
         default: u.test.render(out, n, p, sr); break;
         }
     }

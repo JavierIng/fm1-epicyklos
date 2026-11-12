@@ -1,6 +1,6 @@
 # EPICYKLOS · User manual (draft)
 
-> Status: **Phase 3b, browser emulator only.** None of this has been tested on a real FM-1 yet.
+> Status: **Phase 4a, browser emulator only.** None of this has been tested on a real FM-1 yet.
 > The manual grows with each phase and only describes what already works. Español: [es.md](es.md).
 > On-screen text is in Spanish for now; the Spanish label is given in brackets.
 
@@ -42,8 +42,21 @@ Each track has a sound engine (ENGINE page [MOTOR], K1). So far:
   body [CUERPO], tail [COLA].
 - **TAMBOR** (chosen in ENGINE; the default on track 6 in some patterns): toms, congas and metallic
   percussion. Tune, timbre (round tom to metallic), FM (how bright the attack is), decay, sweep, click.
-- **PRUEBA** (tracks 3-5): a placeholder voice until the engines of phases 4 and 5 arrive. It has attack
-  [ATAQUE] (ENGINE page, K4): the sound comes in at once or slowly.
+- **ACORDE DUB** (track 3): the dub techno chord. Four voices, each two slightly detuned saws, through a resonant
+  low-pass with its own envelope.
+  - Note, chord [ACORDE] (which chord of the table; the screen shows its name: MIN7, MIN9, SUS4…), tone (where the
+    filter closes) and decay.
+  - On the ENGINE page: table [TABLA] (Original, Colour Chords, Disastrous Peace or Tonnetz Walk, the Plaits Palette
+    tables), envelope [ENVOLV] (how far the filter opens on a hit) and attack.
+  - In Tonnetz Walk the names (C, AM, F…) are relative: with the note on D, "C" sounds as D major.
+- **DRONE** (track 5): it **sustains**. Each hit opens it or keeps it going; a new note glides to it.
+  - Note, timbre [TIMBRE] (sine → triangle → saw → saw with breath), tone (filter) and sustain [SOSTÉN] (how long
+    it holds after the last hit: 0.2 to 30 s; then it fades over about 2 s).
+  - On the ENGINE page: drift [DERIVA] (a slow wander of tuning, spread and filter: what keeps it alive), interval
+    [INTERVALO] (the second voice: unison, minor 3rd, fourth, fifth, octave, fifth + octave) and attack (up to 8 s).
+  - When the sequencer stops, the drone fades by itself.
+- **PRUEBA** (track 4, the bass): a placeholder voice until a bass engine arrives. It has attack [ATAQUE]
+  (ENGINE page, K4).
 
 ## 5. Pages (SELECT)
 SOUND [SONIDO] · ENGINE [MOTOR] · RHYTHM [RITMO] (length, hits, rotate, division) · GROOVE (swing, shift

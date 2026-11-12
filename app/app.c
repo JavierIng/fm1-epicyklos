@@ -51,7 +51,7 @@ static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_SWING, EPK_P_SHIFT, SLOT_NONE, SLOT_NONE},
     {EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B},   /* sends: A the delay, B the reverb */
 };
-static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR"};
+static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};
 /* what NOTE, CHARACTER, TONE, DECAY, EXTRA1, EXTRA2, ATTACK are in each engine (0 = unused) */
 static const char *const SND_NAME[EPK_ENG_COUNT][7] = {
     {"NOTA", "CARACTER", "TONO", "CAIDA", 0, 0, "ATAQUE"},
@@ -59,6 +59,8 @@ static const char *const SND_NAME[EPK_ENG_COUNT][7] = {
     {"AFINA", "METAL", "BRILLO", "CAIDA", "ANILLO", "VARIA", 0},
     {"AFINA", "TIPO", "BRILLO", "CAIDA", "CUERPO", "COLA", 0},
     {"AFINA", "TIMBRE", "FM", "CAIDA", "BARRIDO", "CLICK", 0},
+    {"NOTA", "ACORDE", "TONO", "CAIDA", "TABLA", "ENVOLV", "ATAQUE"},
+    {"NOTA", "TIMBRE", "TONO", "SOSTEN", "DERIVA", "INTERVALO", "ATAQUE"},
 };
 static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
     {"La nota de la secuencia", "Seno con caida, sierra, ruido", "Hasta donde se abre el filtro",
@@ -71,6 +73,10 @@ static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
      "Cuerpo afinado; en palma, un golpe grave", "Cola de ruido; abre la palma", 0},
     {"Afinacion del tambor", "De tom redondo a metalico", "Brillo del ataque", "Cuanto dura el golpe",
      "Cuanto cae el tono al golpear", "El chasquido del ataque", 0},
+    {"La nota base del acorde", "Que acorde de la tabla", "Donde se cierra el filtro", "Cuanto dura el acorde",
+     "Tabla de acordes de Plaits Palette", "Cuanto abre el filtro al golpear", "Entra de golpe o poco a poco"},
+    {"La nota del dron", "Seno, triangulo, sierra, aire", "Donde se cierra el filtro", "Cuanto se sostiene",
+     "Vagabundeo lento de tono y filtro", "La segunda voz: quinta, octava...", "Lo que tarda en entrar"},
 };
 static const char *const DIV_NAME[EPK_DIV_COUNT] = {"1/32", "1/16T", "1/16", "1/8T", "1/8", "1/4"};
 static const char *const PROB_NAME[EPK_PROB_COUNT] = {"100%", "75%", "50%", "25%"};
@@ -462,8 +468,28 @@ static void param_str(int track, int p, char *b)
         break;
     }
     case EPK_P_CHARACTER:
+        if (epk_engine(track) == EPK_ENG_ACORDE) {         /* the chord's name (el nombre del acorde) */
+            const int t = (int)(epk_param_get(track, EPK_P_EXTRA1) * (float)(epk_chord_tables() - 1) + 0.5f);
+            str_cat(b, epk_chord_name(t, (int)(v * (float)(epk_chord_count(t) - 1) + 0.5f)));
+            break;
+        }
         if (epk_engine(track) == EPK_ENG_GOLPE) {
             str_cat(b, v < 0.3f ? "PALMA" : v < 0.7f ? "CAJA" : "ARO");
+            break;
+        }
+        int_str((int)(v * 100.0f + 0.5f), b);
+        break;
+    case EPK_P_EXTRA1:
+        if (epk_engine(track) == EPK_ENG_ACORDE) {
+            str_cat(b, epk_chord_table_name((int)(v * (float)(epk_chord_tables() - 1) + 0.5f)));
+            break;
+        }
+        int_str((int)(v * 100.0f + 0.5f), b);
+        break;
+    case EPK_P_EXTRA2:
+        if (epk_engine(track) == EPK_ENG_DRONE) {
+            static const char *const IV[6] = {"UNISONO", "3a MENOR", "CUARTA", "QUINTA", "OCTAVA", "5a+OCT"};
+            str_cat(b, IV[(int)(v * 5.0f + 0.5f)]);
             break;
         }
         int_str((int)(v * 100.0f + 0.5f), b);

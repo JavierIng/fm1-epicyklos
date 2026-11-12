@@ -366,3 +366,19 @@ expect fxpage 6
 shot marea2.png
 tap PLAY
 wait 30
+# the synth engines (motores): track 3 ACORDE, track 5 DRONE
+expect engine3 5
+expect engine5 6
+tap HOME
+wait 30
+tap HOME
+wait 30
+expect view 0
+tap ENV
+wait 30
+turn SELECT -4
+wait 30
+expect page 0
+turn K2 3
+wait 50
+shot acorde.png
