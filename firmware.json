@@ -5,8 +5,10 @@
   "author": "Javier Sánchez (Cyklos)",
   "license": "GPL-3.0-only",
   "tagline": "dub techno, ambient and drone instrument for the FM-1",
-  "description": "Work in progress: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Phase 1: six tracks of a test voice on an euclidean sequencer, the orbit and mixer views.",
+  "description": "Work in progress, a test release: a six-track dub techno, ambient and drone instrument for the M-VAVE FM-1. Euclidean sequencer with evolving patterns, tape delay, a Plateau-style plate with shimmer, a granular cloud, scenes. Screen text in Spanish.",
   "tags": ["groovebox", "ambient", "generative", "sequencer"],
+  "install": "https://javiering.github.io/fm1-epicyklos/install/",
+  "site": "https://javiering.github.io/fm1-epicyklos/",
   "source": "https://github.com/JavierIng/fm1-epicyklos",
   "screenshot": "app/docs/img/screen-playing.png",
   "hardware": {

@@ -150,6 +150,8 @@ enum {
     EPK_FX_REV_DIFFUSION, /* input diffusion: 0 echoes you can hear .. 1 smeared at once (difusión) */
     EPK_FX_REV_LOWCUT,    /* bus B's low cut, ~20 .. ~400 Hz, both types (graves) */
     EPK_FX_REV_WIDTH,     /* bus B's stereo width: 0 mono, 0.5 as it comes, 1 wider (ancho) */
+    EPK_FX_NUBE_VERB,     /* NUBE: its own small plate after the grains, how much (reverb de la nube) */
+    EPK_FX_NUBE_VERB_TIME,/* NUBE: that plate's decay (caída) */
     EPK_FX_COUNT
 };
 /* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */

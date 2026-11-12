@@ -1359,7 +1359,8 @@ int main() {
         fx_peak(0.5f);
         const float frozen = fx_peak(2.0f);
         CHECK(frozen > 0.01f, "frozen, nothing in: still grains (peak %.3f)", frozen);
-        // density at the centre: no new grains; after the last ones end (0.5 s at most), silence
+        // density at the centre: no new grains; after the last ones end, silence (its own reverb off for this)
+        epk_fx_set(EPK_FX_NUBE_VERB, 0.0f);
         epk_fx_set(EPK_FX_NUBE_DENSITY, 0.5f);
         fx_peak(1.0f);
         const float none = fx_peak(1.0f);
@@ -1389,7 +1390,21 @@ int main() {
         epk_fx_set(EPK_FX_REV_DECAY, 0.7f);
         const float plate = fx_peak(2.0f);
         CHECK(plate > 0.02f, "back to PLACA it sounds (peak %.3f)", plate);
-        std::printf("nube peak %.3f, frozen %.3f, plate after %.3f\n", on, frozen, plate);
+        // its own reverb (su reverb): no new grains, the cloud's tail lasts longer with it than without
+        auto cloud_tail = [&](float verb) {
+            fresh();
+            epk_fx_set(EPK_FX_NUBE_VERB, verb);
+            epk_fx_set(EPK_FX_NUBE_VERB_TIME, 0.9f);
+            fx_peak(3.0f);
+            epk_fx_set(EPK_FX_NUBE_DENSITY, 0.5f);
+            for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_SEND_B, 0.0f);
+            fx_peak(1.2f);                                           // the last grains end (acaban)
+            return fx_peak(0.5f);
+        };
+        const float dry_tail = cloud_tail(0.0f), wet_tail = cloud_tail(0.8f);
+        CHECK(dry_tail < 1e-4f && wet_tail > 0.005f, "NUBE's reverb rings after the grains (%.5f without, %.4f with)",
+              dry_tail, wet_tail);
+        std::printf("nube peak %.3f, frozen %.3f, plate after %.3f; cloud tail %.4f\n", on, frozen, plate, wet_tail);
     }
 
     // 30. PLACA the way Plateau plays it: pre-delay holds the tail back; freeze keeps it with nothing coming in;
@@ -1407,7 +1422,7 @@ int main() {
             }
             epk_fx_set(EPK_FX_REV_PREDELAY, predelay);
             epk_fx_set(EPK_FX_REV_LEVEL, 1.0f);
-            for (long d = 0; d < (long)(0.5f * SR); d += 256) epk_render(l, r, 256);   // levels glide to 0 first
+            for (long d = 0; d < (long)(4.0f * SR); d += 256) epk_render(l, r, 256);   // levels glide to 0, tails die
             epk_play(1);
         };
         auto onset = [&]() {                                         // first sample of the tail (primera muestra)

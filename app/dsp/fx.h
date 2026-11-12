@@ -136,20 +136,28 @@ constexpr int kNubeLen = 44100;                // NUBE: 2 s at the half rate, mo
 constexpr int kBusBLen = kNubeLen > kVerbLen ? kNubeLen : kVerbLen;
 static_assert(kVerbLen <= kNubeLen, "PLACA must fit in NUBE's buffer: no more memory (sin más memoria)");
 static int16_t g_verb_buf[kBusBLen] EPK_POOL;  // one buffer for bus B: PLACA or NUBE, never both (nunca las dos)
+static int16_t g_shim_buf[2048] EPK_POOL;      // the shimmer's window (ventana del shimmer), the big plate's only
+// NUBE's own small plate after the grains (la reverb de la nube, como la de Clouds): the same tank at 0.4 of the size
+constexpr int kNVerbLineLen[kVerbLines] = {105, 79, 281, 205, 512, 1320, 534, 1103, 688, 1250, 788, 938, 1};
+constexpr int kNVerbLen = 105 + 79 + 281 + 205 + 512 + 1320 + 534 + 1103 + 688 + 1250 + 788 + 938 + 1;
+static int16_t g_nverb_buf[kNVerbLen] EPK_POOL;
 
 struct Plate {
     enum { IN1, IN2, IN3, IN4, L_MOD, L_DL1, L_AP, L_DL2, R_MOD, R_DL1, R_AP, R_DL2, PRE };
     int off[kVerbLines], w[kVerbLines], len[kVerbLines];
     float l_fb, r_fb, l_damp, r_damp, lfo, scale;
     // the shimmer's pitch shifter (desplazador de tono): two taps crossfading over a short window
-    int16_t shim_buf[2048];
+    int16_t *buf, *shim_buf;                  // its lines, and the shimmer's window (null: no shimmer)
+    const int *maxlen;
+    int buf_len;
     int shim_w;
     float shim_ph, shim_lp;
 
     void clear() {
-        for (int i = 0; i < kVerbLen; i++) g_verb_buf[i] = 0;
+        for (int i = 0; i < buf_len; i++) buf[i] = 0;
         l_fb = r_fb = l_damp = r_damp = shim_lp = 0.0f;
-        for (int i = 0; i < 2048; i++) shim_buf[i] = 0;
+        if (shim_buf)
+            for (int i = 0; i < 2048; i++) shim_buf[i] = 0;
     }
     // an octave (or the interval) up: the read point slides through the window faster than it is written
     inline float shimmer(float x, float ratio) {
@@ -171,9 +179,11 @@ struct Plate {
         shim_w = (shim_w + 1) & 2047;
         return y;
     }
-    void init() {
+    void init(int16_t *b, const int *lens, int16_t *shim) {
+        buf = b; maxlen = lens; shim_buf = shim;
         int o = 0;
-        for (int i = 0; i < kVerbLines; i++) { off[i] = o; w[i] = 0; len[i] = kVerbLineLen[i]; o += kVerbLineLen[i]; }
+        for (int i = 0; i < kVerbLines; i++) { off[i] = o; w[i] = 0; len[i] = lens[i]; o += lens[i]; }
+        buf_len = o;
         lfo = 0.0f; scale = -1.0f;                                       // set_size sets it (lo pone set_size)
         shim_w = 0; shim_ph = 0.0f;
         clear();
@@ -187,7 +197,7 @@ struct Plate {
         for (int i = L_MOD; i <= R_DL2; i++) {
             if (i == L_MOD || i == R_MOD) continue;                     // these read a moving tap: keep their room
             int n = (int)((float)kVerbBase[i] * sc);
-            if (n > kVerbLineLen[i]) n = kVerbLineLen[i];
+            if (n > maxlen[i]) n = maxlen[i];
             if (n < 16) n = 16;
             len[i] = n;
             if (w[i] >= n) w[i] = 0;
@@ -196,10 +206,10 @@ struct Plate {
     inline float rd(int line, int back) const {                         // back: 1 .. the line's length
         int i = w[line] - back;
         if (i < 0) i += len[line];
-        return (float)g_verb_buf[off[line] + i] * (1.0f / 16384.0f);
+        return (float)buf[off[line] + i] * (1.0f / 16384.0f);
     }
     inline void wr(int line, float x) {
-        g_verb_buf[off[line] + w[line]] = (int16_t)(fm_clampf(x, -1.99f, 1.99f) * 16384.0f);
+        buf[off[line] + w[line]] = (int16_t)(fm_clampf(x, -1.99f, 1.99f) * 16384.0f);
         if (++w[line] >= len[line]) w[line] = 0;
     }
     inline float allpass(int line, int n, float x, float g) {
@@ -236,14 +246,14 @@ struct Plate {
         if (lfo >= 1.0f) lfo -= 1.0f;
         // the pre-delay (predelay): 0 .. ~240 ms; frozen, nothing new comes in (congelada, no entra nada)
         float x = freeze ? 0.0f : in * 0.5f;
-        const int pre = (int)(fx[EPK_FX_REV_PREDELAY] * (float)(kVerbPre - 1));
+        const int pre = (int)(fx[EPK_FX_REV_PREDELAY] * (float)(maxlen[PRE] - 1));
         if (pre > 0) {
             wr(PRE, x);
             x = rd(PRE, pre);
         }
         // the shimmer: the tank's last output, pitched, back in (brillo que sube); a gentle low-pass keeps it soft
         const float shim = fx[EPK_FX_REV_SHIMMER];
-        if (shim > 0.001f && !freeze) {                               // frozen: nothing new, not even this
+        if (shim > 0.001f && !freeze && shim_buf) {                               // frozen: nothing new, not even this
             static const float kSemi[EPK_SHIM_COUNT] = {12.0f, 7.0f, 19.0f, 24.0f, -12.0f};
             const int iv = (int)(fx[EPK_FX_REV_SHIM_INT] * (float)(EPK_SHIM_COUNT - 1) + 0.5f);
             const float up = shimmer((l_fb + r_fb) * 0.5f, fm_exp2f(kSemi[iv] * (1.0f / 12.0f)));
@@ -369,7 +379,8 @@ struct Nube {
 // Full-rate samples in and out; inside, every second sample runs the effects, and their output is interpolated back.
 struct Fx {
     Delay delay;
-    Plate plate;
+    Plate plate, nverb;                           // the big plate; the cloud's small one (la de la nube)
+    float nfx[EPK_FX_COUNT];                      // the cloud's plate's settings, this block (ajustes por bloque)
     Nube nube;
     int half, freeze, rev_type;
     float acc_a, acc_b;
@@ -379,17 +390,27 @@ struct Fx {
 
     void init() {
         dly_g = rev_g = 1.0f;
-        delay.init(); plate.init(); nube.init(); b_hp = 0.0f; half = 0; freeze = 0; rev_type = EPK_REV_PLACA;
+        delay.init(); plate.init(g_verb_buf, kVerbLineLen, g_shim_buf); nverb.init(g_nverb_buf, kNVerbLineLen, nullptr);
+        nverb.set_size(0.0857f); nube.init();                          // 0.4 of the plate (0.25 + 1.75 x) b_hp = 0.0f; half = 0; freeze = 0; rev_type = EPK_REV_PLACA;
         acc_a = acc_b = 0.0f; prev_l = prev_r = cur_l = cur_r = 0.0f; duck_env = 0.0f; duck_gain = 1.0f;
     }
-    void clear() { delay.clear(); if (rev_type == EPK_REV_NUBE) nube.clear(); else plate.clear(); acc_a = acc_b = prev_l = prev_r = cur_l = cur_r = 0.0f; }
+    void clear() { delay.clear(); if (rev_type == EPK_REV_NUBE) { nube.clear(); nverb.clear(); } else plate.clear(); acc_a = acc_b = prev_l = prev_r = cur_l = cur_r = 0.0f; }
 
     float b_hp;                                   // bus B's low cut (corte de graves)
     inline void bus_b(float in, const float *fx, float hsr, float &l, float &r) {
         const float hz = 20.0f * fm_exp2f(4.32f * fx[EPK_FX_REV_LOWCUT]); // ~20 .. ~400 Hz, 90 in the middle
         b_hp = fm_flush(b_hp + (in - b_hp) * (6.2831853f * hz / hsr));
         in -= b_hp;
-        if (rev_type == EPK_REV_NUBE) nube.tick(in, fx, hsr, freeze, l, r); else plate.tick(in, fx, hsr, freeze, l, r);
+        if (rev_type == EPK_REV_NUBE) {
+            nube.tick(in, fx, hsr, freeze, l, r);
+            const float amt = fx[EPK_FX_NUBE_VERB];                     // the cloud into its own reverb (Clouds)
+            if (amt > 0.001f) {
+                float vl, vr;
+                nverb.tick((l + r) * 0.5f, nfx, hsr, freeze, vl, vr);
+                l += vl * amt * amt * 1.6f; r += vr * amt * amt * 1.6f;
+            }
+        } else
+            plate.tick(in, fx, hsr, freeze, l, r);
         const float w = fx[EPK_FX_REV_WIDTH] * 2.0f;                   // width (ancho): side scaled 0 .. 2
         const float m = (l + r) * 0.5f, sd = (l - r) * 0.5f * w;
         l = m + sd; r = m - sd;
@@ -411,9 +432,13 @@ struct Fx {
         plate.set_size(fx[EPK_FX_REV_SIZE]);
         if (type != rev_type) {                                          // the other type: its buffer from empty
             rev_type = type;
-            if (type == EPK_REV_NUBE) nube.clear(); else plate.clear();
+            if (type == EPK_REV_NUBE) { nube.clear(); nverb.clear(); } else plate.clear();
         }
-        if (rev_t > 0.0f && rev_g <= 0.0f) { if (rev_type == EPK_REV_NUBE) nube.clear(); else plate.clear(); }
+        for (int i = 0; i < EPK_FX_COUNT; i++) nfx[i] = fx[i];               // the cloud's plate: its own time,
+        nfx[EPK_FX_REV_DECAY] = fx[EPK_FX_NUBE_VERB_TIME];                  // a fixed colour and movement
+        nfx[EPK_FX_REV_TONE] = 0.55f; nfx[EPK_FX_REV_MOD] = 0.35f;
+        nfx[EPK_FX_REV_DIFFUSION] = 1.0f; nfx[EPK_FX_REV_PREDELAY] = 0.0f; nfx[EPK_FX_REV_SHIMMER] = 0.0f;
+        if (rev_t > 0.0f && rev_g <= 0.0f) { if (rev_type == EPK_REV_NUBE) { nube.clear(); nverb.clear(); } else plate.clear(); }
         for (uint32_t i = 0; i < n; i++) {
             acc_a += a[i];
             acc_b += b[i];

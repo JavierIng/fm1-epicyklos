@@ -178,7 +178,8 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "FILTRO EN", "ESPACIO", "DRIVE",
                                                   "BITS", "MUESTREO", "SHIMMER", "INTERVALO",
                                                   "TIPO", "POSICION", "TAMANO", "DENSIDAD", "AFINA",
-                                                  "PREDELAY", "TAMANO", "DIFUSION", "GRAVES", "ANCHO"};
+                                                  "PREDELAY", "TAMANO", "DIFUSION", "GRAVES", "ANCHO",
+                                                  "REVERB", "CAIDA"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -198,7 +199,8 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Placa o nube de granos", "De donde: de ahora a 1 s atras", "Granos cortos o largos",
     "Centro nada; izq. regular, der. al azar", "En semitonos, de -24 a +24",
     "Silencio antes de la cola", "De sala pequena a nave enorme", "Ecos sueltos o todo fundido",
-    "Quita graves antes de la reverb", "0 mono, 50 tal cual, 100 mas abierta"};
+    "Quita graves antes de la reverb", "0 mono, 50 tal cual, 100 mas abierta",
+    "La nube dentro de su propia reverb", "Cuanto dura la reverb de la nube"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
@@ -211,8 +213,8 @@ static int fx_slot(int page, int slot)
         return EPK_FX_NUBE_PITCH;
     if (page == FXP_NUBE && !is_nube())                    /* REVERB 2: the plate's, or the cloud's (placa o nube) */
         return PLACA2[slot];
-    if (page == FXP_REV3 && slot < 2 && is_nube())         /* the shimmer is the plate's (en NUBE: AFINA + REPITE) */
-        return SLOT_NONE;
+    if (page == FXP_REV3 && slot < 2 && is_nube())         /* NUBE: its own reverb where the plate has the shimmer */
+        return slot ? EPK_FX_NUBE_VERB_TIME : EPK_FX_NUBE_VERB;
     return FX_PAGE_PARAM[page][slot];
 }
 static int view_is_flow(void);
