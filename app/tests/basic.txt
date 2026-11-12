@@ -42,7 +42,7 @@ expect view 0
 tap HOME
 wait 30
 expect view 1
-expect page 4
+expect page 5
 shot mixer.png
 # in the mixer: track = mute, HOME+track = solo
 tap SEL
@@ -126,7 +126,7 @@ wait 30
 tap HOME
 wait 30
 expect view 0
-turn SELECT -1
+turn SELECT -2
 wait 30
 expect page 3
 turn K1 -3
@@ -376,9 +376,54 @@ wait 30
 expect view 0
 tap ENV
 wait 30
-turn SELECT -4
+turn SELECT -5
 wait 30
 expect page 0
 turn K2 3
 wait 50
 shot acorde.png
+# EVOLUTION (evolución): its page, the fifth
+turn SELECT 4
+wait 30
+expect page 4
+shot evolucion.png
+# saving (guardar): PATTERNS view, bank B (black key 3), HOME + white key 2 = slot B02. One press only asks;
+# after 3 s it is forgotten; two presses save
+tap SAVE
+wait 30
+expect view 4
+key 3 down
+wait 30
+key 3 up
+wait 30
+press HOME
+key 2 down
+wait 30
+key 2 up
+wait 3500
+key 2 down
+wait 30
+key 2 up
+wait 30
+release HOME
+expect saves 0
+press HOME
+key 2 down
+wait 30
+key 2 up
+wait 300
+key 2 down
+wait 30
+key 2 up
+wait 30
+release HOME
+expect saves 1
+shot guardado.png
+# B02 now loads with what was saved: its name ends in '*' (waits for the bar)
+key 2 down
+wait 30
+key 2 up
+wait 2500
+expect pattern 2
+expect saved 1
+shot guardado_b02.png

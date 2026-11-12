@@ -34,6 +34,13 @@ enum {
     EPK_P_DIVISION,   /* step division (división): see EPK_DIV_* */
     EPK_P_SWING,      /* swing: the odd steps play late (los pasos impares se atrasan), up to 0.4 of a step */
     EPK_P_SHIFT,      /* the whole track early or late (adelanta o atrasa la pista): 0.5 = on the grid, +-0.45 step */
+    /* EVOLUTION (evolución): every EVERY bars the track may change a little and may rest. What changes: hits +-,
+     * rotation, tone, decay, character (ACORDE: the chord) and, in the melodic engines, the note. It is an offset
+     * over the pattern (desvío): the pattern itself is not touched; a pattern change or PLAY starts from it again */
+    EPK_P_MUTATE,     /* how much it changes each time (cuánto muta): 0 nothing */
+    EPK_P_EVERY,      /* every 1, 2, 4, 8 or 16 bars (cada cuántos compases) */
+    EPK_P_RETURN,     /* how much it goes back towards the pattern each time (vuelta): 0 with MUTATE 0 = frozen */
+    EPK_P_ABSENCE,    /* the chance that it rests for that stretch (ausencia) */
     EPK_P_PATTERN_COUNT, /* the parameters above belong to the pattern (al patrón); the ones below, to the project */
     EPK_P_LEVEL = EPK_P_PATTERN_COUNT,   /* level (nivel) */
     EPK_P_PAN,        /* pan (panorama): 0 left, 0.5 centre, 1 right */
@@ -184,7 +191,25 @@ int epk_pattern_current(void);
 int epk_pattern_queued(void);                  /* -1 none (ninguno en cola) */
 int epk_bank_current(void);
 int epk_bank_queued(void);                     /* the queued pattern's bank, -1 none */
-const char *epk_pattern_name(int bank, int pattern);   /* main loop only (a static buffer) */
+const char *epk_pattern_name(int bank, int pattern);   /* main loop only (a static buffer); a saved one ends in '*' */
+int epk_every_bars(int track);                 /* EVERY in bars (compases) */
+int epk_absent(int track);                     /* resting this stretch (en ausencia) */
+
+/* Saving (guardar): a pattern as it sounds now (with its evolution) goes to a slot of any bank. The core packs it;
+ * the UI keeps it in the store (plat_store_*: the flash on the device, the page's storage in the emulator) as two
+ * objects a bank, eight slots each. A slot saved overrides the factory or generated one when its bank loads.
+ * Record: per track the pattern's parameters (u16 LE) then steps: mask u32 LE, manual u8, meta u8 x 32 */
+#define EPK_PATTERN_BYTES ((EPK_P_PATTERN_COUNT * 2 + 37) * EPK_TRACKS)
+#define EPK_BANK_HEAD 8                        /* "EPKB", version, bank, half, slot mask */
+#define EPK_BANK_OBJ_BYTES (EPK_BANK_HEAD + 8 * EPK_PATTERN_BYTES)
+#define EPK_BANK_VERSION 1
+void epk_pattern_pack_live(uint8_t *out);      /* EPK_PATTERN_BYTES: what plays now, its evolution included */
+void epk_pattern_keep(int pattern);            /* the same, into that slot of the current bank (en memoria) */
+/* before a bank loads: what the store holds for it. stage_begin, then each half's object as loaded, then the
+ * bank's change (epk_pattern_select). epk_bank_restage: at boot, the current bank again with what was staged */
+void epk_bank_stage_begin(int bank);
+void epk_bank_stage_half(int bank, int half, const uint8_t *obj, int len);
+void epk_bank_restage(void);
 int epk_bar_step(void);                        /* 0..15 within the bar, -1 stopped (paso del compás) */
 void epk_pattern_randomize(uint32_t seed);     /* a whole new pattern in the current slot (aleatorio general) */
 

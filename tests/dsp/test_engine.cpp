@@ -819,6 +819,158 @@ int main() {
         std::printf("acorde: %.0f / %.0f crossings a second (octave / min9); drone peak %.3f at 2 s\n", c1, c2, late);
     }
 
+    // 22. EVOLUTION (evolución): still without MUTATE; with it the rhythm and the sound change but stay near the
+    //     pattern; RETURN brings it back; ABSENCE rests the track; a pattern change starts from the pattern again
+    {
+        const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
+        auto run_bars = [&](int bars) { for (long d = 0; d < bars * bar; d += 256) epk_render(l, r, 256); };
+        auto quiet_all = [&]() { for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_MUTATE, 0.0f); };
+        // still (quieto): MUTATE 0, RETURN 0 everywhere: 16 bars, the same masks and tones
+        epk_init(SR);
+        epk_pattern_select(0, 0);
+        epk_play(1);
+        epk_render(l, r, 256);
+        quiet_all();
+        uint32_t m0[EPK_TRACKS];
+        for (int t = 0; t < EPK_TRACKS; t++) m0[t] = epk_pattern(t);
+        int moved = 0;
+        for (int b = 0; b < 16; b++) {
+            run_bars(1);
+            for (int t = 0; t < EPK_TRACKS; t++) moved += epk_pattern(t) != m0[t];
+        }
+        CHECK(moved == 0, "MUTATE 0: the pattern moved %d times in 16 bars", moved);
+        // moving (mueve): track 2 (hats) MUTATE 1 every bar: the mask and the tone change, the hits never reach 0
+        epk_param_set(1, EPK_P_MUTATE, 1.0f);
+        epk_param_set(1, EPK_P_EVERY, 0.0f);
+        epk_param_set(1, EPK_P_RETURN, 0.2f);
+        CHECK(epk_every_bars(1) == 1, "EVERY 0 = 1 bar (got %d)", epk_every_bars(1));
+        int changes = 0, empty = 0, tone_moves = 0;
+        uint32_t prev = epk_pattern(1);
+        float tone0 = epk_param_live(1, EPK_P_TONE);
+        for (int b = 0; b < 32; b++) {
+            run_bars(1);
+            changes += epk_pattern(1) != prev;
+            prev = epk_pattern(1);
+            empty += epk_pattern(1) == 0;
+            tone_moves += std::fabs(epk_param_live(1, EPK_P_TONE) - tone0) > 0.02f;
+        }
+        CHECK(changes >= 8, "MUTATE 1: the hats' rhythm changed only %d times in 32 bars", changes);
+        CHECK(empty == 0, "MUTATE never empties the track (%d empty bars)", empty);
+        CHECK(tone_moves >= 8, "MUTATE 1: the tone moved only %d times", tone_moves);
+        CHECK(epk_param_get(1, EPK_P_TONE) == epk_param_get(1, EPK_P_TONE), "the pattern's own value is untouched");
+        // back (vuelta): MUTATE 0, RETURN 1: within a few bars it is the pattern again
+        epk_param_set(1, EPK_P_MUTATE, 0.0f);
+        epk_param_set(1, EPK_P_RETURN, 1.0f);
+        run_bars(3);
+        CHECK(epk_pattern(1) == m0[1], "RETURN 1: back to the pattern (mask %08x, expected %08x)", epk_pattern(1), m0[1]);
+        CHECK(std::fabs(epk_param_live(1, EPK_P_TONE) - epk_param_get(1, EPK_P_TONE)) < 1e-4f, "RETURN 1: the tone back");
+        // frozen (congelado): mutate a while, then MUTATE 0 and RETURN 0: it holds where it is
+        epk_param_set(1, EPK_P_MUTATE, 1.0f);
+        epk_param_set(1, EPK_P_RETURN, 0.0f);
+        run_bars(6);
+        epk_param_set(1, EPK_P_MUTATE, 0.0f);
+        const uint32_t held = epk_pattern(1);
+        const float held_tone = epk_param_live(1, EPK_P_TONE);
+        run_bars(8);
+        CHECK(epk_pattern(1) == held && std::fabs(epk_param_live(1, EPK_P_TONE) - held_tone) < 1e-6f,
+              "MUTATE 0 + RETURN 0: frozen where it was");
+        // a pattern change starts from the written pattern (desde el patrón escrito)
+        epk_pattern_select(0, 0);
+        run_bars(1);
+        CHECK(epk_pattern(1) == m0[1], "after a pattern change the evolution starts again from the pattern");
+        // absence (ausencia): ABSENCE 1 every bar: after the first bar, no triggers; ABSENCE 0: triggers
+        epk_init(SR);
+        epk_pattern_select(0, 0);
+        epk_play(1);
+        quiet_all();
+        epk_param_set(1, EPK_P_EVERY, 0.0f);
+        epk_param_set(1, EPK_P_ABSENCE, 1.0f);
+        run_bars(1);
+        uint32_t before = epk_triggers(1);
+        run_bars(4);
+        CHECK(epk_triggers(1) == before, "ABSENCE 1: %u triggers while resting", epk_triggers(1) - before);
+        CHECK(epk_absent(1) == 1, "ABSENCE 1: reported as resting");
+        epk_param_set(1, EPK_P_ABSENCE, 0.0f);
+        run_bars(1);
+        before = epk_triggers(1);
+        run_bars(2);
+        CHECK(epk_triggers(1) > before, "ABSENCE 0: the hats play again");
+        // the factory patterns evolve by themselves: CYKLOS over 32 bars is not one loop
+        epk_init(SR);
+        epk_pattern_select(0, 15);
+        epk_play(1);
+        epk_render(l, r, 256);
+        int differ = 0;
+        uint32_t first[EPK_TRACKS];
+        for (int t = 0; t < EPK_TRACKS; t++) first[t] = epk_pattern(t);
+        for (int b = 0; b < 32; b++) {
+            run_bars(1);
+            for (int t = 0; t < EPK_TRACKS; t++) differ += epk_pattern(t) != first[t];
+        }
+        CHECK(differ > 10, "CYKLOS: only %d track-bars differ from the first bar in 32 bars", differ);
+        CHECK(epk_pattern(0) == first[0], "the kick holds (el bombo no se mueve)");
+        std::printf("evolution: %d rhythm changes in 32 bars at MUTATE 1; CYKLOS %d track-bars differ\n", changes, differ);
+    }
+
+    // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
+    //     its name gets '*'; a slot kept in the current bank is the pattern from then on
+    {
+        static uint8_t obj[EPK_BANK_OBJ_BYTES];
+        epk_init(SR);
+        epk_pattern_select(0, 15);
+        epk_play(1);
+        epk_param_set(2, EPK_P_MUTATE, 1.0f);
+        epk_param_set(2, EPK_P_EVERY, 0.0f);
+        epk_param_set(2, EPK_P_RETURN, 0.0f);
+        const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
+        for (long d = 0; d < 6 * bar; d += 256) epk_render(l, r, 256);
+        float live[EPK_TRACKS][3];
+        uint32_t mask[EPK_TRACKS];
+        for (int t = 0; t < EPK_TRACKS; t++) {
+            live[t][0] = epk_param_live(t, EPK_P_TONE);
+            live[t][1] = epk_param_live(t, EPK_P_NOTE);
+            live[t][2] = epk_param_live(t, EPK_P_CHARACTER);
+            mask[t] = epk_pattern(t);
+        }
+        std::memset(obj, 0, sizeof obj);
+        obj[0] = 'E'; obj[1] = 'P'; obj[2] = 'K'; obj[3] = 'B'; obj[4] = EPK_BANK_VERSION;
+        obj[5] = 3; obj[6] = 1; obj[7] = 1u << 4;                    // bank D, second half, slot 13 (index 12)
+        epk_pattern_pack_live(obj + EPK_BANK_HEAD + 4 * EPK_PATTERN_BYTES);
+        epk_play(0);
+        epk_render(l, r, 256);
+        epk_bank_stage_begin(3);
+        epk_bank_stage_half(3, 1, obj, (int)sizeof obj);
+        epk_pattern_select(3, 12);
+        epk_render(l, r, 256);
+        CHECK(epk_bank_current() == 3 && epk_pattern_current() == 12, "bank D, pattern 13 (got %d, %d)",
+              epk_bank_current(), epk_pattern_current() + 1);
+        const char *nm = epk_pattern_name(3, 12);
+        CHECK(nm[std::strlen(nm) - 1] == '*', "a saved pattern's name ends in '*' (got %s)", nm);
+        CHECK(std::strchr(epk_pattern_name(3, 11), '*') == nullptr, "the slot beside it is not saved");
+        for (int t = 0; t < EPK_TRACKS; t++) {
+            CHECK(std::fabs(epk_param_get(t, EPK_P_TONE) - live[t][0]) < 1e-4f, "track %d tone %.4f, saved %.4f", t + 1,
+                  epk_param_get(t, EPK_P_TONE), live[t][0]);
+            CHECK(std::fabs(epk_param_get(t, EPK_P_NOTE) - live[t][1]) < 1e-4f, "track %d note", t + 1);
+            CHECK(std::fabs(epk_param_get(t, EPK_P_CHARACTER) - live[t][2]) < 1e-4f, "track %d character", t + 1);
+            CHECK(epk_pattern(t) == mask[t], "track %d steps %08x, saved %08x", t + 1, epk_pattern(t), mask[t]);
+        }
+        // a wrong object is refused (rechazado): another bank's, another version
+        epk_bank_stage_begin(4);
+        obj[4] = EPK_BANK_VERSION + 1;
+        epk_bank_stage_half(4, 1, obj, (int)sizeof obj);
+        epk_pattern_select(4, 12);
+        epk_render(l, r, 256);
+        CHECK(std::strchr(epk_pattern_name(4, 12), '*') == nullptr, "another version is not loaded");
+        // kept in the current bank (en memoria): pattern 2 of bank E becomes what pattern 13 sounds like
+        const float tone13 = epk_param_get(2, EPK_P_TONE);
+        epk_pattern_keep(1);
+        epk_render(l, r, 256);
+        epk_pattern_select(4, 1);
+        epk_render(l, r, 256);
+        CHECK(std::strchr(epk_pattern_name(4, 1), '*') != nullptr, "kept: marked");
+        CHECK(std::fabs(epk_param_get(2, EPK_P_TONE) - tone13) < 1e-4f, "kept: pattern 2 now has pattern 13's chord tone");
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
         static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};

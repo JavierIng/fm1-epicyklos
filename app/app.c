@@ -12,7 +12,8 @@
  *   PRESETS track level (nivel)   K1-K4   the page's parameters; HOME+K fine (ajuste fino)
  *   OCT-/OCT+ keyboard octave     keys    play the selected track
  *   SAVE   the PATTERNS view (patrones): black keys = banks A..K (bancos), white keys = the bank's 16 patterns;
- *          playing, the change waits for the bar's end. SAVE held + keys: the same from any view
+ *          playing, the change waits for the bar's end. SAVE held + keys: the same from any view. HOME + a white
+ *          key, twice within 3 s: save the pattern as it sounds into that slot of the bank shown (guardar)
  *   SEQ    the STEPS view (pasos): the 16 white keys are steps (OCT-/OCT+ the other 16); hold a step and turn
  *          K1 for its chance (probabilidad), K2 for its condition (condición), K3 early or late (micro)
  *   ARP    random (aleatorio): the page shown, for the selected track; in the PATTERNS view, a whole new pattern.
@@ -41,14 +42,15 @@ static uint16_t dim_colour(uint16_t c)               /* a colour at ~35 % (apaga
 }
 
 /* ------------------------------------------------------------------ pages (páginas) */
-enum { PAGE_SOUND, PAGE_ENGINE, PAGE_RHYTHM, PAGE_GROOVE, PAGE_MIX, NPAGES };
+enum { PAGE_SOUND, PAGE_ENGINE, PAGE_RHYTHM, PAGE_GROOVE, PAGE_EVOL, PAGE_MIX, NPAGES };
 enum { SLOT_NONE = -1, SLOT_LATER = -2 };            /* nothing there / a later phase (fase siguiente) */
-static const char *const PAGE_NAME[NPAGES] = {"SONIDO", "MOTOR", "RITMO", "GROOVE", "MEZCLA"};
+static const char *const PAGE_NAME[NPAGES] = {"SONIDO", "MOTOR", "RITMO", "GROOVE", "EVOLUCION", "MEZCLA"};
 static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_NOTE, EPK_P_CHARACTER, EPK_P_TONE, EPK_P_DECAY},
     {EPK_P_ENGINE, EPK_P_EXTRA1, EPK_P_EXTRA2, EPK_P_ATTACK},
     {EPK_P_LENGTH, EPK_P_HITS, EPK_P_ROTATE, EPK_P_DIVISION},
     {EPK_P_SWING, EPK_P_SHIFT, SLOT_NONE, SLOT_NONE},
+    {EPK_P_MUTATE, EPK_P_EVERY, EPK_P_RETURN, EPK_P_ABSENCE},   /* evolution (evolución) */
     {EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B},   /* sends: A the delay, B the reverb */
 };
 static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};
@@ -96,6 +98,10 @@ static const char *param_name(int track, int p)
     case EPK_P_DIVISION: return "DIVISION";
     case EPK_P_SWING: return "SWING";
     case EPK_P_SHIFT: return "DESPLAZA";
+    case EPK_P_MUTATE: return "MUTAR";
+    case EPK_P_EVERY: return "CADA";
+    case EPK_P_RETURN: return "VUELTA";
+    case EPK_P_ABSENCE: return "AUSENCIA";
     case EPK_P_LEVEL: return "NIVEL";
     case EPK_P_PAN: return "PAN";
     case EPK_P_SEND_A: return "A ECO";
@@ -113,6 +119,10 @@ static const char *param_hint(int track, int p)
     case EPK_P_DIVISION: return "Velocidad de los pasos";
     case EPK_P_SWING: return "Los pasos impares se atrasan";
     case EPK_P_SHIFT: return "La pista entera antes o despues";
+    case EPK_P_MUTATE: return "Cuanto cambia cada vez";
+    case EPK_P_EVERY: return "Cada cuantos compases cambia";
+    case EPK_P_RETURN: return "Cuanto vuelve al patron";
+    case EPK_P_ABSENCE: return "Probabilidad de que descanse";
     case EPK_P_LEVEL: return "Volumen de la pista";
     case EPK_P_PAN: return "Izquierda o derecha";
     case EPK_P_SEND_A: return "Cuanto va al eco";
@@ -216,6 +226,9 @@ static struct {
     uint32_t btn, keys;                    /* held at the last input (pulsados) */
     int home_used;                         /* HOME was a shift while held: no view change on release */
     int save_used, arp_used;               /* SAVE / ARP were held for a combination: no action on release */
+    int save_bank, save_slot;              /* a save waiting for its second press (guardar: falta confirmar), -1 none */
+    uint32_t save_until;
+    int saves;                             /* saves done since boot: for the tests (contador) */
     int key_note[NKEYS];                   /* the note each held key started (-1 none) */
     char msg[2][24];                       /* a short message in the header (mensaje) */
     uint32_t msg_until;
@@ -460,6 +473,10 @@ static void param_str(int track, int p, char *b)
     }
     case EPK_P_ROTATE: int_str(i, b); break;
     case EPK_P_DIVISION: str_cat(b, DIV_NAME[i]); break;
+    case EPK_P_EVERY:                      /* bars (compases) */
+        int_str(epk_every_bars(track), b);
+        str_cat(b, epk_every_bars(track) == 1 ? " COMP" : " COMPS");
+        break;
     case EPK_P_SHIFT: {                    /* % of a step, - early (antes), + late (después) */
         int c = (int)((v - 0.5f) * 90.0f + (v < 0.5f ? -0.5f : 0.5f));
         if (c > 0)
@@ -575,6 +592,78 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
 void app_panic(void) { epk_panic(); }
 
+/* ------------------------------------------------------------------ saved patterns (patrones guardados) */
+#if EPK_BANK_OBJ_BYTES > PLAT_STORE_MAX
+#error "a half bank does not fit in a store object"
+#endif
+#ifdef PLAT_HOST
+static uint8_t obj_buf[PLAT_STORE_MAX];
+#else
+static uint8_t obj_buf[PLAT_STORE_MAX] __attribute__((section(".pool")));   /* the device's spare RAM (pool) */
+#endif
+
+/* What the store holds for a bank, handed to the core before the bank loads (antes de cargar el banco) */
+static void stage_bank(int bank)
+{
+    int half, n;
+    epk_bank_stage_begin(bank);
+    for (half = 0; half < 2; half++)
+        if ((n = plat_store_load(OBJ_BANK0 + (uint32_t)(bank * 2 + half), obj_buf, sizeof obj_buf)) > 0)
+            epk_bank_stage_half(bank, half, obj_buf, n);
+}
+
+/* The pattern as it sounds now into a slot of a bank (a una ranura), kept in the store; in the current bank also
+ * in memory. Returns 0 if saved */
+static int save_pattern(int bank, int slot)
+{
+    const uint32_t obj = OBJ_BANK0 + (uint32_t)(bank * 2 + slot / 8);
+    const int half = slot / 8;
+    int n = plat_store_load(obj, obj_buf, sizeof obj_buf);
+    if (n < EPK_BANK_OBJ_BYTES || obj_buf[0] != 'E' || obj_buf[1] != 'P' || obj_buf[2] != 'K' || obj_buf[3] != 'B' ||
+        obj_buf[4] != EPK_BANK_VERSION) {  /* nothing there yet, or another layout: a fresh half (vacío) */
+        memset(obj_buf, 0, EPK_BANK_OBJ_BYTES);
+        obj_buf[0] = 'E'; obj_buf[1] = 'P'; obj_buf[2] = 'K'; obj_buf[3] = 'B';
+        obj_buf[4] = EPK_BANK_VERSION;
+    }
+    obj_buf[5] = (uint8_t)bank;
+    obj_buf[6] = (uint8_t)half;
+    obj_buf[7] |= (uint8_t)(1u << (slot % 8));
+    epk_pattern_pack_live(obj_buf + EPK_BANK_HEAD + (slot % 8) * EPK_PATTERN_BYTES);
+    if (plat_store_save(obj, obj_buf, EPK_BANK_OBJ_BYTES) != 0)
+        return -1;
+    if (bank == epk_bank_current())
+        epk_pattern_keep(slot);
+    ui.saves++;
+    return 0;
+}
+
+static void slot_text(int bank, int slot, char *t)   /* "A15" */
+{
+    t[0] = (char)('A' + bank);
+    t[1] = (char)('0' + (slot + 1) / 10);
+    t[2] = (char)('0' + (slot + 1) % 10);
+    t[3] = 0;
+}
+
+/* HOME + a white key in the PATTERNS view: the first press asks, the second (within 3 s) saves */
+static void save_press(int slot)
+{
+    char t[8];
+    slot_text(ui.bank, slot, t);
+    ui.home_used = 1;
+    if (ui.save_bank == ui.bank && ui.save_slot == slot && (int32_t)(ui.save_until - plat_ms()) > 0) {
+        ui.save_bank = ui.save_slot = -1;
+        app_say(save_pattern(ui.bank, slot) ? "NO GUARDADO" : "GUARDADO", t);
+    } else {
+        ui.save_bank = ui.bank;
+        ui.save_slot = slot;
+        ui.save_until = plat_ms() + 3000u;
+        str_cat(t, " ?");
+        app_say("GUARDAR EN", t);
+    }
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
 void app_init(void)
 {
     uint32_t k;
@@ -586,6 +675,9 @@ void app_init(void)
     ui.pop_fx = -1;
     ui.amount = 10;
     ui.rng = 0x1F123BB5u;
+    ui.save_bank = ui.save_slot = -1;
+    stage_bank(0);                         /* what was saved in bank A, before the first sound (lo guardado) */
+    epk_bank_restage();
     for (k = 0; k < NKEYS; k++)
         ui.key_note[k] = -1;
 }
@@ -747,6 +839,12 @@ static void random_page(void)
                 target = 0.5f + (rnd() - 0.5f) * 0.3f;     /* near the grid (cerca de la rejilla) */
             else if (p == EPK_P_ATTACK)
                 target = rnd() * rnd() * 0.6f;
+            else if (p == EPK_P_MUTATE)
+                target = 0.1f + rnd() * 0.5f;
+            else if (p == EPK_P_ABSENCE)
+                target = rnd() * 0.25f;            /* resting, now and then (de vez en cuando) */
+            else if (p == EPK_P_EVERY)
+                target = (float)(1 + (int)(rnd() * 3.0f)) / 4.0f;   /* 2, 4 or 8 bars */
             else
                 target = 0.05f + rnd() * 0.9f;
             epk_param_set(ui.track, p, v + (target - v) * a);
@@ -825,7 +923,11 @@ static void input(void)
                 ui.bank = BLACK_OF[k];
                 app_say("BANCO", n);
                 ui.dirty_main = ui.dirty_foot = 1;
+            } else if (down && shift) {
+                save_press(WHITE_OF[k]);   /* HOME + a white key: save here (guardar aquí) */
             } else if (down) {
+                if (ui.bank != epk_bank_current() && ui.bank != epk_bank_queued())
+                    stage_bank(ui.bank);   /* another bank: what is saved in it first (lo guardado primero) */
                 epk_pattern_select(ui.bank, WHITE_OF[k]);
                 app_say(epk_playing() ? "EN COLA" : "PATRON", epk_pattern_name(ui.bank, WHITE_OF[k]));
             }
@@ -1441,6 +1543,14 @@ static void draw_foot(void)                       /* the page tabs and the four 
     cv_rect(0, 0, 240, 1, C_RULE);
     if (ui.btn >> B_HOME & 1u) {              /* HOME held: what it does with the rest (chuleta de HOME) */
         cv_text(6, 4, &FONT_XS, "HOME +", c);
+        if (ui.view == VIEW_PATTERNS) {      /* in PATTERNS a white key saves (guarda) */
+            cv_text(6, 19, &FONT_XS, "Blanca: guardar el patron como suena", C_TEXT);
+            cv_text(6, 32, &FONT_XS, "en esa ranura del banco elegido.", C_TEXT);
+            cv_text(6, 45, &FONT_XS, "Pulsa 2 veces la misma (3 s) para confirmar", C_TEXT);
+            cv_text(6, 58, &FONT_XS, "Queda guardado (emulador: en el navegador)", C_LABEL);
+            cv_blit(0, 168);
+            return;
+        }
         cv_text(6, 19, &FONT_XS, "SELECT: tempo        PISTA: mute", C_TEXT);
         cv_text(6, 32, &FONT_XS, "ARP: deshacer  K: fino  ALGO: filtro", C_TEXT);
         cv_text(6, 45, &FONT_XS, "PRESETS: envio al eco   En MEZCLA, PISTA: solo", C_TEXT);
@@ -1459,7 +1569,8 @@ static void draw_foot(void)                       /* the page tabs and the four 
         cv_text(6, 18, &FONT_M, q >= 0 ? epk_pattern_name(ui.bank, q) : same
                 ? epk_pattern_name(ui.bank, epk_pattern_current()) : "ELIGE PATRON", C_TEXT);
         cv_text(6, 44, &FONT_XS, "Negras: banco   Blancas: patron", C_LABEL);
-        cv_text(6, 57, &FONT_XS, "ARP: patron al azar   HOME+ARP: deshacer", C_LABEL);
+        cv_text(6, 57, &FONT_XS, "HOME+blanca: guardar aqui (2 veces)", C_LABEL);
+        cv_text(6, 70, &FONT_XS, "ARP: patron al azar   HOME+ARP: deshacer", C_LABEL);
         cv_blit(0, 168);
         return;
     }
@@ -1530,8 +1641,25 @@ static void draw_foot(void)                       /* the page tabs and the four 
         cv_blit(0, 168);
         return;
     }
-    for (i = 0; i < NPAGES; i++)
-        x = cv_text(x, 3, &FONT_XS, PAGE_NAME[i], i == ui.page ? c : C_LABEL) + 7;
+    {                                     /* every page if they fit; else the one before, this one, the one after */
+        int32_t w = x;
+        for (i = 0; i < NPAGES; i++)
+            w += text_w(&FONT_XS, PAGE_NAME[i]) + 7;
+        if (w <= 240) {
+            for (i = 0; i < NPAGES; i++)
+                x = cv_text(x, 3, &FONT_XS, PAGE_NAME[i], i == ui.page ? c : C_LABEL) + 7;
+        } else {
+            const int prev = (ui.page + NPAGES - 1) % NPAGES, next = (ui.page + 1) % NPAGES;
+            char pg[8];
+            x = cv_text(x, 3, &FONT_XS, PAGE_NAME[prev], C_RULE) + 8;
+            x = cv_text(x, 3, &FONT_XS, PAGE_NAME[ui.page], c) + 8;
+            cv_text(x, 3, &FONT_XS, PAGE_NAME[next], C_RULE);
+            int_str(ui.page + 1, pg);
+            str_cat(pg, "/");
+            int_str(NPAGES, pg + strlen(pg));
+            cv_text(236 - text_w(&FONT_XS, pg), 3, &FONT_XS, pg, C_LABEL);
+        }
+    }
     for (i = 0; i < 4; i++) {
         const int p = slot_param(ui.track, ui.page, i);
         const int32_t cx = i * 60 + 2;
@@ -1636,7 +1764,12 @@ int app_expect(const char *what, int *got)
         *got = ui.view;
     else if (!strcmp(what, "page"))
         *got = ui.page;
-    else if (!strcmp(what, "pattern"))         /* 1..16 */
+    else if (!strcmp(what, "saves"))           /* saves done (guardados) */
+        *got = ui.saves;
+    else if (!strcmp(what, "saved")) {         /* 1: the current pattern was saved (lleva '*') */
+        const char *n = epk_pattern_name(epk_bank_current(), epk_pattern_current());
+        *got = n[0] && n[strlen(n) - 1] == '*';
+    } else if (!strcmp(what, "pattern"))         /* 1..16 */
         *got = epk_pattern_current() + 1;
     else if (!strcmp(what, "queued"))          /* 1..16, 0 none */
         *got = epk_pattern_queued() + 1;
