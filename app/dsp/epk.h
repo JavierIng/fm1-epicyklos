@@ -60,6 +60,27 @@ enum {
  * character: in ACORDE the chord), the note */
 enum { EPK_SCOPE_ALL, EPK_SCOPE_RHYTHM, EPK_SCOPE_SOUND, EPK_SCOPE_NOTE, EPK_SCOPE_COUNT };
 
+/* SCENES (escenas), the project's: each sets up to EPK_SCENE_LOCKS targets to its own value. Held or latched,
+ * it comes in over its FADE and goes back the same way. A target: an effect (0 .. EPK_FX_COUNT-1) or a track's
+ * parameter (EPK_SCENE_TRACK + track * 32 + param). Effects with steps (on/off, orders, stutter) switch halfway */
+#define EPK_SCENES 8
+#define EPK_SCENE_LOCKS 8
+#define EPK_SCENE_TRACK 0x100
+#define EPK_SCENE_FADES 8          /* 0, 1/16, 1/8, 1/4, 1/2, 1, 2, 4 bars (compases) */
+int epk_scene_lock(int scene, int target, float value);   /* add or change; -1 when full (llena) */
+int epk_scene_count(int scene);
+int epk_scene_target(int scene, int i);
+float epk_scene_value(int scene, int i);
+int epk_scene_find(int scene, int target);                /* its index, or -1 */
+void epk_scene_clear(int scene);
+void epk_scene_hold(int scene, int on);                   /* momentary (mientras se mantiene) */
+void epk_scene_latch(int scene, int on);                  /* stays on (se queda puesta) */
+int epk_scene_latched(int scene);
+float epk_scene_amount(int scene);                        /* how far in it is now, 0..1 */
+void epk_scene_set_fade(int scene, float value01);
+float epk_scene_fade(int scene);
+const char *epk_scene_name(int scene);
+
 /* engines (motores) */
 enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_ACORDE, EPK_ENG_DRONE,
        EPK_ENG_COUNT };

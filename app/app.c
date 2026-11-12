@@ -255,6 +255,8 @@ static struct {
     int home_used;                         /* HOME was a shift while held: no view change on release */
     int save_used, arp_used;               /* SAVE / ARP were held for a combination: no action on release */
     int save_bank, save_slot;              /* a save waiting for its second press (guardar: falta confirmar), -1 none */
+    int scene_mode;                        /* ESCENAS: the black keys are the scenes (HOME+SEQ) */
+    int scene_held, scene_key;             /* the scene held now and its key, -1 none (la que se mantiene) */
     uint32_t save_until;
     int saves;                             /* saves done since boot: for the tests (contador) */
     int key_note[NKEYS];                   /* the note each held key started (-1 none) */
@@ -776,6 +778,7 @@ void app_init(void)
     ui.amount = 10;
     ui.rng = 0x1F123BB5u;
     ui.save_bank = ui.save_slot = -1;
+    ui.scene_held = ui.scene_key = -1;
     stage_bank(0);                         /* what was saved in bank A, before the first sound (lo guardado) */
     epk_bank_restage();
     for (k = 0; k < NKEYS; k++)
@@ -892,6 +895,80 @@ static void turn_flow(int slot, int32_t detents, int fine)
     ui.pop_fx = p;
     ui.pop_until = plat_ms() + 1000u;
     ui.dirty_main = ui.dirty_foot = 1;
+}
+
+/* ------------------------------------------------------------------ scenes (escenas) */
+static const char *const FADE_NAME[EPK_SCENE_FADES] = {"AL MOMENTO", "1/16", "1/8", "1/4", "1/2", "1 COMP", "2 COMP",
+                                                       "4 COMP"};
+static int fade_idx(int s) { return (int)(epk_scene_fade(s) * (float)(EPK_SCENE_FADES - 1) + 0.5f); }
+
+/* A scene's target as the screen names it: an effect, or "P3 TONO" (nombre de un destino) */
+static void target_name(int tg, char *b)
+{
+    b[0] = 0;
+    if (tg < EPK_FX_COUNT) {
+        int pg, sl;
+        for (pg = 0; pg < NFXPAGES; pg++)                  /* its page first: two "NIVEL" must not look alike */
+            for (sl = 0; sl < 4; sl++)
+                if (FX_PAGE_PARAM[pg][sl] == tg && !b[0]) {
+                    str_cat(b, FX_PAGE_NAME[pg]);
+                    str_cat(b, " ");
+                }
+        str_cat(b, fx_name(tg));
+    } else {
+        const int k = (tg - EPK_SCENE_TRACK) >> 5, p = (tg - EPK_SCENE_TRACK) & 31;
+        b[0] = 'P';
+        b[1] = (char)('1' + k);
+        b[2] = ' ';
+        b[3] = 0;
+        str_cat(b, param_name(k, p));
+    }
+}
+
+/* Holding a scene, a knob sets that scene's value for what the knob moves (lo que mueve el knob, en la escena) */
+static void scene_turn(int k, int32_t e)
+{
+    static const int ENC_SLOT_S[NE] = {-1, -1, -1, 0, 1, 2, 3};
+    const int s = ui.scene_held, slot = ENC_SLOT_S[k];
+    int target = -1, steps = 0, idx;
+    float base;
+    char t[24], v[8];
+    if (k == EN_SELECT) {                  /* SELECT: how it comes in and goes (el fundido) */
+        epk_scene_set_fade(s, epk_scene_fade(s) + (float)e / (float)(EPK_SCENE_FADES - 1));
+        app_say("FUNDIDO", FADE_NAME[fade_idx(s)]);
+        ui.dirty_main = 1;
+        return;
+    }
+    if (slot < 0)
+        return;
+    if (ui.view == VIEW_FX)
+        target = FX_PAGE_PARAM[ui.fx_page][slot];
+    else if (ui.view == VIEW_FLOW)
+        target = FLOW_PARAM[slot];
+    else if (ui.view == VIEW_ORBIT || ui.view == VIEW_MIX) {
+        const int p = slot_param(ui.track, ui.page, slot);
+        if (p >= 0 && !epk_param_steps(p))  /* continuous only (solo los continuos) */
+            target = EPK_SCENE_TRACK + ui.track * 32 + p;
+    }
+    if (target < 0) {
+        app_say("ESCENA", "AQUI NO");
+        return;
+    }
+    if (target < EPK_FX_COUNT)
+        steps = epk_fx_steps(target);
+    idx = epk_scene_find(s, target);
+    base = idx >= 0 ? epk_scene_value(s, idx)
+                    : target < EPK_FX_COUNT ? epk_fx_get(target)
+                                            : epk_param_get((target - EPK_SCENE_TRACK) >> 5, (target - EPK_SCENE_TRACK) & 31);
+    if (epk_scene_lock(s, target, base + (float)e / (steps ? (float)(steps - 1) : 40.0f)) < 0) {
+        app_say("ESCENA LLENA", "8 DESTINOS");
+        return;
+    }
+    target_name(target, t);
+    idx = epk_scene_find(s, target);
+    int_str((int32_t)(epk_scene_value(s, idx) * 100.0f + 0.5f), v);
+    app_say(t, v);
+    ui.dirty_main = 1;
 }
 
 /* FLOW view: a white key 1..6 turns a block on or off (activa o quita un bloque) */
@@ -1068,6 +1145,28 @@ static void input(void)
                 ui.save_used = 1;          /* SAVE was held for this: no view change on its release */
             continue;
         }
+        if (ui.scene_mode && BLACK_OF[k] >= 0) {   /* ESCENAS: a black key holds its scene, HOME latches it */
+            const int sc = BLACK_OF[k];
+            if (up && ui.key_note[k] >= 0) {   /* a note from before the mode changed (de antes) */
+                epk_note_off(ui.track, ui.key_note[k]);
+                ui.key_note[k] = -1;
+            }
+            if (sc < EPK_SCENES && down && shift) {
+                epk_scene_latch(sc, !epk_scene_latched(sc));
+                app_say(epk_scene_name(sc), epk_scene_latched(sc) ? "PUESTA" : "QUITADA");
+                ui.dirty_main = ui.dirty_foot = 1;
+            } else if (sc < EPK_SCENES && down) {
+                epk_scene_hold(sc, 1);
+                ui.scene_held = sc;
+                ui.scene_key = (int)k;
+                ui.dirty_main = 1;
+            } else if (up && ui.scene_key == (int)k) {
+                epk_scene_hold(ui.scene_held, 0);
+                ui.scene_held = ui.scene_key = -1;
+                ui.dirty_main = 1;
+            }
+            continue;
+        }
         if (flowing) {
             if (down && WHITE_OF[k] >= 0 && WHITE_OF[k] < 6)
                 flow_toggle(WHITE_OF[k]);
@@ -1160,9 +1259,22 @@ static void input(void)
             app_say("THROW", n);
             ui.dirty_main = 1;
         }
-        else if (k == B_SEQ)
+        else if (k == B_SEQ && shift) {    /* HOME+SEQ: the black keys become the scenes (o vuelven a tocar) */
+            ui.scene_mode = !ui.scene_mode;
+            app_say("ESCENAS", ui.scene_mode ? "NEGRAS 1-8" : "FUERA");
+            if (!ui.scene_mode && ui.scene_held >= 0) {
+                epk_scene_hold(ui.scene_held, 0);
+                ui.scene_held = ui.scene_key = -1;
+            }
+            ui.dirty_main = ui.dirty_foot = 1;
+        } else if (k == B_SEQ)
             set_view(ui.view == VIEW_STEPS ? VIEW_ORBIT : VIEW_STEPS);
-        else if (k == B_ARP) {
+        else if (k == B_ARP && ui.scene_held >= 0) {   /* holding a scene + ARP: empty it (vaciarla) */
+            epk_scene_clear(ui.scene_held);
+            ui.arp_used = 1;
+            app_say(epk_scene_name(ui.scene_held), "VACIA");
+            ui.dirty_main = 1;
+        } else if (k == B_ARP) {
             ui.arp_used = shift;
             if (shift)
                 undo();
@@ -1205,6 +1317,10 @@ static void input(void)
             continue;
         if (shift)
             ui.home_used = 1;
+        if (ui.scene_held >= 0) {          /* holding a scene: its values (sus valores) */
+            scene_turn((int)k, e);
+            continue;
+        }
         if (arp) {                         /* ARP held: how much, and the locks (cantidad y bloqueos) */
             ui.arp_used = 1;
             if (k == EN_ALGO) {
@@ -1330,6 +1446,18 @@ static void set_lights(void)
         plat_lights(lit, keys_lit, dim, keys_dim, 1);
         return;
     }
+    if (ui.scene_mode) {                   /* the scenes on the black keys: lit when in, dim when set */
+        uint32_t keys_lit = ui.keys, keys_dim = 0;
+        int s;
+        for (s = 0; s < EPK_SCENES; s++) {
+            if (epk_scene_count(s))
+                keys_dim |= 1u << key_at(BLACK_OF, s);
+            if (epk_scene_amount(s) > 0.0f)
+                keys_lit |= 1u << key_at(BLACK_OF, s);
+        }
+        plat_lights(lit, keys_lit, dim, keys_dim, 1);
+        return;
+    }
     plat_lights(lit, ui.keys, dim, 0, 1);
 }
 
@@ -1357,7 +1485,18 @@ static void draw_head(void)
         if (ui.view != VIEW_PATTERNS) {
             int_str(ui.track + 1, t);
             x = cv_text(x + 10, 4, &FONT_B, t, TRACK_C[ui.track]);
-            x = cv_text(x + 4, 7, &FONT_XS, ENG_NAME[epk_engine(ui.track)], C_LABEL);
+            if (ui.scene_mode) {           /* ESCENAS: ESC and the scenes that are in (las que están dentro) */
+                char e[16] = "ESC";
+                int s, n = 3;
+                for (s = 0; s < EPK_SCENES && n < 14; s++)
+                    if (epk_scene_amount(s) > 0.0f) {
+                        e[n++] = ' ';
+                        e[n++] = (char)('1' + s);
+                    }
+                e[n] = 0;
+                x = cv_text(x + 4, 7, &FONT_XS, e, C_SOLO);
+            } else
+                x = cv_text(x + 4, 7, &FONT_XS, ENG_NAME[epk_engine(ui.track)], C_LABEL);
             if (ui.view == VIEW_STEPS && epk_steps_manual(ui.track))
                 cv_text(x + 5, 7, &FONT_XS, "A MANO", C_SOLO);
         }
@@ -1726,10 +1865,42 @@ static void draw_flow(void)
     }
 }
 
+/* Holding a scene: its name, how far in it is, its fade and what it sets (qué fija) */
+static void draw_scene(void)
+{
+    const int s = ui.scene_held, n = epk_scene_count(s);
+    char t[24], v[8];
+    int i;
+    t[0] = 'E';
+    t[1] = (char)('1' + s);
+    t[2] = 0;
+    cv_text(6, 4, &FONT_B, t, C_SOLO);
+    cv_text(34, 4, &FONT_B, epk_scene_name(s), C_TEXT);
+    cv_rect(6, 26, 228, 4, C_RULE);
+    cv_rect(6, 26, (int32_t)(epk_scene_amount(s) * 228.0f + 0.5f), 4, C_SOLO);
+    t[0] = 0;
+    str_cat(t, "FUNDIDO ");
+    str_cat(t, FADE_NAME[fade_idx(s)]);
+    cv_text(6, 34, &FONT_XS, t, C_LABEL);
+    if (!n)
+        cv_text(6, 52, &FONT_XS, "Vacia: gira knobs para darle valores", C_LABEL);
+    for (i = 0; i < n; i++) {
+        const int32_t y = 48 + i * 12;
+        target_name(epk_scene_target(s, i), t);
+        cv_text(6, y, &FONT_XS, t, C_TEXT);
+        cv_rect(130, y + 4, 80, 3, C_RULE);
+        cv_rect(130, y + 4, (int32_t)(epk_scene_value(s, i) * 80.0f + 0.5f), 3, C_SOLO);
+        int_str((int32_t)(epk_scene_value(s, i) * 100.0f + 0.5f), v);
+        cv_text(234 - text_w(&FONT_XS, v), y, &FONT_XS, v, C_LABEL);
+    }
+}
+
 static void draw_main(void)
 {
     cv_begin(240, 144, C_BG);
-    if (plat_ms() < ui.pop_until)
+    if (ui.scene_held >= 0)
+        draw_scene();
+    else if (plat_ms() < ui.pop_until)
         draw_popup();
     else if (ui.view == VIEW_PATTERNS)
         draw_patterns();
@@ -1992,7 +2163,23 @@ void app_frame(void)
                 ui.dirty_main = ui.dirty_foot = 1;
         }
     }
-    if (ui.view == VIEW_MOD && now - ui.meter_at >= 40u) {   /* the sources move (las fuentes se mueven) */
+    if (ui.scene_mode) {                      /* scenes coming in or going: their bar and the header (barra y cabecera) */
+        static uint32_t scenes_at, scenes_seen;
+        uint32_t in = 0;
+        int sc;
+        for (sc = 0; sc < EPK_SCENES; sc++)
+            if (epk_scene_amount(sc) > 0.0f)
+                in |= 1u << sc;
+        if (in != scenes_seen) {
+            scenes_seen = in;
+            ui.dirty_head = 1;
+        }
+        if (ui.scene_held >= 0 && now - scenes_at >= 40u) {
+            scenes_at = now;
+            ui.dirty_main = 1;
+        }
+    }
+        if (ui.view == VIEW_MOD && now - ui.meter_at >= 40u) {   /* the sources move (las fuentes se mueven) */
         ui.meter_at = now;
         ui.dirty_main = 1;
     }
@@ -2050,6 +2237,12 @@ int app_expect(const char *what, int *got)
         *got = epk_key();
     else if (!strncmp(what, "on", 2) && what[2] >= '1' && what[2] <= '6' && !what[3])   /* FLOW block onN */
         *got = epk_fx_get(EPK_FX_ON_MAREA + what[2] - '1') > 0.5f;
+    else if (!strcmp(what, "scenemode"))
+        *got = ui.scene_mode;
+    else if (!strncmp(what, "scene", 5) && what[5] >= '1' && what[5] <= '8' && !what[6])   /* sceneN: x100 */
+        *got = (int)(epk_scene_amount(what[5] - '1') * 100.0f + 0.5f);
+    else if (!strncmp(what, "locks", 5) && what[5] >= '1' && what[5] <= '8' && !what[6])
+        *got = epk_scene_count(what[5] - '1');
     else if (!strcmp(what, "evohold"))
         *got = epk_evolve_held();
     else if (!strcmp(what, "saves"))           /* saves done (guardados) */

@@ -1254,6 +1254,97 @@ int main() {
                     without, e_fx / e_all, e_rd, worst);
     }
 
+    // 28. Pre-fader sends, DIGITAL (bits, rate, stutter) and SCENES (escenas)
+    {
+        const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
+        auto fresh = [&]() {
+            epk_init(SR);
+            epk_pattern_select(0, 3);
+            epk_render(l, r, 256);
+            for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f); }
+            epk_play(1);
+        };
+        auto fx_peak = [&](float sec) {
+            epk_fx_meter();
+            for (long d = 0; d < (long)(sec * SR); d += 256) epk_render(l, r, 256);
+            return epk_fx_meter();
+        };
+        // pre-fader: the level at 0 and the send still feeds the delay; post-fader it does not
+        float post, pre;
+        fresh();
+        for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_SEND_A, 0.8f); epk_param_set(t, EPK_P_SEND_B, 0.0f);
+                                               epk_param_set(t, EPK_P_LEVEL, 0.0f); }
+        fx_peak(6.0f);                                               // what was sent before dies out (se apaga)
+        post = fx_peak(1.0f);
+        for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_SEND_PRE, 1.0f);
+        fx_peak(1.0f);
+        pre = fx_peak(1.0f);
+        CHECK(post < 1e-4f && pre > 0.02f, "pre-fader: level 0 sends %.4f (post-fader %.4f)", pre, post);
+        // bits at the top: few distinct levels; rate at the top: each sample held for many
+        fresh();
+        epk_fx_set(EPK_FX_BITS, 1.0f);
+        epk_fx_set(EPK_FX_SRR, 1.0f);
+        for (long d = 0; d < SR; d += 256) epk_render(l, r, 256);
+        int held = 0, changes = 0;
+        for (int k = 0; k < 40; k++) {
+            epk_render(l, r, 256);
+            for (int i = 1; i < 256; i++) { if (l[i] == l[i - 1]) held++; else changes++; }
+        }
+        CHECK(held > 20 * changes, "rate /32: samples held %d, changes %d", held, changes);
+        // stutter at 1/16: after the first pass the output repeats every sixteenth (se repite)
+        fresh();
+        for (long d = 0; d < 2 * bar; d += 256) epk_render(l, r, 256);
+        epk_fx_set(EPK_FX_STUT_DIV, 2.0f / 3.0f);
+        epk_fx_set(EPK_FX_STUTTER, 1.0f);
+        const int six = (int)(bar / 16);
+        static float rec[44100];
+        int nrec = 0;
+        while (nrec < 6 * six && nrec + 256 <= 44100) { epk_render(l, r, 256); for (int i = 0; i < 256; i++) rec[nrec + i] = l[i]; nrec += 256; }
+        double num = 0.0, da = 0.0, db = 0.0;
+        for (int i = 2 * six; i < 3 * six; i++) { num += rec[i] * rec[i + six]; da += rec[i] * rec[i]; db += rec[i + six] * rec[i + six]; }
+        const double corr = num / std::sqrt(da * db + 1e-12);
+        CHECK(corr > 0.95, "stutter 1/16: one repeat against the next correlates %.3f", corr);
+        epk_fx_set(EPK_FX_STUTTER, 0.0f);
+        for (long d = 0; d < SR / 2; d += 256) epk_render(l, r, 256);
+        // scenes: SECO (5) held takes both returns to 0 at once; let go, back; the knobs untouched
+        fresh();
+        const float dly = epk_fx_get(EPK_FX_DLY_LEVEL);
+        epk_scene_hold(5, 1);
+        epk_render(l, r, 256);
+        CHECK(epk_fx_live(EPK_FX_DLY_LEVEL) == 0.0f && epk_fx_live(EPK_FX_REV_LEVEL) == 0.0f, "SECO held: returns %.2f %.2f",
+              epk_fx_live(EPK_FX_DLY_LEVEL), epk_fx_live(EPK_FX_REV_LEVEL));
+        CHECK(epk_fx_get(EPK_FX_DLY_LEVEL) == dly, "a scene does not move the knob");
+        epk_scene_hold(5, 0);
+        epk_render(l, r, 256);
+        CHECK(std::fabs(epk_fx_live(EPK_FX_DLY_LEVEL) - dly) < 1e-6f, "SECO let go: back to %.2f", dly);
+        // SUMERGIR (0) fades in over 1 bar: about halfway at half a bar, all in at one
+        epk_scene_hold(0, 1);
+        for (long d = 0; d < bar / 2; d += 256) epk_render(l, r, 256);
+        const float half = epk_scene_amount(0);
+        for (long d = 0; d < bar / 2 + 512; d += 256) epk_render(l, r, 256);
+        CHECK(half > 0.4f && half < 0.6f && epk_scene_amount(0) == 1.0f, "fade of 1 bar: %.2f at half, %.2f at one", half,
+              epk_scene_amount(0));
+        CHECK(std::fabs(epk_fx_live(EPK_FX_FLT) - 0.12f) < 1e-4f, "SUMERGIR in: filter %.3f", epk_fx_live(EPK_FX_FLT));
+        epk_scene_hold(0, 0);
+        // a track's parameter: ECO INFINITO (7) sets every track's send A to 0
+        epk_scene_latch(7, 1);
+        epk_render(l, r, 256);
+        int zero = 0;
+        for (int t = 0; t < EPK_TRACKS; t++) zero += epk_param_live(t, EPK_P_SEND_A) == 0.0f;
+        CHECK(zero == EPK_TRACKS && epk_scene_latched(7), "ECO INFINITO latched: %d tracks' send A at 0", zero);
+        epk_scene_latch(7, 0);
+        // making one: 8 targets at most; empty it
+        epk_scene_clear(2);
+        int ok = 0;
+        for (int i = 0; i < 9; i++) ok += epk_scene_lock(2, EPK_SCENE_TRACK + (i % 6) * 32 + (i < 6 ? EPK_P_TONE : EPK_P_DECAY), 0.3f) >= 0;
+        CHECK(ok == 8 && epk_scene_count(2) == 8, "a scene holds 8 targets (took %d)", ok);
+        CHECK(epk_scene_lock(2, EPK_SCENE_TRACK + 0 * 32 + EPK_P_TONE, 0.9f) >= 0 && epk_scene_value(2, 0) > 0.89f,
+              "changing a target already there works when full");
+        epk_scene_clear(2);
+        CHECK(epk_scene_count(2) == 0, "cleared");
+        std::printf("pre-fader send %.3f; stutter repeat corr %.3f; fade half %.2f\n", pre, corr, half);
+    }
+
     // 23. Saving (guardar): a pattern as it sounds, packed, staged into another bank's slot, loads back the same;
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {

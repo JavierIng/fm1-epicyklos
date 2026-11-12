@@ -515,3 +515,49 @@ turn SELECT 1
 wait 30
 expect page 5
 shot movimiento.png
+# ESCENAS: HOME+SEQ; black key 6 (key 13, SECO) held; a knob while holding adds a target; HOME + key latches
+press HOME
+tap SEQ
+wait 30
+release HOME
+wait 30
+expect scenemode 1
+expect locks6 2
+key 13 down
+wait 100
+expect scene6 100
+turn K4 3
+wait 30
+expect locks6 3
+shot escena.png
+key 13 up
+wait 100
+expect scene6 0
+press HOME
+key 13 down
+wait 30
+key 13 up
+wait 30
+release HOME
+wait 100
+expect scene6 100
+press HOME
+key 13 down
+wait 30
+key 13 up
+wait 30
+release HOME
+wait 100
+expect scene6 0
+key 13 down
+wait 30
+tap ARP
+wait 30
+key 13 up
+wait 30
+expect locks6 0
+press HOME
+tap SEQ
+wait 30
+release HOME
+expect scenemode 0

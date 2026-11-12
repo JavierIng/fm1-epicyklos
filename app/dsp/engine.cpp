@@ -90,6 +90,13 @@ struct Undo {
     Steps st[EPK_TRACKS];
 };
 
+struct Scene {
+    uint16_t target[EPK_SCENE_LOCKS];
+    float value[EPK_SCENE_LOCKS];
+    int n, held, latched;
+    float fade, amt;                       // fade 0..1 (EPK_SCENE_FADES steps); amt: how far in (cuánto entra)
+};
+
 struct Engine {
     float sr, bpm;
     int playing;
@@ -123,6 +130,7 @@ struct Engine {
     Marea marea;
     int marea_on;                          // the track it was on last block (para vaciarla al moverla)
     float marea_g;                         // FLOW: MAREA on 1 .. off 0 (sin clics)
+    Scene scene[EPK_SCENES];               // the project's (del proyecto)
     float ins_l[kBlock], ins_r[kBlock];    // the insert's stereo out (salida estéreo del inserto)
     float fx_live[EPK_FX_COUNT];           // the effects with the modulation on
     int32_t sixteenths;                    // since play (desde PLAY), for the LFOs
@@ -770,6 +778,8 @@ using namespace epk;
 // ------------------------------------------------------------------ the C interface (interfaz C)
 extern "C" {
 
+void scenes_factory();                     // with the scenes, below (más abajo)
+
 void epk_init(float sample_rate) {
     // the project's mix (mezcla del proyecto): level, pan per track
     static const float kMix[EPK_TRACKS][4] = {{0.85f, 0.50f, 0.00f, 0.00f}, {0.50f, 0.58f, 0.30f, 0.30f},
@@ -797,6 +807,7 @@ void epk_init(float sample_rate) {
     g.marea.init();
     g.marea_on = 0;
     g.marea_g = 1.0f;
+    scenes_factory();
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx_live[i] = g.fx[i];
     g.meter_fx = 0.0f;
     g.sr = sample_rate;
@@ -838,6 +849,72 @@ void epk_init(float sample_rate) {
 
 // The modulation for this block (la modulación de este bloque): the sources move, the effects and the tracks get
 // their offsets. The followers hear the previous block (≤ 6 ms late).
+// ------------------------------------------------------------------ scenes (escenas)
+static const char *const kSceneNames[EPK_SCENES] = {"SUMERGIR", "CATEDRAL", "CINTA ROTA", "DIGITAL",
+                                                      "TUNEL", "SECO", "STUTTER", "ECO INFINITO"};
+static const float kFadeBars[EPK_SCENE_FADES] = {0.0f, 0.0625f, 0.125f, 0.25f, 0.5f, 1.0f, 2.0f, 4.0f};
+
+int scene_lock(Scene &sc, int target, float value) {
+    for (int i = 0; i < sc.n; i++)
+        if (sc.target[i] == target) { sc.value[i] = clamp01(value); return i; }
+    if (sc.n >= EPK_SCENE_LOCKS) return -1;
+    sc.target[sc.n] = (uint16_t)target;
+    sc.value[sc.n] = clamp01(value);
+    return sc.n++;
+}
+
+// The eight of the start (las de inicio), from the ideas: dub's usual moves
+void scenes_factory() {
+    for (Scene &sc : g.scene) { sc.n = 0; sc.held = sc.latched = 0; sc.fade = 0.0f; sc.amt = 0.0f; }
+    Scene *s = g.scene;
+    scene_lock(s[0], EPK_FX_FLT, 0.12f);                             // SUMERGIR: under water (bajo el agua)
+    scene_lock(s[0], EPK_FX_DLY_FEEDBACK, 0.85f);
+    scene_lock(s[0], EPK_FX_DLY_LEVEL, 0.95f);
+    s[0].fade = 5.0f / 7.0f;                                         // 1 bar
+    scene_lock(s[1], EPK_FX_REV_LEVEL, 1.0f);                        // CATEDRAL: all reverb
+    scene_lock(s[1], EPK_FX_REV_DECAY, 0.95f);
+    scene_lock(s[1], EPK_FX_DLY_LEVEL, 0.2f);
+    s[1].fade = 6.0f / 7.0f;                                         // 2 bars
+    scene_lock(s[2], EPK_FX_SAT, 0.85f);                             // CINTA ROTA: worn tape (cinta gastada)
+    scene_lock(s[2], EPK_FX_DLY_WEAR, 0.9f);
+    scene_lock(s[3], EPK_FX_BITS, 0.70f);                            // DIGITAL
+    scene_lock(s[3], EPK_FX_SRR, 0.60f);
+    scene_lock(s[4], EPK_FX_FLT, 0.85f);                             // TUNEL: thin and far (fino y lejos)
+    scene_lock(s[4], EPK_FX_REV_LEVEL, 0.95f);
+    s[4].fade = 4.0f / 7.0f;                                         // 1/2 bar
+    scene_lock(s[5], EPK_FX_DLY_LEVEL, 0.0f);                        // SECO: no returns (sin retornos)
+    scene_lock(s[5], EPK_FX_REV_LEVEL, 0.0f);
+    scene_lock(s[6], EPK_FX_STUTTER, 1.0f);                          // STUTTER at 1/16
+    scene_lock(s[6], EPK_FX_STUT_DIV, 2.0f / 3.0f);
+    scene_lock(s[7], EPK_FX_DLY_FEEDBACK, 0.97f);                    // ECO INFINITO: nothing new in, the echo on
+    for (int t = 0; t < EPK_TRACKS; t++) scene_lock(s[7], EPK_SCENE_TRACK + t * 32 + EPK_P_SEND_A, 0.0f);
+}
+
+// Each block (cada bloque): every scene glides towards held/latched or off over its fade, then pulls its targets
+inline void apply_scenes(uint32_t n) {
+    for (Scene &sc : g.scene) {
+        const float want = (sc.held || sc.latched) ? 1.0f : 0.0f;
+        const float bars = kFadeBars[clampi((int)(sc.fade * (EPK_SCENE_FADES - 1) + 0.5f), 0, EPK_SCENE_FADES - 1)];
+        const float step = bars > 0.0f ? (float)n / (bars * 4.0f * 15.0f / g.bpm * 4.0f * g.sr) : 1.0f;
+        sc.amt = sc.amt < want ? fm_minf(sc.amt + step, want) : fm_maxf(sc.amt - step, want);
+        if (sc.amt <= 0.0f) continue;
+        for (int i = 0; i < sc.n; i++) {
+            const int tg = sc.target[i];
+            const float v = sc.value[i];
+            if (tg < EPK_FX_COUNT) {
+                float &x = g.fx_live[tg];
+                x = epk_fx_steps(tg) ? (sc.amt > 0.5f ? v : x) : x + (v - x) * sc.amt;
+            } else if (tg >= EPK_SCENE_TRACK) {
+                const int k = (tg - EPK_SCENE_TRACK) >> 5, p = (tg - EPK_SCENE_TRACK) & 31;
+                if (k < EPK_TRACKS && p < EPK_P_COUNT) {
+                    float &x = g.tr[k].pm[p];
+                    x = epk_param_steps(p) ? (sc.amt > 0.5f ? v : x) : x + (v - x) * sc.amt;
+                }
+            }
+        }
+    }
+}
+
 // The track LFO over a block (un bloque): the global LFO's shapes, locked to the bar, and DRIFT, a slow random walk
 // that bounces off the edges; its speed: how much it wanders in one cycle of RATE
 inline void track_lfo(Track &t, float t16, uint32_t n) {
@@ -912,6 +989,7 @@ void apply_mod(uint32_t n) {
             else t.pm[kParamOf[dest]] = clamp01(t.pm[kParamOf[dest]] + t.lfo_out * 0.5f);
         }
     }
+    apply_scenes(n);                                                 // last: a scene wins (la escena manda)
 }
 
 void epk_render(float *left, float *right, uint32_t frames) {
@@ -1144,6 +1222,24 @@ int epk_absent(int track) { return valid(track) && g.playing ? g.tr[track].absen
 void epk_evolve_enable(int track, int on) { if (valid(track)) g.tr[track].evo_off = on ? 0 : 1; }
 int epk_evolve_enabled(int track) { return valid(track) ? !g.tr[track].evo_off : 0; }
 float epk_track_lfo(int track) { return valid(track) ? g.tr[track].lfo_out : 0.0f; }
+static inline int scene_ok(int s) { return s >= 0 && s < EPK_SCENES; }
+int epk_scene_lock(int s, int target, float value) { return scene_ok(s) ? scene_lock(g.scene[s], target, value) : -1; }
+int epk_scene_count(int s) { return scene_ok(s) ? g.scene[s].n : 0; }
+int epk_scene_target(int s, int i) { return scene_ok(s) && i >= 0 && i < g.scene[s].n ? g.scene[s].target[i] : -1; }
+float epk_scene_value(int s, int i) { return scene_ok(s) && i >= 0 && i < g.scene[s].n ? g.scene[s].value[i] : 0.0f; }
+int epk_scene_find(int s, int target) {
+    if (!scene_ok(s)) return -1;
+    for (int i = 0; i < g.scene[s].n; i++) if (g.scene[s].target[i] == target) return i;
+    return -1;
+}
+void epk_scene_clear(int s) { if (scene_ok(s)) g.scene[s].n = 0; }
+void epk_scene_hold(int s, int on) { if (scene_ok(s)) g.scene[s].held = on ? 1 : 0; }
+void epk_scene_latch(int s, int on) { if (scene_ok(s)) g.scene[s].latched = on ? 1 : 0; }
+int epk_scene_latched(int s) { return scene_ok(s) ? g.scene[s].latched : 0; }
+float epk_scene_amount(int s) { return scene_ok(s) ? g.scene[s].amt : 0.0f; }
+void epk_scene_set_fade(int s, float v) { if (scene_ok(s)) g.scene[s].fade = clamp01(v); }
+float epk_scene_fade(int s) { return scene_ok(s) ? g.scene[s].fade : 0.0f; }
+const char *epk_scene_name(int s) { return scene_ok(s) ? kSceneNames[s] : ""; }
 void epk_evolve_hold(int on) { g.evo_hold = on ? 1 : 0; }
 void epk_random_key_lock(int on) { g.key_lock = on ? 1 : 0; }
 int epk_random_key_locked(void) { return g.key_lock; }
