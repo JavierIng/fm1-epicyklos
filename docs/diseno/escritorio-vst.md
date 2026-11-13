@@ -58,7 +58,7 @@ Pedido de Javier: mandar tono y secuencia de cada pista por CV (audio) y MIDI, p
 - Compila universal (arm64 + x86_64).
 - `auval` (el validador de Apple): AU VALIDATION SUCCEEDED (carga, suena, cambia de formato, guarda y recupera estado).
 - `pluginval` nivel 5 sobre el VST3, sin pruebas de ventana: SUCCESS.
-- Con los buses nuevos (6 entradas, 7 salidas): `auval` sigue en verde. Prueba automática en la máquina de compilación con ORBITA 8 s: 17 puertas del bombo en CV 1, tono del bajo −0,158 de fondo de escala (nota 41), 29 notas y 29 apagados por el canal MIDI 4.
+- Con los buses nuevos (6 entradas, 7 salidas): `auval` sigue en verde. Prueba automática en la máquina de compilación con PULSAR 8 s: 17 puertas del bombo en CV 1, tono del bajo −0,158 de fondo de escala (nota 41), 29 notas y 29 apagados por el canal MIDI 4.
 - En el núcleo (prueba `test_desktop`): los eventos caen en la muestra exacta, una pista con la voz apagada no suena pero sigue disparando, y un seno externo sale por la pista y se calla con MUTE.
 
 ## Sin comprobar
