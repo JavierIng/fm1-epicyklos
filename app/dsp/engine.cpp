@@ -105,6 +105,7 @@ struct Engine {
     int pattern, queued;                   // current, queued (-1 none)
     int bank_id, queued_bank;              // the bank in memory (banco en memoria), the queued pattern's
     uint16_t user_mask;                    // the current bank's slots that come from the store (guardados)
+    uint16_t name_id[EPK_PATTERNS];        // a saved slot's name, drawn from what was saved (nombre de lo guardado)
     int evo_hold;                          // every track's evolution frozen (todo congelado)
     int key;                               // the key in use, semitones from D (tonalidad: desde re), -5..6
     int key_lock;                          // the whole-pattern random keeps it (tonalidad fija)
@@ -656,6 +657,22 @@ void bake_track(int i, float *out, Steps &st) {
 // Each bank in one key, so its patterns follow each other (cada banco en una tonalidad): A in D, the rest spread
 inline int bank_key(int bank) { return bank == 0 ? 0 : (bank * 5) % 12 - 5; }
 
+// A saved pattern's own name (nombre propio): a number drawn from its bytes, so the same pattern has the same name
+// after a power-off and nothing more is stored. Spelled as three syllables: 16 x 4 x 15 x 4 x 16 x 4 names
+uint16_t record_name(const uint8_t *rec) {
+    uint32_t h = 2166136261u;
+    for (int i = 0; i < EPK_PATTERN_BYTES; i++) h = (h ^ rec[i]) * 16777619u;
+    return (uint16_t)(h ^ h >> 16);
+}
+void spell_name(uint16_t id, char *out) {
+    static const char kC[] = "BDFGKLMNRSTVZLNR", kV[] = "AEIO", kV3[] = "AOUE";
+    const int c1 = id & 15, v1 = id >> 4 & 3, v2 = id >> 10 & 3, c3 = id >> 12 & 15, v3 = (id >> 8 ^ id) & 3;
+    int c2 = id >> 6 & 15;
+    if (kC[c2] == kC[c1]) c2 = (c2 + 1) & 15;                        // no doubled syllable (sin sílaba repetida)
+    if (kC[c2] == kC[c1]) c2 = (c2 + 1) & 15;
+    out[0] = kC[c1]; out[1] = kV[v1]; out[2] = kC[c2]; out[3] = kV[v2]; out[4] = kC[c3]; out[5] = kV3[v3]; out[6] = 0;
+}
+
 void load_bank(int bank) {
     const int staged = g.stage_bank == bank;
     g.user_mask = 0;
@@ -663,6 +680,7 @@ void load_bank(int bank) {
         if (staged && (g.stage_mask >> pt & 1u)) {                   // saved (guardado)
             unpack_pattern(g.stage[pt], pt);
             g.user_mask |= (uint16_t)(1u << pt);
+            g.name_id[pt] = record_name(g.stage[pt]);
         } else if (bank == 0) fill_factory(pt);
         else if (bank == 1) generate_hypnotic(pt, (uint32_t)(64 + pt), bank_key(bank));
         else if (bank == 2) generate_ambient(pt, (uint32_t)(128 + pt), bank_key(bank));
@@ -801,6 +819,12 @@ void drain() {
         } else if (e.type == EV_KEEP) {                       // the live pattern into a slot (a la ranura)
             for (int k = 0; k < EPK_TRACKS; k++) bake_track(k, g.bank[e.a][k], g.bank_steps[e.a][k]);
             g.user_mask |= (uint16_t)(1u << e.a);
+            {
+                static uint8_t rec[EPK_PATTERN_BYTES];               // as it will be stored (como se guardará)
+                uint8_t *o = rec;
+                for (int k = 0; k < EPK_TRACKS; k++) pack_track(g.bank[e.a][k], g.bank_steps[e.a][k], o);
+                g.name_id[e.a] = record_name(rec);
+            }
             g.pat_key[e.a] = (int8_t)g.key;
             if (e.a == g.pattern) load_live(g.pattern, 0);   // what you heard is now the pattern (ya es el patrón)
         } else if (e.type == EV_RANDOM) {
@@ -1433,6 +1457,11 @@ const char *epk_pattern_name(int bank, int pattern) {
     static char name[16];
     if (pattern < 0 || pattern >= EPK_PATTERNS || bank < 0 || bank >= EPK_BANKS) return "";
     int n = 0;
+    if (bank == g.bank_id && (g.user_mask >> pattern & 1u)) {       // saved: its own name (guardado: su nombre)
+        spell_name(g.name_id[pattern], name);
+        name[6] = '*'; name[7] = 0;
+        return name;
+    }
     if (bank <= 2)
         for (const char *c = (bank == 0 ? kFactoryNames : bank == 1 ? kHypnoticNames : kAmbientNames)[pattern]; *c && n < 12; c++)
             name[n++] = *c;
@@ -1443,7 +1472,6 @@ const char *epk_pattern_name(int bank, int pattern) {
         name[6] = (char)('0' + (pattern + 1) % 10);
         n = 7;
     }
-    if (bank == g.bank_id && (g.user_mask >> pattern & 1u)) name[n++] = '*';   // saved (guardado)
     name[n] = 0;
     return name;
 }

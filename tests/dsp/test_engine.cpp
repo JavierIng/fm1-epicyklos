@@ -1579,6 +1579,25 @@ int main() {
         epk_render(l, r, 256);
         CHECK(std::strchr(epk_pattern_name(4, 1), '*') != nullptr, "kept: marked");
         CHECK(std::fabs(epk_param_get(2, EPK_P_TONE) - tone13) < 1e-4f, "kept: pattern 2 now has pattern 13's chord tone");
+        // a saved pattern has a name of its own: six letters and '*', not the generated one, the same after the
+        // store gives it back, and another pattern another name (nombre propio)
+        char kept[16], back[16], other[16];
+        std::strcpy(kept, epk_pattern_name(4, 1));
+        CHECK(std::strlen(kept) == 7 && kept[6] == '*' && std::strncmp(kept, "GEN", 3) != 0, "a saved name: %s", kept);
+        static uint8_t obj2[EPK_BANK_OBJ_BYTES];
+        std::memset(obj2, 0, sizeof obj2);
+        obj2[0] = 'E'; obj2[1] = 'P'; obj2[2] = 'K'; obj2[3] = 'B'; obj2[4] = EPK_BANK_VERSION; obj2[5] = 5; obj2[6] = 0; obj2[7] = 1 | 2;
+        epk_pattern_pack_live(obj2 + EPK_BANK_HEAD);
+        epk_param_set(2, EPK_P_TONE, 0.11f);
+        epk_pattern_pack_live(obj2 + EPK_BANK_HEAD + EPK_PATTERN_BYTES);
+        epk_bank_stage_begin(5);
+        epk_bank_stage_half(5, 0, obj2, (int)sizeof obj2);
+        epk_pattern_select(5, 0);
+        epk_render(l, r, 256);
+        std::strcpy(back, epk_pattern_name(5, 0));
+        std::strcpy(other, epk_pattern_name(5, 1));
+        CHECK(std::strcmp(back, kept) == 0, "the name comes back with the pattern: %s then %s", kept, back);
+        CHECK(std::strcmp(other, back) != 0 && other[6] == '*', "another pattern, another name: %s and %s", back, other);
     }
 
     // 31. MACRO: track 4 plays it; each of the six models sounds, stays finite and under full scale, and its two

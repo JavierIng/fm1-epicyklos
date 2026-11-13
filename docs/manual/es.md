@@ -151,7 +151,9 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
 3. Vuelve a pulsar la misma tecla en menos de 3 s: "GUARDADO".
 - Se guarda el patrón **tal como suena en ese momento**, con su evolución dentro. Así, si un aleatorio o una
   mutación te gusta, lo conservas.
-- Un patrón guardado lleva `*` tras el nombre. Al cargar su banco, sustituye al de fábrica o al generado.
+- Un patrón guardado recibe **un nombre propio** de seis letras seguido de `*` (por ejemplo `KELIRA*`). Sale de lo
+  que se guardó: el mismo patrón tiene siempre el mismo nombre, y si lo cambias y vuelves a guardar, cambia. No se
+  puede escribir a mano. Al cargar su banco, sustituye al de fábrica o al generado.
 - Si guardas en la ranura que está sonando, lo que oías pasa a ser el patrón escrito.
 - **Dónde se guarda:** en el emulador, en el navegador (sobrevive a recargar la página, pero no a borrar los
   datos del sitio ni a cambiar de navegador). En el FM-1, en la flash, con el mismo código: *pendiente en el

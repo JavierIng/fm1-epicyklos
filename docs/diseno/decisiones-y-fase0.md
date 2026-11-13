@@ -375,3 +375,7 @@
 - **No hecho:** salida de reloj (necesita emitirse desde el audio para ser exacta), Continue con posición, CC, selección de fuente de reloj (si llegan dos relojes a la vez se mezclan: usar uno solo).
 - Supuesto sin medir: que el bucle principal lea los pulsos con suficiente frecuencia en el aparato. La marca de tiempo exacta en USB/TRS pide `midi_stamp = true` en fm1.toml, **que no está activado** (no sé su coste); hoy la hora es la de lectura. Bluetooth llega a ráfagas: seguirá peor.
 - Probado en el simulador (`app/tests/midi.txt`): nota por canal 3 dispara la pista 3; Start + 200 pulsos a 25 ms → suena y el tempo queda en 100; al callarse el reloj sigue sonando a 100; Stop para.
+
+## Nombres de lo guardado y número de bancos (2026-11-13, tarde)
+- Javier: "¿cada vez que guarda un patrón que salga un nombre random?". Hecho sin tocar el formato: el nombre (tres sílabas, 6 letras, + `*`) se calcula de los bytes guardados, así que no ocupa sitio, no hace falta convertir lo ya guardado y vuelve igual tras apagar. No es editable. Caso raro conocido: si la evolución cambia el patrón justo en el instante de guardar, el nombre mostrado puede cambiar al recargar el banco.
+- "¿Acortar bancos para dar más memoria?": **no libera RAM**. En RAM solo hay un banco a la vez (16 patrones); los demás se generan al entrar o se leen de la flash. Quitar bancos solo libera flash de datos (8 KB por medio banco), que no falta y no sirve para código ni para RAM. Se quedan los 11.

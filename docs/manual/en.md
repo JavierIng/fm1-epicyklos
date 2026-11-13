@@ -152,7 +152,9 @@ Each track has its own LFO, saved with the pattern. While the sequencer runs it 
 3. Press the same key again within 3 s: "GUARDADO" (saved).
 - The pattern is saved **as it sounds at that moment**, its evolution included. So a random result or a mutation
   you like can be kept.
-- A saved pattern has `*` after its name. When its bank loads, it replaces the factory or generated one.
+- A saved pattern gets **a name of its own**, six letters followed by `*` (for example `KELIRA*`). It is drawn
+  from what was saved: the same pattern always has the same name, and saving it again after a change gives a new
+  one. It cannot be typed by hand. When its bank loads, it replaces the factory or generated one.
 - Saving into the slot that is playing makes what you heard the written pattern.
 - **Where it is kept:** in the emulator, in the browser (it survives a page reload, not clearing the site's data or
   another browser). On the FM-1, in the flash, with the same code: *pending on the device*, since nothing has been
