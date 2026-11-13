@@ -43,7 +43,7 @@ jobs:
       - name: A picture of the window (captura de la ventana), also printed for whoever reads the log
         run: |
           shot=$(find desktop/build -type f -name EpkShot | head -1)
-          "$shot" ventana.png 0 3 2
+          "$shot" ventana.png 0 4 3
           sips -g pixelWidth -g pixelHeight ventana.png
           echo "-----BEGIN SHOT-----"; base64 -i ventana.png | fold -w 120; echo "-----END SHOT-----"
       - name: Validate the Audio Unit as a host would (auval la carga, la hace sonar y guarda su estado)
