@@ -15,3 +15,8 @@ firmware debe ofrecer también su código fuente completo.
 MPL-2.0 es compatible con GPL-3.0: los archivos MPL conservan su licencia y el conjunto se distribuye como GPL-3.0.
 Bluetooth usa la pila propia de fm1-base (`ble_stack = "own"`), sin bibliotecas binarias de JieLi, para que el
 firmware GPL se pueda distribuir.
+
+## Desktop plugin (`desktop/`)
+The VST3 / AU / standalone build links the JUCE framework (https://juce.com), fetched at build time and used under
+its AGPLv3 option. Our own code in `desktop/` is GPL-3.0-only; GPL-3.0 section 13 allows combining it with
+AGPLv3 code, and the combined binaries are then also subject to the AGPLv3's terms.
