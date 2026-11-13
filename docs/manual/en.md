@@ -90,7 +90,7 @@ page, with the page number.
 pattern. Each track can drift little by little without you touching anything. The written pattern is not modified:
 an offset over it changes, and a pattern change or PLAY starts again from what is written.
 - **MUTATE [MUTAR]:** how much it changes each time. What changes: hits (one more or one fewer), rotation, tone,
-  decay, character (in ACORDE, the chord) and, in ACORDE, DRONE and TEST, the note (a fourth, fifth or octave). It
+  decay, character (in ACORDE, the chord) and, in ACORDE, DRONE, MACRO and PRUEBA, the note (a fourth, fifth or octave). It
   never leaves the track without hits: that is ABSENCE's job.
 - **What [QUE]:** what may change: all [TODO], rhythm [RITMO] (hits and rotation), sound [SONIDO] (tone, decay,
   character/chord) or note [NOTA]. For example, hats on SOUND change colour without moving the groove; ACORDE on
