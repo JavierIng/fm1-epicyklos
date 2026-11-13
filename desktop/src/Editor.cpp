@@ -182,6 +182,14 @@ EpkEditor::EpkEditor(EpkProcessor& p) : AudioProcessorEditor(&p), proc(p)
         auto* s = solos.add(new juce::TextButton("S"));
         style(*s, kAccent);
         s->onClick = [t] { epk_solo(t, epk_soloed(t) ? 0 : 1); };
+        auto* v = voices.add(new juce::TextButton("INT"));   // the track's own voice (la voz propia de la pista)
+        style(*v, trackColour(t));
+        v->onClick = [t] { epk_voice_off(t, epk_voice_is_off(t) ? 0 : 1); };
+        v->setTooltip("La voz interna de la pista. Apagada, la pista sigue mandando notas y dejando pasar el audio que entra.");
+        auto* mo = midis.add(new juce::TextButton("MIDI"));  // its notes out on its MIDI channel (sus notas por MIDI)
+        style(*mo, kText);
+        mo->onClick = [this, t] { proc.midiOut[t].store(!proc.midiOut[t].load()); };
+        mo->setTooltip("Las notas de la pista salen por MIDI en su canal.");
         auto* k = addKnob(levels, "NIVEL", 2, [t] { return epk_param_get(t, EPK_P_LEVEL); },
                           [t] (float v) { epk_param_set(t, EPK_P_LEVEL, v); });
         k->slider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -417,9 +425,13 @@ void EpkEditor::resized()
         laneArea[t] = row;
         auto inner = row.reduced(8, 7);
         inner.removeFromLeft(128);
-        auto right = inner.removeFromRight(190);
-        solos[t]->setBounds(right.removeFromRight(30).reduced(1, juce::jmax(0, (right.getHeight() - 26) / 2)));
-        mutes[t]->setBounds(right.removeFromRight(30).reduced(1, juce::jmax(0, (right.getHeight() - 26) / 2)));
+        auto right = inner.removeFromRight(276);
+        const int by = juce::jmax(0, (right.getHeight() - 26) / 2);
+        solos[t]->setBounds(right.removeFromRight(30).reduced(1, by));
+        mutes[t]->setBounds(right.removeFromRight(30).reduced(1, by));
+        right.removeFromRight(6);
+        midis[t]->setBounds(right.removeFromRight(44).reduced(1, by));
+        voices[t]->setBounds(right.removeFromRight(38).reduced(1, by));
         levels[t]->slider.setBounds(right.reduced(10, 0));
         inner.removeFromRight(6);
         stepsArea[t] = inner.reduced(0, juce::jmax(0, (inner.getHeight() - 30) / 2));
@@ -466,6 +478,8 @@ void EpkEditor::timerCallback()
     for (int t = 0; t < EPK_TRACKS; t++) {
         mutes[t]->setToggleState(epk_muted(t) != 0, juce::dontSendNotification);
         solos[t]->setToggleState(epk_soloed(t) != 0, juce::dontSendNotification);
+        voices[t]->setToggleState(epk_voice_is_off(t) == 0, juce::dontSendNotification);
+        midis[t]->setToggleState(proc.midiOut[t].load(), juce::dontSendNotification);
         const uint32_t trig = epk_triggers(t);
         if (trig != lastTrig[t]) { lastTrig[t] = trig; flash[t] = 1.0f; }
         else flash[t] *= 0.8f;

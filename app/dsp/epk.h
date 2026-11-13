@@ -337,6 +337,24 @@ float epk_meter(int track);                    /* peak since the last call, 0..1
 float epk_meter_master(void);
 uint32_t epk_triggers(int track);              /* triggers since boot: a counter for tests (contador) */
 
+/* ------------------------------------------------------------------ the computer build only (solo en el ordenador)
+ * EPK_DESKTOP is defined by desktop/ and never by the firmware: none of this exists on the FM-1.
+ * - the notes the sequencer fires, to send them out as MIDI or as pitch and gate voltages (CV);
+ * - an outside sound into a track, in the voice's place or with it: it then goes through the track's MAREA, level,
+ *   pan and sends like the voice does (audio externo por la pista);
+ * - a track's own voice silenced while its sequence goes on (la voz callada, la secuencia sigue). */
+#ifdef EPK_DESKTOP
+typedef struct {
+    int32_t frame;                 /* where in the last epk_render call (en qué muestra); equal to its frames: the
+                                    * first sample of the next call */
+    uint8_t track, note, velocity, spare;
+} EpkNoteEvent;
+int epk_events_take(EpkNoteEvent *out, int max);   /* the notes fired by the last epk_render; empties the list */
+void epk_ext_in(int track, const float *mono);     /* for the next epk_render, as long as its frames; 0: none */
+void epk_voice_off(int track, int off);
+int epk_voice_is_off(int track);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

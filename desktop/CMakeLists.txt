@@ -24,7 +24,7 @@ juce_add_plugin(Epicyklos
     FORMATS VST3 AU Standalone
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
-    NEEDS_MIDI_OUTPUT FALSE
+    NEEDS_MIDI_OUTPUT TRUE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
@@ -39,6 +39,7 @@ target_sources(Epicyklos PRIVATE
 target_include_directories(Epicyklos PRIVATE src ../app/dsp ../base/include)
 target_compile_definitions(Epicyklos PUBLIC
     PLAT_HOST=1
+    EPK_DESKTOP=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
@@ -58,6 +59,7 @@ target_sources(EpkShot PRIVATE
 target_include_directories(EpkShot PRIVATE src ../app/dsp ../base/include)
 target_compile_definitions(EpkShot PRIVATE
     PLAT_HOST=1
+    EPK_DESKTOP=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_DISPLAY_SPLASH_SCREEN=0)

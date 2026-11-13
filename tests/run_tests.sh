@@ -12,6 +12,10 @@ CXX="${CXX:-c++}"
 "$CXX" -std=c++14 -O2 -Wall -Wextra -fno-exceptions -fno-rtti -DPLAT_HOST -I app/dsp -I base/include \
     tests/dsp/test_engine.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_engine
 ./build/test_engine || fail=1
+# the computer build's extras (EPK_DESKTOP): note events, outside audio, voice off
+"$CXX" -std=c++14 -O2 -Wall -Wextra -fno-exceptions -fno-rtti -DPLAT_HOST -DEPK_DESKTOP -I app/dsp -I base/include \
+    tests/dsp/test_desktop.cpp app/dsp/engine.cpp app/dsp/factory.cpp -o build/test_desktop
+./build/test_desktop || fail=1
 ./build.sh --host
 for t in app/tests/*.txt; do
     out=$(app/build/host/epicyklos_host "$t" app/build/host 2>&1) || true

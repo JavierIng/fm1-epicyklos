@@ -895,10 +895,31 @@ inline int step_passes(Track &t, int step, uint32_t cycle, int len) {
     return !(prob && t.chance.unipolar() >= 1.0f - 0.25f * (float)prob);
 }
 
+#ifdef EPK_DESKTOP
+struct Desk {                              // the computer build's extras (lo del ordenador)
+    EpkNoteEvent ev[256];
+    int n;
+    uint32_t base, inner;                  // where the block being rendered sits in the call (posición)
+    const float *ext[EPK_TRACKS];
+    uint8_t off[EPK_TRACKS];
+};
+static Desk g_desk;
+#endif
+
 inline void trigger_step(Track &t, int step) {
     const int note = t.key_note >= 0 ? t.key_note : note_live(t);
     t.voice.trigger(note_hz(note), step == 0 ? 1.0f : 0.8f);         // the first step accented (acento)
     t.triggers++;
+#ifdef EPK_DESKTOP
+    if (g_desk.n < 256) {
+        EpkNoteEvent &e = g_desk.ev[g_desk.n++];
+        e.frame = (int32_t)(g_desk.base + g_desk.inner);
+        e.track = (uint8_t)(&t - g.tr);
+        e.note = (uint8_t)clampi(note, 0, 127);
+        e.velocity = step == 0 ? 127 : 100;
+        e.spare = 0;
+    }
+#endif
 }
 
 // The next step (siguiente paso). A step on the grid triggers now; a late one is left pending inside this step;
@@ -935,6 +956,9 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     if (t.step >= len) t.step = len - 1;                             // the length was shortened (se acortó)
     uint32_t done = 0;
     while (done < n) {
+#ifdef EPK_DESKTOP
+        g_desk.inner = done;
+#endif
         if (g.playing && t.fire) {                                   // play: step 0 now (paso 0 ya)
             t.fire = 0;
             t.step = -1;
@@ -954,11 +978,21 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
         }
         t.voice.render(g.buf + done, run, t.pm, g.sr);
         done += run;
+#ifdef EPK_DESKTOP
+        g_desk.inner = done;
+#endif
         if (g.playing) {
             t.pos += run * inc;                                      // wraps past 2^32 at the step's end
             if (run == until) advance(t, len, mask, 0);
         }
     }
+#ifdef EPK_DESKTOP
+    {   // the voice silenced, and an outside sound in its place or with it (voz callada, audio externo)
+        const int k = (int)(&t - g.tr);
+        if (g_desk.off[k]) for (uint32_t i = 0; i < n; i++) g.buf[i] = 0.0f;
+        if (g_desk.ext[k]) for (uint32_t i = 0; i < n; i++) g.buf[i] += g_desk.ext[k][g_desk.base + i];
+    }
+#endif
     const float target = (t.muted || (solo && !t.soloed)) ? 0.0f : 1.0f;
     const float lvl = t.pm[EPK_P_LEVEL] * t.pm[EPK_P_LEVEL];        // a squared taper (curva cuadrática)
     if (t.lvl_s < 0.0f) t.lvl_s = lvl;
@@ -1263,6 +1297,9 @@ void epk_render(float *left, float *right, uint32_t frames) {
         }
         for (uint32_t i = 0; i < n; i++) g.bus_a[i] = g.bus_b[i] = g.kick[i] = g.fx_l[i] = g.fx_r[i] = 0.0f;
         apply_mod(n);
+#ifdef EPK_DESKTOP
+        g_desk.base = done;
+#endif
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
         g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx_live, g.bpm, g.sr);
         if (place == EPK_PLACE_DRY) g.master.filter(left + done, right + done, n, g.fx_live, g.sr);   // FLOW
@@ -1291,6 +1328,18 @@ void epk_render(float *left, float *right, uint32_t frames) {
     }
     g.meter_master = peak;
 }
+
+#ifdef EPK_DESKTOP
+int epk_events_take(EpkNoteEvent *out, int max) {
+    const int n = g_desk.n < max ? g_desk.n : max;
+    for (int i = 0; i < n; i++) out[i] = g_desk.ev[i];
+    g_desk.n = 0;
+    return n;
+}
+void epk_ext_in(int track, const float *mono) { if (valid(track)) g_desk.ext[track] = mono; }
+void epk_voice_off(int track, int off) { if (valid(track)) g_desk.off[track] = off ? 1 : 0; }
+int epk_voice_is_off(int track) { return valid(track) ? g_desk.off[track] : 0; }
+#endif
 
 void epk_panic(void) {
     for (Track &t : g.tr) t.voice.init(t.voice.engine, t.voice.seed);

@@ -47,7 +47,7 @@ private:
     juce::ComboBox scope;
     juce::Slider tempo;
     juce::Label notice;
-    juce::OwnedArray<juce::TextButton> banks, patterns, mutes, solos;
+    juce::OwnedArray<juce::TextButton> banks, patterns, mutes, solos, voices, midis;
     juce::OwnedArray<Knob> levels, sound, fx;
     juce::Rectangle<int> header, orbitArea, laneArea[EPK_TRACKS], stepsArea[EPK_TRACKS], soundArea, fxArea;
     uint32_t lastTrig[EPK_TRACKS] = {};
