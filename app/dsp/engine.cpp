@@ -108,6 +108,7 @@ struct Engine {
     int evo_hold;                          // every track's evolution frozen (todo congelado)
     int key;                               // the key in use, semitones from D (tonalidad: desde re), -5..6
     int key_lock;                          // the whole-pattern random keeps it (tonalidad fija)
+    int rscope;                            // EPK_RSCOPE_*: what it renews
     int8_t pat_key[EPK_PATTERNS];          // each slot's key (la de cada ranura)
     // what the store holds for the bank about to load (lo guardado del banco que va a cargar): written by the main
     // loop before the change, read when it loads. stage_bank -1 while it is being written
@@ -229,6 +230,20 @@ void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1
 }
 
 inline void set_engine(int pt, int i, int eng) { g.bank[pt][i][EPK_P_ENGINE] = (float)eng / (float)(EPK_ENG_COUNT - 1); }
+// How an acid line comes and goes (cómo entra y sale): a triangle over 16 bars on its filter, wide enough to close it
+// to nothing; the sound drifts every 8 bars; and now and then it rests a whole stretch
+void acid_moves(int pt, int i) {
+    float *b = g.bank[pt][i];
+    b[EPK_P_LFO_SHAPE] = 1.0f / (float)(EPK_TLFO_SHAPE_COUNT - 1);    // triangle
+    b[EPK_P_LFO_RATE] = 8.0f / (float)(EPK_LFO_RATE_COUNT - 1);       // 16 bars
+    b[EPK_P_LFO_DEST] = (float)EPK_TLFO_TONE / (float)(EPK_TLFO_DEST_COUNT - 1);
+    b[EPK_P_LFO_AMT] = 0.5f + 0.5f * 0.75f;
+    b[EPK_P_MUTATE] = 0.2f;
+    b[EPK_P_EVERY] = 0.75f;                                           // 8 bars
+    b[EPK_P_RETURN] = 0.3f;
+    b[EPK_P_SCOPE] = (float)EPK_SCOPE_SOUND / (float)(EPK_SCOPE_COUNT - 1);
+    b[EPK_P_ABSENCE] = 0.2f;
+}
 
 void fill_factory(int pt) {
     for (int i = 0; i < EPK_TRACKS; i++) {
@@ -243,6 +258,19 @@ void fill_factory(int pt) {
                      k.length, k.hits, k.rotate, k.division);
             continue;
         }
+        if (kEngine[i] == EPK_ENG_DRONE && (pt == 4 || pt == 8 || pt == 10 || pt == 14)) {
+            // PULSAR, ECLIPSE, FOSFORO, ZENIT: no drone; an acid line that the filter brings in and takes away over
+            // 16 bars (sin dron: una línea ácida que el filtro trae y se lleva)
+            static const uint8_t kHits[4] = {7, 9, 5, 11};
+            static const uint8_t kLen[4] = {16, 14, 12, 16};
+            const int q = pt == 4 ? 0 : pt == 8 ? 1 : pt == 10 ? 2 : 3;
+            set_spec(pt, i, (q & 1) ? 38 : 50, 0.2f + 0.2f * (float)q, 0.34f, 0.26f, 1.0f, 0.62f + 0.08f * (float)q,
+                     kLen[q], kHits[q], q, EPK_DIV_1_16);
+            set_engine(pt, i, EPK_ENG_MACRO);
+            g.bank[pt][i][EPK_P_ATTACK] = 0.35f + 0.1f * (float)q;   // SALTOS
+            acid_moves(pt, i);
+            continue;
+        }
         if (kEngine[i] == EPK_ENG_DRONE) {                           // a fifth that drifts (una quinta que deriva)
             set_spec(pt, i, k.note, 0.40f, k.tone + 0.08f, 0.55f + 0.4f * k.decay, 0.45f, 0.6f, k.length, k.hits, k.rotate,
                      k.division);
@@ -252,8 +280,8 @@ void fill_factory(int pt) {
         if (kEngine[i] == EPK_ENG_MACRO) {                           // the bass: two oscillators and a sub octave;
             // FM in PULSAR and FOSFORO, folded in ECLIPSE, a string in HORIZONTE (el bajo)
             static const uint8_t kModel[EPK_PATTERNS] = {0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 2, 0, 4, 0, 0, 0};
-            static const float kTimbre[MACRO_MODELS] = {0.25f, 0.35f, 0.55f, 0.4f, 0.45f, 0.5f};
-            static const float kHarm[MACRO_MODELS] = {0.55f, 0.20f, 0.125f, 0.3f, 0.5f, 0.2f};
+            static const float kTimbre[MACRO_MODELS] = {0.25f, 0.35f, 0.55f, 0.4f, 0.45f, 0.5f, 0.3f};
+            static const float kHarm[MACRO_MODELS] = {0.55f, 0.20f, 0.125f, 0.3f, 0.5f, 0.2f, 0.7f};
             const int m = kModel[pt];
             set_spec(pt, i, k.note, kTimbre[m], k.tone + 0.12f, k.decay - 0.04f, (float)m / (float)(MACRO_MODELS - 1), kHarm[m],
                      k.length, k.hits, k.rotate, k.division);
@@ -277,8 +305,10 @@ void fill_factory(int pt) {
     static const float kEvo[EPK_TRACKS][4] = {{0.0f, 0.5f, 0.3f, 0.0f},   {0.0f, 0.25f, 0.35f, 0.0f},
                                               {0.30f, 0.5f, 0.25f, 0.0f}, {0.20f, 0.5f, 0.30f, 0.0f},
                                               {0.25f, 0.75f, 0.20f, 0.0f}, {0.0f, 0.25f, 0.30f, 0.0f}};
-    for (int i = 0; i < EPK_TRACKS; i++)
+    for (int i = 0; i < EPK_TRACKS; i++) {
+        if (i == 4 && (pt == 4 || pt == 8 || pt == 10 || pt == 14)) continue;   // the acid line has its own (las suyas)
         for (int q = 0; q < 4; q++) g.bank[pt][i][EPK_P_MUTATE + q] = kEvo[i][q];
+    }
     // and the track LFOs: the chord breathes into the delay over 4 bars, the bass's tone drifts (deriva)
     float *ch = g.bank[pt][2], *bs = g.bank[pt][3];
     ch[EPK_P_LFO_SHAPE] = 0.0f;
@@ -361,13 +391,14 @@ void generate(int pt, uint32_t seed, int key) {
     }
     {   // 4 bass (bajo)
         const int len = kLen[ri(r, 12)], hits = 2 + ri(r, len * 45 / 100 + 1);
-        static const uint8_t kBassModel[8] = {MACRO_ANALOG, MACRO_ANALOG, MACRO_ANALOG, MACRO_FM, MACRO_FM, MACRO_PLIEGUE,
-                                              MACRO_CUERDA, MACRO_GRANO};
-        const int m = kBassModel[ri(r, 8)];
+        static const uint8_t kBassModel[10] = {MACRO_ANALOG, MACRO_ANALOG, MACRO_ANALOG, MACRO_FM, MACRO_FM, MACRO_PLIEGUE,
+                                               MACRO_CUERDA, MACRO_GRANO, MACRO_ACIDO, MACRO_ACIDO};
+        const int m = kBassModel[ri(r, 10)];
         const float timbre = rr(r, 0.15f, 0.60f), tone = rr(r, 0.35f, 0.60f), dec = rr(r, 0.22f, 0.38f);
         const float harm = m == MACRO_ANALOG ? rr(r, 0.2f, 0.62f) : m == MACRO_FM ? (float)(1 + ri(r, 3)) / 8.0f : rr(r, 0.1f, 0.6f);
-        set_spec(pt, 3, scale_note(r, 38 + key, 5), timbre, tone, dec, (float)m / (float)(MACRO_MODELS - 1), harm, len, hits,
-                 ri(r, len), EPK_DIV_1_16);
+        set_spec(pt, 3, scale_note(r, 38 + key, 5), timbre, tone, dec, (float)m / (float)(MACRO_MODELS - 1),
+                 m == MACRO_ACIDO ? rr(r, 0.5f, 0.85f) : harm, len, hits, ri(r, len), EPK_DIV_1_16);
+        if (m == MACRO_ACIDO) g.bank[pt][3][EPK_P_ATTACK] = rr(r, 0.2f, 0.7f);   // SALTOS
     }
     {   // 5 drone
         static const uint8_t kDroneLen[3] = {5, 7, 9};
@@ -391,6 +422,23 @@ void generate(int pt, uint32_t seed, int key) {
         } else
             set_spec(pt, 5, 48 + ri(r, 10), type, tone, dec, body, tail, len, hits, back ? 4 : ri(r, len), EPK_DIV_1_16);
     }
+    int acid5 = 0;
+    if (r.unipolar() < 0.25f) {                                      // the chord's place: a string, harmonics or a voice
+        static const uint8_t kM[3] = {MACRO_CUERDA, MACRO_ARMONICO, MACRO_GRANO};
+        float *b = g.bank[pt][2];
+        set_engine(pt, 2, EPK_ENG_MACRO);
+        b[EPK_P_EXTRA1] = (float)kM[ri(r, 3)] / (float)(MACRO_MODELS - 1);
+        b[EPK_P_CHARACTER] = rr(r, 0.3f, 0.7f); b[EPK_P_EXTRA2] = rr(r, 0.15f, 0.7f);
+        b[EPK_P_TONE] = rr(r, 0.5f, 0.75f);
+    }
+    if (r.unipolar() < 0.35f) {                                      // no drone: an acid line in its place (sin dron)
+        const int len = r.unipolar() < 0.5f ? 16 : kLen[ri(r, 7)];
+        set_spec(pt, 4, scale_note(r, 38 + key, 4) + 12 * ri(r, 2), r.unipolar(), rr(r, 0.30f, 0.40f), rr(r, 0.22f, 0.32f), 1.0f,
+                 rr(r, 0.55f, 0.88f), len, 3 + ri(r, len * 6 / 10), ri(r, len), EPK_DIV_1_16);
+        set_engine(pt, 4, EPK_ENG_MACRO);
+        g.bank[pt][4][EPK_P_ATTACK] = rr(r, 0.2f, 0.8f);
+        acid5 = 1;
+    }
     for (int i = 2; i < EPK_TRACKS; i++)                             // now and then a track rests (descansa)
         if (r.unipolar() < 0.10f) g.bank[pt][i][EPK_P_HITS] = 0.0f;
     for (int i = 1; i < EPK_TRACKS; i++)                             // some steps by chance (pasos con azar)
@@ -406,6 +454,7 @@ void generate(int pt, uint32_t seed, int key) {
         }
         if (synth && r.unipolar() < 0.3f) b[EPK_P_ABSENCE] = rr(r, 0.05f, 0.25f);
     }
+    if (acid5) acid_moves(pt, 4);
 }
 
 // Banks B and C: generated too, but each to a style and along an arc, like bank A (bancos B y C: con estilo y con
@@ -465,7 +514,15 @@ void generate_hypnotic(int pt, uint32_t seed, int key) {
         evolve(pt, 3, 0.15f, 3, 0.35f, EPK_SCOPE_SOUND);
         track_lfo(pt, 3, EPK_TLFO_SHAPE_COUNT - 1, 7, EPK_TLFO_TONE, 0.35f);   // DRIFT on the tone
     }
-    {   // 5 the drone: one long low note under everything
+    if (pt & 1) {   // 5 in the even patterns, no drone: an acid line the filter brings in and takes away (línea ácida)
+        static const uint8_t kL[4] = {16, 16, 14, 12};
+        const int len = kL[ri(r, 4)];
+        set_spec(pt, 4, scale_note(r, 38 + key, 3) + 12 * ri(r, 2), r.unipolar(), rr(r, 0.30f, 0.40f), rr(r, 0.22f, 0.30f), 1.0f,
+                 rr(r, 0.6f, 0.88f), len, 3 + (int)((float)len * 0.5f * arc + 0.5f), ri(r, len), EPK_DIV_1_16);
+        set_engine(pt, 4, EPK_ENG_MACRO);
+        g.bank[pt][4][EPK_P_ATTACK] = rr(r, 0.25f, 0.75f);           // SALTOS
+        acid_moves(pt, 4);
+    } else {        // 5 in the odd ones the drone: one long low note under everything
         set_spec(pt, 4, scale_note(r, 38 + key, 3), rr(r, 0.2f, 0.6f), rr(r, 0.28f, 0.40f), 0.88f, rr(r, 0.4f, 0.8f), (float)ri(r, 6) / 5.0f,
                  7, 1 + (arc > 0.5f), 0, EPK_DIV_1_4);
         g.bank[pt][4][EPK_P_ATTACK] = 0.45f;
@@ -748,8 +805,24 @@ void drain() {
             if (e.a == g.pattern) load_live(g.pattern, 0);   // what you heard is now the pattern (ya es el patrón)
         } else if (e.type == EV_RANDOM) {
             const uint32_t seed = (uint32_t)e.a << 8 | e.b | (uint32_t)e.track << 16 | 0x5A000000u;
-            if (!g.key_lock) g.key = (int)(seed * 2246822519u >> 28) % 12 - 5;   // a new key (tonalidad nueva)
+            // the groove alone keeps the key; the tracks left out come back as they were (las otras pistas vuelven)
+            if (!g.key_lock && g.rscope != EPK_RSCOPE_GROOVE) g.key = (int)(seed * 2246822519u >> 28) % 12 - 5;
+            const uint32_t keep = g.rscope == EPK_RSCOPE_GROOVE ? 0x1Cu : g.rscope == EPK_RSCOPE_SYNTHS ? 0x23u : 0u;
+            static float kept[3][EPK_P_PATTERN_COUNT];
+            static Steps kept_st[3];
+            int nk = 0;
+            for (int k = 0; k < EPK_TRACKS; k++)
+                if (keep >> k & 1u) {
+                    for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) kept[nk][q] = g.bank[g.pattern][k][q];
+                    kept_st[nk++] = g.bank_steps[g.pattern][k];
+                }
             generate(g.pattern, seed, g.key);
+            nk = 0;
+            for (int k = 0; k < EPK_TRACKS; k++)
+                if (keep >> k & 1u) {
+                    for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) g.bank[g.pattern][k][q] = kept[nk][q];
+                    g.bank_steps[g.pattern][k] = kept_st[nk++];
+                }
             g.pat_key[g.pattern] = (int8_t)g.key;
             load_live(g.pattern, 0);                          // the cycle goes on (el ciclo sigue)
         } else if (e.type == EV_PATTERN) {
@@ -1282,7 +1355,7 @@ int epk_param_steps(int param) {
 }
 int epk_engine(int track) { return valid(track) ? param_int(g.tr[track], EPK_P_ENGINE) : 0; }
 const char *epk_macro_name(int model) {
-    static const char *const kName[MACRO_MODELS] = {"ANALOG", "PLIEGUE", "FM", "GRANO", "CUERDA", "ARMONICO"};
+    static const char *const kName[MACRO_MODELS] = {"ANALOG", "PLIEGUE", "FM", "GRANO", "CUERDA", "ARMONICO", "ACIDO"};
     return kName[clampi(model, 0, MACRO_MODELS - 1)];
 }
 
@@ -1395,6 +1468,8 @@ float epk_scene_fade(int s) { return scene_ok(s) ? g.scene[s].fade : 0.0f; }
 const char *epk_scene_name(int s) { return scene_ok(s) ? kSceneNames[s] : ""; }
 void epk_evolve_hold(int on) { g.evo_hold = on ? 1 : 0; }
 void epk_random_key_lock(int on) { g.key_lock = on ? 1 : 0; }
+void epk_random_scope(int scope) { g.rscope = clampi(scope, 0, EPK_RSCOPE_COUNT - 1); }
+int epk_random_scope_get(void) { return g.rscope; }
 int epk_random_key_locked(void) { return g.key_lock; }
 int epk_key(void) { return ((2 + g.key) % 12 + 12) % 12; }
 int epk_evolve_held(void) { return g.evo_hold; }

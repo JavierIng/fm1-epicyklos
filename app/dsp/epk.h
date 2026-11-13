@@ -85,7 +85,7 @@ const char *epk_scene_name(int scene);
 enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_ACORDE, EPK_ENG_DRONE,
        EPK_ENG_MACRO,   /* six models behind TIMBRE and ARMON, the idea of Plaits (seis modelos) */
        EPK_ENG_COUNT };
-#define EPK_MACRO_MODELS 6
+#define EPK_MACRO_MODELS 7
 const char *epk_macro_name(int model);
 /* ACORDE's chord tables (Plaits Palette, MIT): names for the screen (nombres de tablas y acordes) */
 int epk_chord_tables(void);
@@ -277,6 +277,11 @@ void epk_evolve_hold(int on);
 /* the whole-pattern random (aleatorio general): a new minor key each time, unless locked (tonalidad fija) */
 void epk_random_key_lock(int on);
 int epk_random_key_locked(void);
+/* what the whole-pattern random renews (qué renueva): everything, the groove (tracks 1, 2, 6) or the synths (3, 4, 5:
+ * their engines too) */
+enum { EPK_RSCOPE_ALL, EPK_RSCOPE_GROOVE, EPK_RSCOPE_SYNTHS, EPK_RSCOPE_COUNT };
+void epk_random_scope(int scope);
+int epk_random_scope_get(void);
 int epk_key(void);                             /* the key in use: 0 = C .. 11 = B (A and factory: 2, D) */
 int epk_evolve_held(void);
 

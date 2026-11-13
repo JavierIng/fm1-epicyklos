@@ -487,23 +487,32 @@ struct Drone {
 //   GRANO    two formants restarted every period, like a voice (TIMBRE: the formant; ARMON: the second one's place)
 //   CUERDA   a plucked string, Karplus-Strong (TIMBRE: brightness; ARMON: how hard the pick is); DECAY is its ring
 //   ARMONICO eight sine harmonics under a bump (ARMON: where; TIMBRE: how wide)
+//   ACIDO    the acid line: saw -> square (TIMBRE) through a resonant low-pass of 18 dB an octave (ARMON: resonance)
+//            that each note snaps open; some notes accented; ATTACK here is SALTOS: how many notes jump an octave
+//            and slide into the next, in a loop of 16 hits. Not a model of any one machine (no es una emulación)
 // After the model, a low-pass that the note's envelope opens (a low-pass gate): TONE at 1 is open, lower and each
 // note closes as it fades. NOTE, CHARACTER = TIMBRE, TONE, DECAY, EXTRA1 = MODELO, EXTRA2 = ARMON, ATTACK.
-enum { MACRO_ANALOG, MACRO_PLIEGUE, MACRO_FM, MACRO_GRANO, MACRO_CUERDA, MACRO_ARMONICO, MACRO_MODELS };
+enum { MACRO_ANALOG, MACRO_PLIEGUE, MACRO_FM, MACRO_GRANO, MACRO_CUERDA, MACRO_ARMONICO, MACRO_ACIDO, MACRO_MODELS };
 struct Macro {
     static constexpr int kString = 1400;       // a string down to 32 Hz at 44.1 kHz (cuerda)
     float ph, ph2, freq, amp, env, attack, vel, ic1, ic2, a1, a2, a3, fb, hp, ks_lp, ks_pos;
-    int fresh, di, sub;
+    float fcur, jump, lp1, g1;                 // ACIDO: the gliding pitch, this note's octave, the third pole
+    int fresh, di, sub, legato, accent, slide;
+    uint32_t hits, salt;
     int16_t dl[kString];
     Rng rng;
 
     void init(uint32_t seed) {
         ph = 0.0f; ph2 = 0.37f; freq = 110.0f; amp = env = vel = 0.0f; attack = 1.0f; ic1 = ic2 = 0.0f;
         a1 = a2 = a3 = 0.0f; fb = hp = ks_lp = ks_pos = 0.0f; fresh = 0; di = 0; sub = 0;
+        fcur = 110.0f; jump = 1.0f; lp1 = g1 = 0.0f; legato = accent = slide = 0; hits = 0; salt = seed;
         for (int16_t &v : dl) v = 0;
         rng.init(seed ^ 0x3AC20u);
     }
-    void trigger(float hz, float velocity) { freq = hz; vel = velocity; amp = velocity; env = 1.0f; attack = 0.0f; fresh = 1; }
+    void trigger(float hz, float velocity) {
+        legato = amp > 0.02f;                                        // the last note still sounds (aún suena)
+        freq = hz; vel = velocity; amp = velocity; env = 1.0f; attack = 0.0f; fresh = 1;
+    }
     static inline int model_of(const float *p) {
         return clampi((int)(p[EPK_P_EXTRA1] * (float)(MACRO_MODELS - 1) + 0.5f), 0, MACRO_MODELS - 1);
     }
@@ -512,9 +521,11 @@ struct Macro {
         const float timbre = p[EPK_P_CHARACTER], harm = p[EPK_P_EXTRA2], tone = p[EPK_P_TONE];
         const float decay_s = 0.02f * fm_exp2f(p[EPK_P_DECAY] * 7.6f);            // 20 ms .. ~4 s
         const float amp_mul = fm_expf(-6.9f / (decay_s * sr));
-        const float attack_inc = 1.0f / (0.001f * fm_exp2f(p[EPK_P_ATTACK] * 10.5f) * sr);
+        float attack_inc = 1.0f / (0.001f * fm_exp2f(p[EPK_P_ATTACK] * 10.5f) * sr);
         const float base = 45.0f * fm_exp2f(tone * 8.5f);                         // 45 Hz .. ~16 kHz
-        const float gate_oct = (1.0f - tone) * 4.5f;                              // what the envelope opens (LPG)
+        float gate_oct = (1.0f - tone) * 4.5f;                                    // what the envelope opens (LPG)
+        float k_res = 1.3f, acid_lvl = 1.0f;
+        const float glide = 1.0f - fm_expf(-1.0f / (0.045f * sr));
         const float inc = fm_minf(freq / sr, 0.45f);
         // per model, once a block (por modelo, una vez por bloque)
         float inc2 = inc, mix2 = 0.0f, width = 0.5f, drive = 1.0f, bias = 0.0f, ratio = 1.0f, index = 0.0f;
@@ -567,6 +578,27 @@ struct Macro {
             gain = 1.6f;
             break;
         }
+        case MACRO_ACIDO: {
+            if (fresh) {                                             // this note: octave, slide, accent (salto, ligado, acento)
+                uint32_t h = ((hits++ & 15u) + 1u) * 2654435761u ^ salt;
+                h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+                const float jumps = p[EPK_P_ATTACK];
+                const float u1 = (float)(h & 0xFFu) * (1.0f / 255.0f), u2 = (float)(h >> 8 & 0xFFu) * (1.0f / 255.0f);
+                const float u3 = (float)(h >> 16 & 0xFFu) * (1.0f / 255.0f);
+                jump = u1 < jumps * 0.45f ? (u2 < 0.7f ? 2.0f : 0.5f) : 1.0f;
+                slide = legato && u3 < jumps * 0.6f;
+                accent = (h >> 24) < 77u;                            // three in ten
+                if (!slide) fcur = freq * jump;
+            }
+            mix2 = timbre;                                           // saw -> square
+            k_res = 1.9f - 1.78f * harm;
+            // the envelope opens less as TONE closes: at the bottom the line is gone (abajo del todo, desaparece)
+            gate_oct = (0.6f + 2.9f * clamp01(tone * 3.0f)) + (accent ? 0.3f + 0.7f * clamp01(tone * 3.0f) : 0.0f);
+            acid_lvl = accent ? 1.0f : 0.7f;
+            attack_inc = 1.0f / (0.002f * sr);
+            gain = 2.0f;
+            break;
+        }
         default: {                                                   // ARMONICO
             const float centre = 1.0f + harm * 7.0f, wide = 0.7f + timbre * 4.0f;
             float sum = 0.0f;
@@ -582,14 +614,21 @@ struct Macro {
         }
         }
         fresh = 0;
+        const int acid = model == MACRO_ACIDO;
+        float inc_s = inc;
         for (uint32_t i = 0; i < n; i++) {
             if (sub == 0) {                                          // the gate's filter every 16 samples
-                const float fc = fm_minf(base * fm_exp2f(gate_oct * env), sr * 0.45f);
-                const float g = fm_tanf(3.14159265f * fc / sr), k = 1.3f;
+                const float fc = fm_minf(base * fm_exp2f(gate_oct * (acid ? env * env : env)), sr * 0.45f);
+                const float g = fm_tanf(3.14159265f * fc / sr), k = k_res;
+                g1 = fm_minf(6.2831853f * fc / sr, 0.95f);
                 a1 = 1.0f / (1.0f + g * (g + k)); a2 = g * a1; a3 = g * a2;
             }
             sub = (sub + 1) & 15;
-            ph += inc;
+            if (acid) {
+                fcur += (freq * jump - fcur) * glide;
+                inc_s = fm_minf(fcur / sr, 0.45f);
+            }
+            ph += inc_s;
             if (ph >= 1.0f) ph -= 1.0f;
             float s;
             switch (model) {
@@ -601,6 +640,12 @@ struct Macro {
                 float q2 = ph2 + width;
                 if (q2 >= 1.0f) q2 -= 1.0f;
                 s = blep_saw(ph, inc) - mix2 * blep_saw(q, inc) + blep_saw(ph2, inc2) - mix2 * blep_saw(q2, inc2);
+                break;
+            }
+            case MACRO_ACIDO: {
+                float q = ph + 0.5f;
+                if (q >= 1.0f) q -= 1.0f;
+                s = fm_tanhf((blep_saw(ph, inc_s) - mix2 * blep_saw(q, inc_s)) * 1.2f);
                 break;
             }
             case MACRO_PLIEGUE: {
@@ -656,8 +701,10 @@ struct Macro {
             const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
             ic1 = fm_flush(2.0f * v1 - ic1);
             ic2 = fm_flush(2.0f * v2 - ic2);
+            float y = v2;
+            if (acid) { lp1 = fm_flush(lp1 + (v2 - lp1) * g1); y = lp1 * acid_lvl; }   // 12 + 6 dB an octave
             const float level = model == MACRO_CUERDA ? vel : amp;                // the string fades by itself
-            out[i] = fm_tanhf(v2 * level * attack * gain);
+            out[i] = fm_tanhf(y * level * attack * gain);
             if (attack < 1.0f) attack = fm_minf(attack + attack_inc, 1.0f);
             else { amp = fm_flush(amp * amp_mul); env = amp / fm_maxf(vel, 0.001f); }
         }

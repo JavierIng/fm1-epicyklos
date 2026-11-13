@@ -57,7 +57,7 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
     (la segunda voz: unísono, 3ª menor, cuarta, quinta, octava, quinta + octava) y ATAQUE (lo que tarda en entrar,
     hasta 8 s).
   - Al parar el secuenciador, el dron se apaga solo.
-- **MACRO** (pista 4, el bajo; sirve también para melodías): seis maneras de hacer un sonido detrás de los mismos
+- **MACRO** (pista 4, el bajo; sirve también para melodías): siete maneras de hacer un sonido detrás de los mismos
   mandos. La idea es la de Plaits, de Mutable Instruments; el código es propio, no es un port.
   - En la página MOTOR: **MODELO**, **ARMON** (el segundo mando del modelo) y ATAQUE.
   - En la página SONIDO: NOTA, **TIMBRE** (el primer mando del modelo), TONO y CAÍDA.
@@ -72,6 +72,11 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
     - **GRANO**: dos formantes, parecido a una voz. TIMBRE: el formante. ARMON: dónde cae el segundo.
     - **CUERDA**: cuerda pulsada. TIMBRE: brillo. ARMON: dureza de la púa. CAÍDA es lo que resuena.
     - **ARMONICO**: ocho armónicos de seno. ARMON: cuáles suenan. TIMBRE: cuántos a la vez.
+    - **ACIDO**: la línea ácida. Sierra a cuadrada (TIMBRE) por un filtro resonante de 18 dB por octava que
+      cada nota abre de golpe. Aquí ARMON se llama **RESO** (resonancia) y ATAQUE se llama **SALTOS**: cuántas
+      notas saltan una octava y se ligan con la siguiente, en un bucle de 16 golpes. Tres de cada diez notas van
+      acentuadas. Con TONO abajo del todo la línea desaparece: es la manera de hacerla entrar y salir. No es una
+      emulación de ninguna máquina concreta.
   - Solo hay dos mandos por modelo (Plaits tiene tres) y falta el resto de modelos de Plaits (acordes ya está en
     ACORDE; no hay voz, tabla de ondas, ruido ni percusión).
 - **PRUEBA**: la voz provisional que antes hacía de bajo. Sigue en la lista de motores.
@@ -134,6 +139,11 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
 - Los tres siguen el mismo recorrido: entrada (1-3), subida (4-7), pausa (8), segunda subida (9-14), pico (15) y
   salida (16). B y C están generados con reglas, no compuestos a mano: son siempre los mismos.
 - Bancos D-K: patrones generados libres (GEN D01…), con el bajo en MACRO.
+- **Líneas ácidas en lugar del dron** (pista 5 con MACRO ACIDO): en el banco A, en PULSAR, ECLIPSE, FOSFORO y
+  ZENIT; en el banco B, en los patrones pares (los impares llevan dron); en los generados, uno de cada tres.
+  Vienen con el filtro subiendo y bajando en 16 compases (página MOVIMIENTO: TRIANG a TONO) hasta cerrarse del
+  todo, y con AUSENCIA 20 (descansan algún tramo entero). Para que entre y salga a mano: TONO de la pista 5, o
+  una escena.
 
 ### Guardar un patrón (HOME + tecla blanca)
 1. Pulsa SAVE para ir a la vista PATRONES y elige el banco de destino con una tecla negra.
@@ -177,6 +187,11 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
   - **ARP mantenido + K1** (en la vista PATRONES): **tonalidad fija**. Los aleatorios siguientes se quedan en la
     tonalidad actual (pone FIJA). Útil para que los patrones encajen entre sí. Otra vez, libre.
   - Cada banco tiene su tonalidad: el A en re menor, los generados repartidos.
+  - **ARP mantenido + K2** (en la vista PATRONES): **qué parte renueva**. TODO, **GROOVE** (pistas 1, 2 y 6: bombo,
+    platos y percusión) o **SINTES** (pistas 3, 4 y 5). La parte elegida se ve en amarillo bajo la tonalidad.
+    - GROOVE deja los sintes y la tonalidad como están.
+    - SINTES deja el groove y cambia también los **motores**: la pista 3 puede salir con ACORDE o con MACRO (cuerda,
+      armónicos o grano), la 4 con cualquier modelo de MACRO y la 5 con DRONE o con una línea ácida.
 - **HOME + ARP:** deshace el último aleatorio (un solo nivel).
 - **ARP mantenido + ALGORITHM:** cantidad (10-100 %). **ARP mantenido + un knob:** bloquea ese parámetro.
 

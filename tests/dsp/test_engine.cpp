@@ -1707,6 +1707,79 @@ int main() {
               "mix: kick %.1f, chord %.1f, bass %.1f, drone %.1f dB", lvl[0], lvl[2], lvl[3], lvl[4]);
     }
 
+    // 32. The random by parts (aleatorio por partes): GROOVE renews tracks 1, 2, 6 and leaves 3, 4, 5 and the key;
+    //     SINTES the other way round; ACIDO lines alternate with the drone in bank B and slide between notes
+    {
+        auto snap = [&](float out[EPK_TRACKS][EPK_P_PATTERN_COUNT]) {
+            for (int t = 0; t < EPK_TRACKS; t++)
+                for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) out[t][q] = epk_param_get(t, q);
+        };
+        auto differ = [&](float a[EPK_TRACKS][EPK_P_PATTERN_COUNT], float b[EPK_TRACKS][EPK_P_PATTERN_COUNT], int t) {
+            int n = 0;
+            for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) n += a[t][q] != b[t][q];
+            return n;
+        };
+        static float before[EPK_TRACKS][EPK_P_PATTERN_COUNT], after[EPK_TRACKS][EPK_P_PATTERN_COUNT];
+        for (int scope = 1; scope <= 2; scope++) {
+            epk_init(SR);
+            epk_random_key_lock(0);
+            epk_random_scope(scope);
+            epk_render(l, r, 256);
+            int same_bad = 0, moved = 0, engines = 0;
+            const int key0 = epk_key();
+            int keys = 0;
+            for (int n = 0; n < 40; n++) {
+                snap(before);
+                epk_pattern_randomize(0x1234567u * (uint32_t)(n + 3));
+                epk_render(l, r, 256);
+                snap(after);
+                for (int t = 0; t < EPK_TRACKS; t++) {
+                    const int groove = t == 0 || t == 1 || t == 5, mine = scope == EPK_RSCOPE_GROOVE ? groove : !groove;
+                    const int d = differ(before, after, t);
+                    if (mine) moved += d > 0; else same_bad += d;
+                    if (mine && before[t][EPK_P_ENGINE] != after[t][EPK_P_ENGINE]) engines++;
+                }
+                keys += epk_key() != key0;
+            }
+            CHECK(same_bad == 0 && moved > 100, "random scope %d: %d changes outside it, %d tracks renewed", scope, same_bad, moved);
+            CHECK(scope == EPK_RSCOPE_GROOVE ? keys == 0 : keys > 20, "random scope %d: the key changed %d times", scope, keys);
+            if (scope == EPK_RSCOPE_SYNTHS) CHECK(engines > 10, "SINTES swaps engines (%d times in 40)", engines);
+        }
+        epk_random_scope(EPK_RSCOPE_ALL);
+        int drones = 0, acids = 0;
+        for (int pt = 0; pt < EPK_PATTERNS; pt++) {
+            epk_init(SR);
+            epk_pattern_select(1, pt);
+            epk_render(l, r, 256);
+            if (epk_engine(4) == EPK_ENG_DRONE) drones++;
+            if (epk_engine(4) == EPK_ENG_MACRO && epk_param_get(4, EPK_P_EXTRA1) > 0.99f) acids++;
+        }
+        CHECK(drones == 8 && acids == 8, "bank B: %d patterns with the drone, %d with the acid line", drones, acids);
+        epk_init(SR);
+        epk_pattern_select(0, 4);                                    // PULSAR: the acid line on track 5
+        epk_render(l, r, 256);
+        CHECK(epk_engine(4) == EPK_ENG_MACRO && epk_param_get(4, EPK_P_LFO_AMT) > 0.8f && epk_param_get(4, EPK_P_ABSENCE) > 0.1f,
+              "PULSAR: track 5 engine %d, LFO %.2f, absence %.2f", epk_engine(4), epk_param_get(4, EPK_P_LFO_AMT),
+              epk_param_get(4, EPK_P_ABSENCE));
+        // the filter brings it in and takes it away: loud and quiet stretches over 16 bars (entra y sale)
+        for (int t = 0; t < EPK_TRACKS; t++) epk_solo(t, t == 4);
+        epk_param_set(4, EPK_P_ABSENCE, 0.0f);
+        epk_param_set(4, EPK_P_MUTATE, 0.0f);
+        epk_play(1);
+        double lo = 1e30, hi = 0.0;
+        int bad = 0;
+        const int bar = (int)(SR * 60.0f / 124.0f * 4.0f / 256.0f);
+        for (int b = 0; b < 16; b++) {
+            double e = 0.0;
+            for (int k = 0; k < bar; k++) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) { if (!std::isfinite(l[i])) bad++; e += (double)l[i] * l[i]; }
+            }
+            lo = std::min(lo, e); hi = std::max(hi, e);
+        }
+        CHECK(bad == 0 && hi > 1.0 && lo < hi * 0.1, "acid line over 16 bars: loudest bar %.2f, quietest %.4f", hi, lo);
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
         static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE", "MACRO"};

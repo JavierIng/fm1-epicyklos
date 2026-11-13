@@ -340,3 +340,13 @@
 - Los bancos guardados pasan a la versión 4 (ocho motores); los de la versión 3 se convierten al cargar y conservan sus motores (probado).
 - **Banco B = techno hipnótico, banco C = ambient/drone**, con nombres y el mismo recorrido que el A. Generados con reglas por estilo, no compuestos a mano. Interpreté así "los patrones que faltan"; si Javier se refería a otra cosa, se rehace.
 - Nadie ha escuchado todavía MACRO ni los bancos B y C: solo están comprobados con medidas (suenan, no saturan, cada mando cambia el sonido).
+
+## Líneas ácidas y aleatorio por partes (2026-11-13, mañana)
+- Javier: "sonidos psicodélicos ácidos que entren y salgan con cortes de filtros, podría salir de MACRO; alternar en unas con drones y en otras sin drones; que se intercambien los motores de la parte de sonido, no del groove; un random para las tres pistas de groove y otro para las de síntesis".
+- **MACRO ACIDO** (séptimo modelo): sierra → cuadrada, filtro resonante de 18 dB/oct (SVF + un polo), envolvente de filtro más rápida que la de volumen, acento en 3 de cada 10 notas, **SALTOS** (el mando de ATAQUE en este modelo): saltos de octava y ligados en un bucle fijo de 16 golpes. Código propio; no emula el 303 (no hay filtro de diodos ni su envolvente exacta).
+- Límite real: el secuenciador no tiene nota por paso. La línea ácida es **una nota con saltos de octava**, no una melodía escrita. Para melodías ácidas de verdad haría falta nota por paso en la vista PASOS (no hecho).
+- **Entrar y salir:** LFO de pista en triángulo, 16 compases, a TONO (+75) y AUSENCIA 20. Con TONO a 0 el modelo se apaga del todo (probado: el compás más flojo queda por debajo del 10 % del más fuerte).
+- **Dónde:** pista 5 en lugar del dron en PULSAR, ECLIPSE, FOSFORO y ZENIT (banco A); patrones pares del banco B; 35 % de los generados. En los generados la pista 3 sale un 25 % de las veces con MACRO (cuerda, armónicos, grano) en vez de ACORDE.
+- **Aleatorio por partes:** ARP + K2 en PATRONES elige TODO / GROOVE (pistas 1, 2, 6) / SINTES (3, 4, 5). GROOVE no toca la tonalidad. Probado: 40 aleatorios de cada tipo sin un solo cambio fuera de su parte.
+- Al añadir el modelo, el mando MODELO pasa de 6 a 7 posiciones: un patrón guardado esta mañana con MACRO (versión 0.1.4) puede cargar con el modelo vecino. No se convierte: esa versión solo existió unas horas en el emulador.
+- No escuchado. El nivel de la línea ácida se ha puesto por medida (pico 0,30 en solo), no de oído.

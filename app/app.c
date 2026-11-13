@@ -83,11 +83,18 @@ static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
     {"La nota del dron", "Seno, triangulo, sierra, aire", "Donde se cierra el filtro", "Cuanto se sostiene",
      "Vagabundeo lento de tono y filtro", "La segunda voz: quinta, octava...", "Lo que tarda en entrar"},
     {"La nota de la secuencia", "El color del modelo", "Abierto, o cada nota se cierra", "Cuanto dura cada nota",
-     "Como se hace el sonido: 6 modelos", "Segundo control del modelo", "Entra de golpe o poco a poco"},
+     "Como se hace el sonido: 7 modelos", "Segundo control del modelo", "Entra de golpe o poco a poco"},
 };
 static const char *const DIV_NAME[EPK_DIV_COUNT] = {"1/32", "1/16T", "1/16", "1/8T", "1/8", "1/4"};
 static const char *const PROB_NAME[EPK_PROB_COUNT] = {"100%", "75%", "50%", "25%"};
 static const char *const COND_NAME[EPK_COND_COUNT] = {"SIEMPRE", "1:2", "2:2", "1:4", "2:4", "3:4", "4:4"};
+
+/* MACRO's ACIDO model has no attack: that knob is SALTOS (octave jumps and slides) */
+static int is_acid(int track)
+{
+    return epk_engine(track) == EPK_ENG_MACRO &&
+           (int)(epk_param_get(track, EPK_P_EXTRA1) * (float)(EPK_MACRO_MODELS - 1) + 0.5f) == EPK_MACRO_MODELS - 1;
+}
 
 static int snd_index(int p)                          /* a sound parameter's column in SND_NAME, -1 if not one */
 {
@@ -116,7 +123,12 @@ static const char *param_name(int track, int p)
     case EPK_P_PAN: return "PAN";
     case EPK_P_SEND_A: return epk_param_get(track, EPK_P_SEND_PRE) > 0.5f ? "A PRE" : "A ECO";
     case EPK_P_SEND_B: return epk_param_get(track, EPK_P_SEND_PRE) > 0.5f ? "B PRE" : "B REVERB";
-    default: return SND_NAME[epk_engine(track)][snd_index(p)];
+    default:
+        if (p == EPK_P_ATTACK && is_acid(track))
+            return "SALTOS";
+        if (p == EPK_P_EXTRA2 && is_acid(track))
+            return "RESO";
+        return SND_NAME[epk_engine(track)][snd_index(p)];
     }
 }
 static const char *param_hint(int track, int p)
@@ -142,7 +154,12 @@ static const char *param_hint(int track, int p)
     case EPK_P_PAN: return "Izquierda o derecha";
     case EPK_P_SEND_A: return "Al eco; HOME+girar: antes/despues fader";
     case EPK_P_SEND_B: return "A la reverb; HOME+girar: pre/post";
-    default: return SND_HINT[epk_engine(track)][snd_index(p)];
+    default:
+        if (p == EPK_P_ATTACK && is_acid(track))
+            return "Saltos de octava y notas ligadas";
+        if (p == EPK_P_EXTRA2 && is_acid(track))
+            return "Resonancia del filtro";
+        return SND_HINT[epk_engine(track)][snd_index(p)];
     }
 }
 /* the parameter of a page's knob for a track: SLOT_NONE where the engine has nothing there */
@@ -1128,6 +1145,8 @@ static void random_page(void)
 
 static const char *const KEY_NAME[12] = {"DO", "DO#", "RE", "RE#", "MI", "FA", "FA#", "SOL", "SOL#", "LA", "LA#", "SI"};
 static int random_said;
+static const char *const RSCOPE_NAME[EPK_RSCOPE_COUNT] = {"TODO", "GROOVE 1 2 6", "SINTES 3 4 5"};
+static const char *const RSCOPE_SHORT[EPK_RSCOPE_COUNT] = {"TODO", "GROOVE", "SINTES"};
 
 static void random_pattern(void)           /* a whole new pattern in this slot (aleatorio general) */
 {
@@ -1401,6 +1420,10 @@ static void input(void)
             } else if (ui.view == VIEW_PATTERNS && ENC_SLOT[k] == 0) {   /* ARP+K1: the key fixed or free */
                 epk_random_key_lock(!epk_random_key_locked());
                 app_say("TONALIDAD", epk_random_key_locked() ? "FIJA" : "LIBRE");
+                ui.dirty_main = ui.dirty_foot = 1;
+            } else if (ui.view == VIEW_PATTERNS && ENC_SLOT[k] == 1) {   /* ARP+K2: what the random renews */
+                epk_random_scope(clamp(epk_random_scope_get() + (e > 0 ? 1 : -1), 0, EPK_RSCOPE_COUNT - 1));
+                app_say("ALEATORIO DE", RSCOPE_NAME[epk_random_scope_get()]);
                 ui.dirty_main = ui.dirty_foot = 1;
             } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX && ui.view != VIEW_MOD && ui.view != VIEW_FLOW) {
                 const int p = slot_param(ui.track, ui.page, ENC_SLOT[k]);
@@ -2054,9 +2077,13 @@ static void draw_foot(void)                       /* the page tabs and the four 
             str_cat(kt, KEY_NAME[epk_key()]);
             str_cat(kt, epk_random_key_locked() ? " m FIJA" : " m");
             cv_text(234 - text_w(&FONT_XS, kt), 5, &FONT_XS, kt, epk_random_key_locked() ? C_SOLO : C_LABEL);
+            if (epk_random_scope_get()) {  /* the random renews only a part (solo una parte) */
+                const char *rs = RSCOPE_SHORT[epk_random_scope_get()];
+                cv_text(234 - text_w(&FONT_XS, rs), 18, &FONT_XS, rs, C_SOLO);
+            }
         }
         cv_text(6, 44, &FONT_XS, "HOME+blanca: guardar (2 veces)", C_LABEL);
-        cv_text(6, 57, &FONT_XS, "ARP: azar  HOME+ARP: deshacer  ARP+K1: tono", C_LABEL);
+        cv_text(6, 57, &FONT_XS, "ARP: azar  ARP+K1: tono  ARP+K2: parte", C_LABEL);
         cv_blit(0, 168);
         return;
     }
@@ -2321,7 +2348,10 @@ void app_frame(void)
         }
     }
     if (random_said && ++random_said > 4) {   /* a few frames on, the core has applied it (ya aplicado) */
-        char kt[24] = "TODO EN ";
+        char kt[24];
+        kt[0] = 0;
+        str_cat(kt, RSCOPE_SHORT[epk_random_scope_get()]);
+        str_cat(kt, epk_random_scope_get() ? " " : " EN ");
         str_cat(kt, KEY_NAME[epk_key()]);
         str_cat(kt, " m");
         app_say("ALEATORIO", kt);
