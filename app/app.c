@@ -820,6 +820,178 @@ static int save_pattern(int bank, int slot)
     return 0;
 }
 
+static void slot_text(int bank, int slot, char *t);
+#define slot_text_fwd slot_text
+/* A saved slot back to the factory pattern (de vuelta al de fábrica): its bit leaves the object; if the bank is the
+ * one in memory it is loaded again from the store, so edits not saved in its other slots go too. 0 if erased, 1 if
+ * there was nothing saved there */
+static int erase_pattern(int bank, int slot)
+{
+    const uint32_t obj = OBJ_BANK0 + (uint32_t)(bank * 2 + slot / 8);
+    int n = plat_store_load(obj, obj_buf, sizeof obj_buf);
+    if (n >= 5 && obj_buf[4] < EPK_BANK_VERSION)
+        n = upgrade_buf(n);
+    if (n < EPK_BANK_OBJ_BYTES || obj_buf[0] != 'E' || obj_buf[3] != 'B' || !(obj_buf[7] >> (slot % 8) & 1u))
+        return 1;
+    obj_buf[7] &= (uint8_t)~(1u << (slot % 8));
+    if (plat_store_save(obj, obj_buf, EPK_BANK_OBJ_BYTES) != 0)
+        return -1;
+    if (bank == epk_bank_current()) {
+        stage_bank(bank);
+        epk_bank_restage();
+    }
+    ui.saves++;
+    return 0;
+}
+
+/* The project (el proyecto): what does not belong to a pattern. "EPKJ", version, tempo, bank, pattern, the counts of
+ * what follows (so a later version with more effects still reads this one), flags; then each track's flags and mix,
+ * the effects, the modulation and the scenes, every value in two bytes */
+#define PROJ_VERSION 1
+static uint8_t *put16(uint8_t *b, float v)
+{
+    const uint32_t q = (uint32_t)(fm_clampf(v, 0.0f, 1.0f) * 65535.0f + 0.5f);
+    b[0] = (uint8_t)q;
+    b[1] = (uint8_t)(q >> 8);
+    return b + 2;
+}
+static float get16(const uint8_t *b) { return (float)(b[0] | b[1] << 8) * (1.0f / 65535.0f); }
+
+static int save_project(void)
+{
+    uint8_t *b = obj_buf;
+    int t, i, s;
+    *b++ = 'E'; *b++ = 'P'; *b++ = 'K'; *b++ = 'J';
+    *b++ = PROJ_VERSION;
+    *b++ = (uint8_t)(epk_tempo() + 0.5f);
+    *b++ = (uint8_t)epk_bank_current();
+    *b++ = (uint8_t)epk_pattern_current();
+    *b++ = EPK_TRACKS;
+    *b++ = EPK_P_COUNT - EPK_P_PATTERN_COUNT;
+    *b++ = EPK_FX_COUNT;
+    *b++ = EPK_MOD_SOURCES * EPK_M_COUNT;
+    *b++ = EPK_SCENES;
+    *b++ = (uint8_t)((epk_random_key_locked() ? 1 : 0) | epk_random_scope_get() << 1);
+    for (t = 0; t < EPK_TRACKS; t++) {
+        *b++ = (uint8_t)((epk_muted(t) ? 1 : 0) | (epk_evolve_enabled(t) ? 2 : 0));
+        for (i = EPK_P_PATTERN_COUNT; i < EPK_P_COUNT; i++)
+            b = put16(b, epk_param_get(t, i));
+    }
+    for (i = 0; i < EPK_FX_COUNT; i++)
+        b = put16(b, epk_fx_get(i));
+    for (s = 0; s < EPK_MOD_SOURCES; s++)
+        for (i = 0; i < EPK_M_COUNT; i++)
+            b = put16(b, epk_mod_get(s, i));
+    for (s = 0; s < EPK_SCENES; s++) {
+        const int n = epk_scene_count(s);
+        b = put16(b, epk_scene_fade(s));
+        *b++ = (uint8_t)n;
+        for (i = 0; i < n; i++) {
+            const int tg = epk_scene_target(s, i);
+            *b++ = (uint8_t)tg;
+            *b++ = (uint8_t)(tg >> 8);
+            b = put16(b, epk_scene_value(s, i));
+        }
+    }
+    return plat_store_save(OBJ_PROJECT, obj_buf, (uint32_t)(b - obj_buf));
+}
+
+/* At power-on: the saved project over the factory one. Returns the bank to start in, the pattern in *pattern */
+static int load_project(int *pattern)
+{
+    const int n = plat_store_load(OBJ_PROJECT, obj_buf, sizeof obj_buf);
+    const uint8_t *b = obj_buf, *end = obj_buf + n;
+    int t, i, s, bank, nt, np, nf, nm, ns, flags;
+    *pattern = 0;
+    if (n < 14 || b[0] != 'E' || b[1] != 'P' || b[2] != 'K' || b[3] != 'J' || b[4] != PROJ_VERSION)
+        return 0;
+    epk_set_tempo((float)b[5]);
+    bank = b[6] < EPK_BANKS ? b[6] : 0;
+    *pattern = b[7] < EPK_PATTERNS ? b[7] : 0;
+    nt = b[8]; np = b[9]; nf = b[10]; nm = b[11]; ns = b[12]; flags = b[13];
+    b += 14;
+    if (b + nt * (1 + np * 2) + nf * 2 + nm * 2 > end)
+        return 0;                          /* cut short: the factory project (cortado) */
+    epk_random_key_lock(flags & 1);
+    epk_random_scope(flags >> 1 & 3);
+    for (t = 0; t < nt; t++) {
+        const int f = *b++;
+        if (t < EPK_TRACKS) {
+            epk_mute(t, f & 1);
+            epk_evolve_enable(t, f >> 1 & 1);
+        }
+        for (i = 0; i < np; i++, b += 2)
+            if (t < EPK_TRACKS && EPK_P_PATTERN_COUNT + i < EPK_P_COUNT)
+                epk_param_set(t, EPK_P_PATTERN_COUNT + i, get16(b));
+    }
+    for (i = 0; i < nf; i++, b += 2)
+        if (i < EPK_FX_COUNT)
+            epk_fx_set(i, get16(b));
+    for (i = 0; i < nm; i++, b += 2)
+        if (i < EPK_MOD_SOURCES * EPK_M_COUNT)
+            epk_mod_set(i / EPK_M_COUNT, i % EPK_M_COUNT, get16(b));
+    for (s = 0; s < ns && b + 3 <= end; s++) {
+        const float fade = get16(b);
+        const int cnt = b[2];
+        b += 3;
+        if (b + cnt * 4 > end)
+            break;
+        if (s < EPK_SCENES) {
+            epk_scene_clear(s);
+            epk_scene_set_fade(s, fade);
+        }
+        for (i = 0; i < cnt; i++, b += 4)
+            if (s < EPK_SCENES)
+                epk_scene_lock(s, b[0] | b[1] << 8, get16(b + 2));
+    }
+    return bank;
+}
+
+/* HOME + SAVE: the first press asks, the second (within 3 s) saves the project. ARP + SAVE the same way: the saved
+ * project is erased and the factory one comes back at the next power-on */
+static void project_press(int erase)
+{
+    const int code = erase ? -3 : -2;
+    if (ui.save_bank == code && (int32_t)(ui.save_until - plat_ms()) > 0) {
+        ui.save_bank = ui.save_slot = -1;
+        if (erase) {
+            const int bad = plat_store_save(OBJ_PROJECT, obj_buf, 0);
+            ui.saves += !bad;
+            app_say(bad ? "NO BORRADO" : "DE FABRICA", "AL ENCENDER");
+        }
+        else {
+            const int bad = save_project();
+            ui.saves += !bad;
+            app_say(bad ? "NO GUARDADO" : "GUARDADO", "PROYECTO");
+        }
+    } else {
+        ui.save_bank = code;
+        ui.save_slot = -1;
+        ui.save_until = plat_ms() + 3000u;
+        app_say(erase ? "BORRAR PROYECTO ?" : "GUARDAR PROYECTO ?", erase ? "ARP+SAVE OTRA VEZ" : "HOME+SAVE OTRA VEZ");
+    }
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
+/* ARP + a white key in the PATTERNS view: the first press asks, the second erases what was saved in that slot */
+static void erase_press(int slot)
+{
+    char t[8];
+    slot_text_fwd(ui.bank, slot, t);
+    if (ui.save_bank == -4 - ui.bank && ui.save_slot == slot && (int32_t)(ui.save_until - plat_ms()) > 0) {
+        const int r = erase_pattern(ui.bank, slot);
+        ui.save_bank = ui.save_slot = -1;
+        app_say(r < 0 ? "NO BORRADO" : r ? "NADA GUARDADO EN" : "DE FABRICA", t);
+    } else {
+        ui.save_bank = -4 - ui.bank;
+        ui.save_slot = slot;
+        ui.save_until = plat_ms() + 3000u;
+        str_cat(t, " ?");
+        app_say("BORRAR", t);
+    }
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
 static void slot_text(int bank, int slot, char *t)   /* "A15" */
 {
     t[0] = (char)('A' + bank);
@@ -861,7 +1033,15 @@ void app_init(void)
     ui.save_bank = ui.save_slot = -1;
     ui.scene_held = ui.scene_key = -1;
     ui.splash = 1;                         /* the galaxy first (primero la galaxia) */
-    stage_bank(0);                         /* what was saved in bank A, before the first sound (lo guardado) */
+    {
+        int pattern;
+        const int bank = load_project(&pattern);   /* the saved project, if there is one (el proyecto guardado) */
+        stage_bank(bank);                  /* what was saved in that bank, before the first sound (lo guardado) */
+        if (bank || pattern) {
+            epk_pattern_select(bank, pattern);
+            ui.bank = bank;
+        }
+    }
     epk_bank_restage();
     for (k = 0; k < NKEYS; k++)
         ui.key_note[k] = -1;
@@ -1219,6 +1399,9 @@ static void input(void)
                 ui.bank = BLACK_OF[k];
                 app_say("BANCO", n);
                 ui.dirty_main = ui.dirty_foot = 1;
+            } else if (down && arp && WHITE_OF[k] >= 0) {
+                erase_press(WHITE_OF[k]);  /* ARP + a white key: back to the factory one (el de fábrica) */
+                ui.arp_used = 1;
             } else if (down && shift) {
                 save_press(WHITE_OF[k]);   /* HOME + a white key: save here (guardar aquí) */
             } else if (down) {
@@ -1365,9 +1548,12 @@ static void input(void)
             if (shift)
                 undo();
         } else if (k == B_SAVE) {
-            ui.save_used = shift;
-            if (shift)
-                say_later("GLOBAL", "FASE 6");
+            ui.save_used = shift || arp;
+            if (arp) {
+                project_press(1);          /* ARP + SAVE: the factory project again (proyecto de fábrica) */
+                ui.arp_used = 1;
+            } else if (shift)
+                project_press(0);          /* HOME + SAVE: save the project (guardar el proyecto) */
             else if (ui.view != VIEW_PATTERNS)
                 ui.bank = epk_bank_current();
         }

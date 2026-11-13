@@ -18,10 +18,12 @@ int epk_ble_off(void);
  * them, and their flash offsets */
 /* OBJ_BANK0..: the saved patterns, two objects a bank (A first half, A second half, B...), 8 KiB of flash each
  * (A/B sectors) from 0x97000 up: 22 objects, 0x97000..0xC2FFF. The numbers must not change between releases */
-enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_BANK0, OBJ_NOBJ = OBJ_BANK0 + 22 };
+/* OBJ_PROJECT: the project (mix, effects, modulation, scenes, tempo), one object at 0xC3000..0xC4FFF */
+enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_BANK0, OBJ_PROJECT = OBJ_BANK0 + 22, OBJ_NOBJ };
 #define APP_STORE_MAP {0xFC000u, 0xDC000u, 0xDE000u, \
     0x97000u, 0x99000u, 0x9B000u, 0x9D000u, 0x9F000u, 0xA1000u, 0xA3000u, 0xA5000u, 0xA7000u, 0xA9000u, 0xAB000u, \
-    0xAD000u, 0xAF000u, 0xB1000u, 0xB3000u, 0xB5000u, 0xB7000u, 0xB9000u, 0xBB000u, 0xBD000u, 0xBF000u, 0xC1000u}
+    0xAD000u, 0xAF000u, 0xB1000u, 0xB3000u, 0xB5000u, 0xB7000u, 0xB9000u, 0xBB000u, 0xBD000u, 0xBF000u, 0xC1000u, \
+    0xC3000u}
 
 /* the contract: the platform calls these */
 void app_init(void);                     /* boot: the engine, then the saved settings (or defaults) */

@@ -350,3 +350,19 @@
 - **Aleatorio por partes:** ARP + K2 en PATRONES elige TODO / GROOVE (pistas 1, 2, 6) / SINTES (3, 4, 5). GROOVE no toca la tonalidad. Probado: 40 aleatorios de cada tipo sin un solo cambio fuera de su parte.
 - Al añadir el modelo, el mando MODELO pasa de 6 a 7 posiciones: un patrón guardado esta mañana con MACRO (versión 0.1.4) puede cargar con el modelo vecino. No se convierte: esa versión solo existió unas horas en el emulador.
 - No escuchado. El nivel de la línea ácida se ha puesto por medida (pico 0,30 en solo), no de oído.
+
+## Camino de vuelta en la unidad de Javier (2026-11-13)
+- Comprobado con su backup del 10 nov: los primeros 16 KB de su flash (el arranque) **no son los de M-VAVE V16**: difieren los cuatro sectores. Es m-bootloader 2.3. Además su firmware "FM-1 801" no es la V16 (ningún sector de la aplicación coincide).
+- Consecuencia: **`fm1_rescue` (la herramienta de rescate de fm1-base) no sirve para su unidad**. Solo escribe si el arranque es el de V15 o V16; con otro, se niega y no escribe nada.
+- Su camino de vuelta es otro: **m-bootloader + M-Flasher**. REC al encender = modo descarga; PLAY al encender = menú de recuperación (se abre solo si el firmware no arranca). Con M-Flasher se reescribe su backup completo de 1 MiB (sha256 `b8ccc233…b5ea`).
+- Condición: que el instalador **no** sustituya m-bootloader. La casilla "install m-bootloader" pondría la 1.2 sobre su 2.3: no marcarla.
+- **Sin verificar:** que el instalador web de fm1-base funcione con el firmware 801 en marcha (está documentado para el oficial); que M-Flasher acepte nuestro `.fwsc`; que una instalación de fm1-base deje intacto el arranque en su unidad (según su documentación, sí: no escribe por debajo de 0x4000).
+- Antes de instalar, sin escribir nada: encender con PLAY mantenido y con REC mantenido y ver que m-bootloader responde.
+
+## Guardar el proyecto y borrar patrones (2026-11-13)
+- **Proyecto** = lo que no es del patrón: mezcla (nivel, pan, envíos, PRE, mute), efectos y FLOW, modulación, escenas (bloqueos y fundido), tempo, evolución por pista, tonalidad fija, parte del aleatorio, banco y patrón. Un solo proyecto, ~600 bytes.
+- **Flash:** objeto nuevo `OBJ_PROJECT` (número 25) en 0xC3000..0xC4FFF, justo encima de los bancos. Los objetos anteriores no se mueven. Formato "EPKJ" versión 1 con los recuentos dentro (pistas, parámetros, efectos…): una versión futura con más efectos lee la actual.
+- **Gestos:** HOME + SAVE dos veces = guardar (antes decía "GLOBAL, FASE 6"). ARP + SAVE dos veces = borrar; el de fábrica vuelve al encender (reiniciar el motor con el audio en marcha no es seguro). ARP + tecla blanca dos veces en PATRONES = borrar esa ranura guardada.
+- No se guarda solo (desgaste de la flash y porque en directo no siempre se quiere). No se guardan solos, escenas puestas, freeze ni octava.
+- Borrar una ranura del banco en memoria recarga el banco: se pierde lo editado sin guardar en sus otras ranuras.
+- Probado en el simulador (`app/tests/project.txt`): cambiar tempo, mute y nivel, guardar, reiniciar y encontrarlos; una sola pulsación no guarda; borrar y reiniciar devuelve el de fábrica; guardar y borrar una ranura. En el navegador real y en el FM-1: sin probar.

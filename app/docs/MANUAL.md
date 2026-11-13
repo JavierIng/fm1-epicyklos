@@ -28,7 +28,7 @@ knob la salta.
 | PRESETS | nivel de la pista | envío de la pista al eco |
 | K1-K4 | los 4 parámetros de la página | ajuste fino |
 | OCT- / OCT+ | octava del teclado | — |
-| SAVE | vista PATRONES | en PATRONES, HOME + tecla blanca: **guardar** |
+| SAVE | vista PATRONES | **guardar el proyecto** (dos veces); en PATRONES, HOME + tecla blanca: guardar el patrón |
 | SEQ | vista PASOS | modo **ESCENAS** (teclas negras) |
 | ARP | aleatorio; mantenido + pista: evolución sí / no | **deshacer** |
 | REC | mantener: **throw** de la pista al eco | **freeze** del eco (activa / quita) |
@@ -156,9 +156,26 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
 - **Dónde se guarda:** en el emulador, en el navegador (sobrevive a recargar la página, pero no a borrar los
   datos del sitio ni a cambiar de navegador). En el FM-1, en la flash, con el mismo código: *pendiente en el
   dispositivo*, porque no se ha instalado nada en él.
-- **Lo que no se guarda todavía:** lo que edites sin guardar se pierde al cambiar de banco; la mezcla, los
-  efectos, el tempo y la modulación (son del proyecto) se pierden al apagar. Tampoco hay forma de borrar un
-  patrón guardado y volver al de fábrica: llegará con el menú de proyecto (fase 6).
+- **Lo que no se guarda solo:** lo que edites en un patrón sin guardarlo se pierde al cambiar de banco.
+
+### Borrar un patrón guardado (ARP + tecla blanca)
+En la vista PATRONES, con **ARP mantenido**, pulsa la tecla blanca de la ranura: pregunta "BORRAR B02 ?". Otra vez
+en menos de 3 s: vuelve el patrón de fábrica (o el generado) de esa ranura.
+- Si la ranura está en el banco que suena, ese banco se recarga: lo editado sin guardar en sus otras ranuras
+  también se pierde.
+- No se puede deshacer.
+
+### Guardar el proyecto (HOME + SAVE)
+El proyecto es todo lo que no es de un patrón: **mezcla** (nivel, pan, envíos, PRE, mutes), **efectos y FLOW**,
+**modulación**, **escenas**, **tempo**, qué pistas evolucionan, la tonalidad fija y la parte del aleatorio, y en
+qué banco y patrón estabas.
+- **HOME + SAVE**, desde cualquier vista: pregunta "GUARDAR PROYECTO ?". Otra vez en menos de 3 s: "GUARDADO".
+- Al encender se carga solo. Hay **un proyecto**; guardar sustituye al anterior.
+- No se guarda solo: si no pulsas HOME + SAVE, al apagar se pierde lo cambiado desde el último guardado.
+- No se guardan: los solos, las escenas dejadas puestas, el freeze ni la octava del teclado.
+- **ARP + SAVE** dos veces: borra el proyecto guardado. El de fábrica vuelve **al encender de nuevo** (lo que
+  suena en ese momento no cambia). Los patrones guardados no se tocan.
+- En el FM-1: *pendiente en el dispositivo*.
 
 ## 7. Pasos (SEQ)
 - Las 16 teclas blancas son los pasos; OCT-/OCT+ cambia entre 1-16 y 17-32.
@@ -341,9 +358,9 @@ Hay 8 escenas en el proyecto.
 - **De fábrica:** 1 SUMERGIR (filtro cerrado y eco largo, 1 compás), 2 CATEDRAL (todo reverb, 2 compases), 3 CINTA
   ROTA (cinta y desgaste), 4 DIGITAL (bits y muestreo), 5 TÚNEL (fino y lejos, 1/2 compás), 6 SECO (sin eco ni
   reverb), 7 SHIMMER (placa con shimmer, larga, 2 compases), 8 ECO INFINITO (el eco a 97 % y ninguna pista le envía: lo que hay se queda).
-- **Aún no se guardan** al apagar: vuelven a las de fábrica (guardado del proyecto, fase 6).
+- Se guardan con el proyecto (HOME + SAVE, sección 6).
 
 ## 12. Pendiente
-Siguiente: guardado del proyecto (mezcla, efectos, escenas, tempo), nombres, borrar un patrón guardado, reloj y MIDI
-(fase 6). Después: más motores, bancos de demostración por estilo, prueba en el aparato (7, solo cuando se decida).
+Siguiente: reloj y MIDI, nombres, nota por paso. Después: más motores y prueba en el aparato (solo cuando se
+decida).
 - FILL ya no tiene atajo: HOME + PLAY ahora congela la EVOLUCIÓN.

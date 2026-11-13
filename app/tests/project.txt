@@ -1,0 +1,89 @@
+# The project is saved with HOME + SAVE twice and comes back at power-on; ARP + SAVE twice brings the factory one back
+wait 3500
+expect tempo 124
+expect level1 74
+expect mute2 0
+expect fx7 72
+press HOME
+turn SELECT 6
+tap SEL
+release HOME
+turn PRESET -4
+wait 60
+expect tempo 130
+expect mute2 1
+expect level1 64
+# once is not enough (una vez no basta)
+press HOME
+tap SAVE
+wait 3500
+tap SAVE
+wait 60
+release HOME
+expect saves 0
+press HOME
+tap SAVE
+wait 300
+tap SAVE
+wait 60
+release HOME
+expect saves 1
+shot proyecto.png
+reboot
+wait 3500
+expect tempo 130
+expect mute2 1
+expect level1 64
+expect fx7 72
+# back to the factory project (de vuelta al de fábrica)
+press ARP
+tap SAVE
+wait 300
+tap SAVE
+wait 60
+release ARP
+expect saves 2
+reboot
+wait 3500
+expect tempo 124
+expect mute2 0
+expect level1 74
+# a saved pattern erased with ARP + its white key twice: A02 saved, then back to the factory one
+tap SAVE
+wait 60
+press HOME
+key 2 down
+wait 30
+key 2 up
+wait 300
+key 2 down
+wait 30
+key 2 up
+wait 30
+release HOME
+expect saves 3
+press ARP
+key 2 down
+wait 30
+key 2 up
+wait 300
+key 2 down
+wait 30
+key 2 up
+wait 30
+release ARP
+expect saves 4
+expect undo 0
+# nothing saved there any more (ya no hay nada)
+press ARP
+key 2 down
+wait 30
+key 2 up
+wait 300
+key 2 down
+wait 30
+key 2 up
+wait 30
+release ARP
+expect saves 4
+shot borrado.png

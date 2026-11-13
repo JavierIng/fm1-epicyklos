@@ -29,7 +29,7 @@ skips it.
 | PRESETS | track level | the track's send to the delay |
 | K1-K4 | the page's 4 parameters | fine adjust |
 | OCT- / OCT+ | keyboard octave | — |
-| SAVE | PATTERNS view [PATRONES] | in PATTERNS, HOME + white key: **save** |
+| SAVE | PATTERNS view [PATRONES] | **save the project** (twice); in PATTERNS, HOME + white key: save the pattern |
 | SEQ | STEPS view [PASOS] | **SCENES** mode [ESCENAS] (black keys) |
 | ARP | random; held + track: evolution on / off | **undo** |
 | REC | hold: **throw** the track to the delay | **freeze** the delay (on / off) |
@@ -157,9 +157,26 @@ Each track has its own LFO, saved with the pattern. While the sequencer runs it 
 - **Where it is kept:** in the emulator, in the browser (it survives a page reload, not clearing the site's data or
   another browser). On the FM-1, in the flash, with the same code: *pending on the device*, since nothing has been
   installed on it.
-- **Not saved yet:** edits you did not save are lost when you change bank; mix, effects, tempo and modulation
-  (the project's) are lost at power-off. There is no way yet to erase a saved pattern and get the factory one
-  back: it comes with the project menu (phase 6).
+- **Not saved by itself:** edits to a pattern that you did not save are lost when you change bank.
+
+### Erasing a saved pattern (ARP + white key)
+In the PATTERNS view, **holding ARP**, press the slot's white key: it asks "BORRAR B02 ?" (erase B02?). Again
+within 3 s: that slot's factory (or generated) pattern comes back.
+- If the slot is in the bank that is playing, that bank is loaded again: unsaved edits in its other slots are
+  lost too.
+- It cannot be undone.
+
+### Saving the project (HOME + SAVE)
+The project is everything that does not belong to a pattern: the **mix** (level, pan, sends, PRE, mutes), the
+**effects and FLOW**, **modulation**, **scenes**, **tempo**, which tracks evolve, the fixed key and the random's
+part, and the bank and pattern you were on.
+- **HOME + SAVE**, from any view: it asks "GUARDAR PROYECTO ?" (save project?). Again within 3 s: "GUARDADO".
+- It loads by itself at power-on. There is **one project**; saving replaces the last one.
+- It is not saved by itself: without HOME + SAVE, changes since the last save are lost at power-off.
+- Not saved: solos, latched scenes, the freeze and the keyboard octave.
+- **ARP + SAVE** twice: erases the saved project. The factory one comes back **at the next power-on** (what
+  plays now does not change). Saved patterns are not touched.
+- On the FM-1: *pending on the device*.
 
 ## 7. Steps (SEQ)
 - The 16 white keys are the steps; OCT-/OCT+ switches between 1-16 and 17-32.
@@ -341,9 +358,8 @@ project has 8 scenes.
   ROTA (broken tape: saturation and wear), 4 DIGITAL (bits and sample rate), 5 TUNEL (tunnel: thin and far, 1/2 bar),
   6 SECO (dry: no delay or reverb), 7 SHIMMER (plate with shimmer, long, 2 bars), 8 ECO INFINITO (endless delay: feedback at 97 % and no
   track sends to it, so what is there stays).
-- **Not yet saved** at power-off: they go back to the factory ones (project saving, phase 6).
+- They are saved with the project (HOME + SAVE, section 6).
 
 ## 12. To come
-Next: saving the project (mix, effects, scenes, tempo), names, erasing a saved pattern, clock and MIDI (phase 6).
-Then: more engines, demo banks per style, testing on the device (7, only when decided).
+Next: clock and MIDI, names, a note per step. Then: more engines and testing on the device (only when decided).
 - FILL has no shortcut any more: HOME + PLAY now freezes EVOLUTION.
