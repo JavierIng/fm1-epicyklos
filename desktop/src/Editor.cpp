@@ -161,6 +161,7 @@ EpkEditor::EpkEditor(EpkProcessor& p) : AudioProcessorEditor(&p), proc(p)
     setResizable(true, true);
     setResizeLimits(820, 520, 1800, 1200);
     setSize(980, 620);
+    timerCallback();                       // the first drawing already has its texts (ya con sus textos)
     startTimerHz(30);
 }
 

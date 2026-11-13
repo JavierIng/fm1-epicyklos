@@ -46,3 +46,21 @@ target_compile_definitions(Epicyklos PUBLIC
 target_link_libraries(Epicyklos
     PRIVATE juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags)
+
+# A tool for the build machine: the window drawn into a PNG, to see it without a Mac (captura de la ventana)
+juce_add_console_app(EpkShot PRODUCT_NAME "EpkShot")
+target_sources(EpkShot PRIVATE
+    src/Shot.cpp
+    src/Processor.cpp
+    src/Editor.cpp
+    ../app/dsp/engine.cpp
+    ../app/dsp/factory.cpp)
+target_include_directories(EpkShot PRIVATE src ../app/dsp ../base/include)
+target_compile_definitions(EpkShot PRIVATE
+    PLAT_HOST=1
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_DISPLAY_SPLASH_SCREEN=0)
+target_link_libraries(EpkShot
+    PRIVATE juce::juce_audio_utils
+    PUBLIC juce::juce_recommended_config_flags)
