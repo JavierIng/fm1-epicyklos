@@ -324,3 +324,8 @@
 - Javier: "REVERB 2 tendría que estar en la posición de REVERB: primero el tipo y luego los controles" y "quita que salga TIPO 1 / TIPO 100". Ahora la página 3 de EFECTOS (**REVERB**) es TIPO + (PREDELAY, TAMAÑO, DIFUSIÓN) o + (POSICIÓN, TAMAÑO, DENSIDAD); la 4 (**REVERB 2**) es CAÍDA, TONO, MOVER, NIVEL (en NUBE: REPITE, TEXTURA, AFINA, NIVEL).
 - **Fallo mío:** al quitar el STUTTER se borraron sin querer los textos de TIPO (PLACA/NUBE), PREDELAY (ms), AFINA (semitonos) y DENSIDAD (NADA/REG/AZAR): salían como 0-100. Restaurados. Las pruebas no lo vieron porque comprueban valores, no el texto; se comprueba ahora con capturas de pantalla.
 - Firmware oficial de M-VAVE recibido de Javier: `FM-1.fwsc` V16 (718.196 B), sha256 `d017fb65…61d5`, igual al que fm1-base registra como oficial (FM-1_016, 2026-10-23). Sirve para "volver al firmware de M-VAVE" desde el instalador.
+
+## Pantalla de inicio: galaxia (2026-11-13)
+- Javier pasó una imagen de una galaxia espiral: "algo así moviéndose como una órbita con el nombre en medio parpadeando".
+- Hecha con código, sin imagen (una foto de 240×240 serían 115 KB y no se podría girar con soltura): 1.100 estrellas en dos brazos de espiral logarítmica, el 18 % sueltas entre brazos, núcleo blanco con halo azul, nudos rosas en los brazos; rotación diferencial (el centro gira más rápido); EPICYKLOS latiendo una vez por segundo con borde oscuro para leerse sobre el núcleo. Las estrellas salen de la misma semilla cada fotograma: no ocupan memoria.
+- 3,2 s o hasta tocar cualquier botón, tecla o knob (el toque además hace lo suyo). ~30 fps, en dos franjas de 240×120. Coste en el aparato: sin medir; solo al encender, con el secuenciador parado.

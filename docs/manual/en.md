@@ -8,7 +8,11 @@
 Open firmware (GPL-3.0) for the M-VAVE FM-1: six tracks with a euclidean, polymetric sequencer, made for dub
 techno, hypnotic techno, ambient and drone.
 
-## 2. The emulator
+## 2. At power-on
+A spiral galaxy turns for about 3 seconds with EPICYKLOS pulsing in the middle. Touching any button, key or knob
+skips it.
+
+## 2b. The emulator
 - **Click the screen or PLAY** to enable sound (browsers require it).
 - **Hold a button and turn a knob** (e.g. HOME + SELECT): **Shift + click** (or right-click) latches the button,
   shown with a blue edge; turn the knob; click normally to release.

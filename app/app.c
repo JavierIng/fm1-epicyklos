@@ -291,6 +291,8 @@ static struct {
     int scene_held, scene_key;             /* the scene held now and its key, -1 none (la que se mantiene) */
     uint32_t save_until;
     int saves;                             /* saves done since boot: for the tests (contador) */
+    int splash, touched;                   /* the boot screen is on; something was touched (algo se tocó) */
+    uint32_t splash_at;
     int key_note[NKEYS];                   /* the note each held key started (-1 none) */
     char msg[2][24];                       /* a short message in the header (mensaje) */
     uint32_t msg_until;
@@ -834,6 +836,7 @@ void app_init(void)
     ui.rng = 0x1F123BB5u;
     ui.save_bank = ui.save_slot = -1;
     ui.scene_held = ui.scene_key = -1;
+    ui.splash = 1;                         /* the galaxy first (primero la galaxia) */
     stage_bank(0);                         /* what was saved in bank A, before the first sound (lo guardado) */
     epk_bank_restage();
     for (k = 0; k < NKEYS; k++)
@@ -1172,6 +1175,8 @@ static void input(void)
     int32_t e;
     touch_poll();
     keys = touch_keys();
+    if (btn || keys)
+        ui.touched = 1;                                       /* ends the boot screen (fin del inicio) */
     const int choosing = ui.view == VIEW_PATTERNS || save;   /* the keys choose banks and patterns */
     const int stepping = !choosing && ui.view == VIEW_STEPS; /* the white keys are steps */
     const int flowing = !choosing && ui.view == VIEW_FLOW;   /* the white keys 1..6 are the blocks (bloques) */
@@ -1368,7 +1373,9 @@ static void input(void)
         ui.home_used = 0;
     }
     for (k = 0; k < NE; k++) {
-        if ((e = plat_enc((int)k)) == 0)
+        if ((e = plat_enc((int)k)) != 0)
+            ui.touched = 1;
+        if (e == 0)
             continue;
         if (shift)
             ui.home_used = 1;
@@ -2196,11 +2203,116 @@ void app_ui_init(void)
     ui.dirty_head = ui.dirty_main = ui.dirty_foot = 1;
 }
 
+
+/* ------------------------------------------------------------------ the boot screen (inicio): a galaxy that turns
+ * A spiral galaxy drawn from code, no picture: ~500 stars on two arms, a bright core and pink star-forming knots,
+ * the inside turning faster than the edge (as a real one does), EPICYKLOS pulsing in the middle. About 3 s, or
+ * until anything is touched. The stars come from the same seed every frame: no memory kept for them. */
+#define SPLASH_MS 3200u
+#define SPLASH_STARS 1100
+static uint32_t splash_rng;
+static float splash_u(void)
+{
+    splash_rng = splash_rng * 1664525u + 1013904223u;
+    return (float)(splash_rng >> 8) * (1.0f / 16777216.0f);
+}
+
+static uint16_t splash_mix(int r, int g, int b, float k)    /* a colour at brightness k over the night (fondo) */
+{
+    const float br = 4.0f, bg = 5.0f, bb = 14.0f;
+    k = fm_clampf(k, 0.0f, 1.0f);
+    return RGB((int)(br + ((float)r - br) * k), (int)(bg + ((float)g - bg) * k), (int)(bb + ((float)b - bb) * k));
+}
+
+static void splash_band(int32_t y0, float t)
+{
+    int32_t x, y, i;
+    cv_begin(240, 120, RGB(4, 5, 14));
+    cv_oy = -y0;                                    /* screen rows y0 .. y0+119 on this canvas (esta franja) */
+    cv_y0 = 0;
+    cv_y1 = 120;
+    for (y = 60; y < 180; y++) {                    /* the core's glow and its blue halo (núcleo y halo) */
+        if (y < y0 || y >= y0 + 120)
+            continue;
+        for (x = 60; x < 180; x++) {
+            const float d2 = (float)((x - 120) * (x - 120) + (y - 120) * (y - 120));
+            const float halo = d2 < 3600.0f ? (1.0f - d2 / 3600.0f) : 0.0f;
+            const float core = d2 < 900.0f ? (1.0f - d2 / 900.0f) : 0.0f;
+            const float k = 0.28f * halo * halo + 0.95f * core * core;
+            if (k > 0.01f) {
+                const float w = core * core;            /* white in the middle, blue around (blanco y azul) */
+                cv_pset(x, y, splash_mix(110 + (int)(145.0f * w), 130 + (int)(120.0f * w), 255, k));
+            }
+        }
+    }
+    splash_rng = 0x2545F491u;
+    for (i = 0; i < SPLASH_STARS; i++) {
+        const float u = splash_u(), j = splash_u() - 0.5f, c = splash_u(), b = splash_u(), z = splash_u();
+        const int field = splash_u() < 0.18f;       /* a few between the arms (entre los brazos) */
+        const float r = 0.10f + 0.90f * fm_powf(u, 0.85f) + 0.06f * (splash_u() - 0.5f);
+        float th = field ? 6.2831853f * splash_u()
+                         : (float)(i & 1) * 3.14159265f + 2.3f * fm_logf(r * 10.0f) * 2.2f + j * (1.15f - 0.5f * r);
+        th += 0.55f / (0.22f + r) * t;              /* the inside turns faster (gira más rápido dentro) */
+        x = 120 + (int32_t)(r * 116.0f * fm_cosf(th));
+        y = 120 + (int32_t)(r * 108.0f * fm_sinf(th));
+        {
+            uint16_t col;
+            const float k = (0.45f + 0.55f * fm_sqrtf(b)) * (field ? 0.55f : 1.0f);
+            if (!field && c < 0.16f && r > 0.25f)
+                col = splash_mix(255, 105, 185, k);                     /* pink knots (rosa) */
+            else {
+                const float w = fm_clampf(r * 1.4f, 0.0f, 1.0f);        /* warm inside, blue outside */
+                col = splash_mix(255 - (int)(130.0f * w), 236 - (int)(80.0f * w), 215 + (int)(40.0f * w), k);
+            }
+            cv_pset(x, y, col);
+            if (z < 0.22f) {                        /* some bigger (algunas más grandes) */
+                cv_pset(x + 1, y, col);
+                cv_pset(x, y + 1, col);
+                cv_pset(x + 1, y + 1, col);
+            }
+        }
+    }
+    {                                               /* the name, pulsing (el nombre, latiendo) */
+        const char *name = "EPICYKLOS";
+        const float p = 0.5f + 0.5f * fm_sin_turns(t * 0.9f);   /* ~1 pulse a second (un latido por segundo) */
+        const int32_t w = text_w(&FONT_L, name), nx = 120 - w / 2, ny = 120 - (int32_t)FONT_L.h / 2;
+        cv_text(nx - 1, ny, &FONT_L, name, RGB(4, 5, 14));          /* a dark edge so it reads on the core */
+        cv_text(nx + 1, ny, &FONT_L, name, RGB(4, 5, 14));
+        cv_text(nx, ny - 1, &FONT_L, name, RGB(4, 5, 14));
+        cv_text(nx, ny + 1, &FONT_L, name, RGB(4, 5, 14));
+        cv_text(nx, ny, &FONT_L, name, splash_mix(190 + (int)(65.0f * p), 240, 255, 0.5f + 0.5f * p));
+    }
+    cv_blit(0, (uint32_t)y0);
+    cv_oy = 0;
+}
+
+static void draw_splash(uint32_t now)
+{
+    const float t = (float)(now - ui.splash_at) * 0.001f;
+    splash_band(0, t);
+    splash_band(120, t);
+}
+
 void app_frame(void)
 {
     static uint32_t last_head;
     uint32_t now = plat_ms(), t;
     input();
+    if (ui.splash) {                          /* the boot screen until time or a touch (hasta tocar algo) */
+        static uint32_t drawn;
+        if (!ui.splash_at)
+            ui.splash_at = now ? now : 1u;
+        if (now - ui.splash_at >= SPLASH_MS || ui.btn || ui.touched) {
+            ui.splash = 0;
+            ui.dirty_head = ui.dirty_main = ui.dirty_foot = 1;
+        } else {
+            if (now - drawn >= 33u) {
+                drawn = now;
+                draw_splash(now);
+            }
+            return;
+        }
+    }
     if (random_said && ++random_said > 4) {   /* a few frames on, the core has applied it (ya aplicado) */
         char kt[24] = "TODO EN ";
         str_cat(kt, KEY_NAME[epk_key()]);

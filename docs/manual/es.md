@@ -7,7 +7,11 @@
 Firmware abierto (GPL-3.0) para el M-VAVE FM-1: seis pistas con secuenciador euclidiano y polimétrico, pensado
 para dub techno, techno hipnótico, ambient y drone.
 
-## 2. El emulador
+## 2. Al encender
+Una galaxia en espiral gira unos 3 segundos con EPICYKLOS latiendo en el centro. Tocar cualquier botón, tecla o
+knob la salta.
+
+## 2b. El emulador
 - **Clic en la pantalla o en PLAY** para activar el sonido (el navegador lo exige).
 - **Mantener un botón y girar un knob** (por ejemplo HOME + SELECT): **Mayús + clic** (o clic derecho) deja el
   botón pulsado, con borde azul; gira el knob; clic normal para soltarlo.
