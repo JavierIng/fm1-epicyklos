@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# EPICYKLOS para el ordenador: plugin VST3 / AU y app independiente para macOS (Apple Silicon e Intel).
+# Manual o al cambiar desktop/. No publica nada: deja un zip en la propia ejecución (artifact).
+name: Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure (configurar)
+        run: cmake -S desktop -B desktop/build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
+      - name: Build (compilar)
+        run: cmake --build desktop/build --config Release
+      - name: What was built (lo construido)
+        run: |
+          cd desktop/build/Epicyklos_artefacts/Release
+          find . -maxdepth 3 -name "*.vst3" -o -maxdepth 3 -name "*.component" -o -maxdepth 3 -name "*.app" | sort
+          lipo -archs "VST3/EPICYKLOS.vst3/Contents/MacOS/EPICYKLOS"
+          codesign -dv "VST3/EPICYKLOS.vst3" 2>&1 | head -5 || true
+      - name: Sign ad hoc and pack (firma local y zip)
+        run: |
+          cd desktop/build/Epicyklos_artefacts/Release
+          for b in VST3/EPICYKLOS.vst3 AU/EPICYKLOS.component Standalone/EPICYKLOS.app; do codesign --force --deep -s - "$b"; done
+          mkdir -p pack && cp -R VST3/EPICYKLOS.vst3 AU/EPICYKLOS.component Standalone/EPICYKLOS.app pack/
+          cp ../../../LEEME.txt pack/
+          cd pack && ditto -c -k --keepParent . ../EPICYKLOS-mac.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: epicyklos-desktop-mac
+          path: desktop/build/Epicyklos_artefacts/Release/EPICYKLOS-mac.zip
+          if-no-files-found: error

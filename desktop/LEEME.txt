@@ -1,0 +1,23 @@
+EPICYKLOS para el ordenador (version de prueba, sin firmar por Apple)
+
+Que hay aqui
+  EPICYKLOS.app         la app independiente
+  EPICYKLOS.vst3        el plugin VST3 (Ableton Live, Bitwig, Reaper...)
+  EPICYKLOS.component   el plugin Audio Unit (Logic, Ableton Live...)
+
+Instalar en macOS
+  1. Copia EPICYKLOS.vst3      a  ~/Library/Audio/Plug-Ins/VST3/
+     Copia EPICYKLOS.component a  ~/Library/Audio/Plug-Ins/Components/
+     Copia EPICYKLOS.app       a  Aplicaciones (o donde quieras)
+     (~/Library es la Biblioteca de tu usuario: en Finder, menu Ir > Ir a la carpeta...)
+  2. macOS bloquea lo descargado sin firma de Apple. Para permitirlo, abre Terminal y pega estas tres lineas:
+       xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/EPICYKLOS.vst3
+       xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/EPICYKLOS.component
+       xattr -dr com.apple.quarantine /Applications/EPICYKLOS.app
+  3. Abre el DAW y vuelve a buscar plugins. En Ableton Live: Ajustes > Plug-Ins > activar VST3 y Audio Units.
+
+Limites de esta version
+  - Solo una instancia por proyecto.
+  - El proyecto del DAW guarda mezcla, efectos, modulacion y el sonido de las pistas, pero no los pasos editados
+    a mano ni las escenas.
+  - Sigue el tempo y el play del DAW, pero empieza siempre desde el principio del patron.
