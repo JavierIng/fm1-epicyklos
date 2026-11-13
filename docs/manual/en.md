@@ -360,6 +360,18 @@ project has 8 scenes.
   track sends to it, so what is there stays).
 - They are saved with the project (HOME + SAVE, section 6).
 
-## 12. To come
-Next: clock and MIDI, names, a note per step. Then: more engines and testing on the device (only when decided).
+## 12. MIDI
+It comes in over USB, the TRS jack and Bluetooth, with nothing to choose.
+- **Clock:** when a MIDI clock arrives the tempo follows it and the tempo number turns **yellow**. HOME + SELECT
+  stops changing it meanwhile. If the clock goes quiet for a second, EPICYKLOS carries on at the last tempo.
+- **Start / Stop:** Start plays from the top at the next clock; Stop stops. Continue is taken as Start (from the top).
+- While playing to an outside clock it corrects by up to 4 % to stay on the sender's beat.
+- **Notes:** channels 1 to 6 play tracks 1 to 6; any other channel, the selected track.
+- **Out:** the keyboard's notes, over USB and Bluetooth (channel 1). The FM-1 has no MIDI out jack.
+- **Not yet:** clock or Start/Stop out (EPICYKLOS cannot be the master), CC, program change, song position.
+- Tested in the simulator only. How tight it is with a real clock (Digitone, OXI One, Ableton) is *pending on
+  the device*.
+
+## 13. To come
+Next: names, a note per step, clock out. Then: more engines and testing on the device (only when decided).
 - FILL has no shortcut any more: HOME + PLAY now freezes EVOLUTION.

@@ -183,6 +183,7 @@ void epk_play(int on);
 int epk_playing(void);
 void epk_set_tempo(float bpm);                 /* 40..200 */
 float epk_tempo(void);
+float epk_pos16(void);                        /* sixteenths since PLAY, with the fraction; -1 stopped (posición) */
 
 /* tracks (pistas) */
 void epk_param_set(int track, int param, float value01);

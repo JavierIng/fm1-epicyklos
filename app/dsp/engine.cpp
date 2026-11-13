@@ -1328,6 +1328,10 @@ void epk_play(int on) { push(on ? EV_PLAY : EV_STOP, 0, 0, 0); }
 int epk_playing(void) { return g.playing; }
 void epk_set_tempo(float bpm) { g.bpm = bpm < 40.0f ? 40.0f : bpm > 200.0f ? 200.0f : bpm; }
 float epk_tempo(void) { return g.bpm; }
+float epk_pos16(void) {
+    const int32_t n = g.sixteenths;                                  // read once: the audio moves it (lo mueve el audio)
+    return g.playing && n >= 0 ? (float)n + (float)g.bar_pos * (1.0f / 4294967296.0f) : -1.0f;
+}
 
 void epk_param_set(int track, int param, float value01) {
     if (!valid(track) || param < 0 || param >= EPK_P_COUNT) return;

@@ -311,6 +311,7 @@ static struct {
     int scene_held, scene_key;             /* the scene held now and its key, -1 none (la que se mantiene) */
     uint32_t save_until;
     int saves;                             /* saves done since boot: for the tests (contador) */
+    int ext_bpm;                           /* the tempo an outside clock gives, as shown (reloj externo) */
     int splash, touched;                   /* the boot screen is on; something was touched (algo se tocó) */
     uint32_t splash_at;
     int key_note[NKEYS];                   /* the note each held key started (-1 none) */
@@ -1324,6 +1325,7 @@ static void random_page(void)
 }
 
 static const char *const KEY_NAME[12] = {"DO", "DO#", "RE", "RE#", "MI", "FA", "FA#", "SOL", "SOL#", "LA", "LA#", "SI"};
+static int ext_clock(void);              /* following an outside MIDI clock (reloj externo) */
 static int random_said;
 static const char *const RSCOPE_NAME[EPK_RSCOPE_COUNT] = {"TODO", "GROOVE 1 2 6", "SINTES 3 4 5"};
 static const char *const RSCOPE_SHORT[EPK_RSCOPE_COUNT] = {"TODO", "GROOVE", "SINTES"};
@@ -1624,6 +1626,10 @@ static void input(void)
         if (k == EN_SELECT) {
             if (shift) {                   /* HOME+SELECT: tempo */
                 char t[8];
+                if (ext_clock()) {
+                    app_say("TEMPO", "LO MARCA EL RELOJ MIDI");
+                    continue;
+                }
                 epk_set_tempo(epk_tempo() + (float)e);
                 int_str((int32_t)(epk_tempo() + 0.5f), t);
                 app_say("TEMPO", t);
@@ -1670,7 +1676,90 @@ static void input(void)
     ui.btn = btn;
 }
 
-void app_input_only(void) { input(); }
+/* MIDI in, from USB, the TRS jack and Bluetooth alike (entrada MIDI).
+ * Clock: the tempo follows it (24 a beat, averaged) and, while playing, leans up to 4 % either way to stay on the
+ * sender's beat. Start: PLAY from the top at the next clock. Stop: stop. A clock that goes quiet for a second is
+ * forgotten and the tempo stays where it was. Notes: channels 1-6 play tracks 1-6, any other the selected track. */
+static struct {
+    uint32_t last_t24, seen_ms, clocks;
+    float period_us;                       /* between two clocks, smoothed (suavizado) */
+    int have, armed, running;
+} ext;
+
+static int ext_clock(void) { return ext.have && plat_ms() - ext.seen_ms < 1000u; }
+
+static void midi_in(void)
+{
+    uint32_t pkt;
+    int port;
+    while (plat_midi_in(&pkt, &port)) {
+        const uint32_t st = pkt >> 8 & 0xFFu, d1 = pkt >> 16 & 0x7Fu, d2 = pkt >> 24 & 0x7Fu;
+        if (st == 0xF8u) {
+#ifdef PLAT_HOST                           /* the simulator's scripts run faster than the wall clock: its own time, in ms */
+            const uint32_t t = plat_ms();
+            const float dt = (float)(t - ext.last_t24) * 1000.0f;
+#else
+            const uint32_t t = plat_midi_in_t24();
+            const float dt = (float)(t - ext.last_t24) * (1.0f / (float)PLAT_TICKS_PER_US);
+#endif
+            const int was = ext_clock();
+            ext.last_t24 = t;
+            ext.seen_ms = plat_ms();
+            if (!was) {                    /* the first after a silence: nothing to measure yet */
+                ext.have = 1;
+                ext.period_us = 0.0f;
+                ui.dirty_main = 1;
+            } else if (dt > 5000.0f && dt < 70000.0f)   /* 36 .. 500 BPM: anything else is a gap (un hueco) */
+                ext.period_us = ext.period_us > 0.0f ? ext.period_us + (dt - ext.period_us) * 0.08f : dt;
+            if (ext.armed) {               /* the clock after Start is the first beat (el primer tiempo) */
+                ext.armed = 0;
+                ext.running = 1;
+                ext.clocks = 0;
+                epk_play(1);
+            } else if (ext.running)
+                ext.clocks++;
+            if (ext.period_us > 0.0f) {
+                float bpm = 60.0e6f / (24.0f * ext.period_us);
+                const float pos = epk_pos16();
+                if (ext.running && pos >= 0.0f)
+                    bpm *= 1.0f + fm_clampf(((float)ext.clocks * (1.0f / 6.0f) - pos) * 0.05f, -0.04f, 0.04f);
+                epk_set_tempo(bpm);
+                if ((int)(bpm + 0.5f) != ui.ext_bpm) {
+                    ui.ext_bpm = (int)(bpm + 0.5f);
+                    ui.dirty_main = 1;
+                }
+            }
+        } else if (st == 0xFAu || st == 0xFBu) {   /* Start, Continue (taken as Start: from the top) */
+            ext.armed = 1;
+            if (!ext_clock()) {            /* no clock with it: start now (sin reloj: ya) */
+                ext.armed = 0;
+                ext.running = 0;
+                epk_play(1);
+            }
+            ui.dirty_main = 1;
+        } else if (st == 0xFCu) {
+            ext.armed = ext.running = 0;
+            epk_play(0);
+            ui.dirty_main = 1;
+        } else if ((st & 0xF0u) == 0x90u && d2) {
+            const int ch = (int)(st & 0x0Fu);
+            epk_note_on(ch < EPK_TRACKS ? ch : ui.track, (int)d1, (float)d2 * (1.0f / 127.0f));
+        } else if ((st & 0xF0u) == 0x80u || (st & 0xF0u) == 0x90u) {
+            const int ch = (int)(st & 0x0Fu);
+            epk_note_off(ch < EPK_TRACKS ? ch : ui.track, (int)d1);
+        }
+    }
+    if (ext.have && !ext_clock()) {        /* it went quiet (se calló) */
+        ext.have = ext.running = ext.armed = 0;
+        ui.dirty_main = 1;
+    }
+}
+
+void app_input_only(void)
+{
+    midi_in();
+    input();
+}
 
 static void set_lights(void)
 {
@@ -1781,7 +1870,7 @@ static void draw_head(void)
     }
     int_str((int32_t)(epk_tempo() + 0.5f), t);
     x = 232 - text_w(&FONT_B, t);
-    cv_text(x, 4, &FONT_B, t, C_TEXT);
+    cv_text(x, 4, &FONT_B, t, ext_clock() ? C_SOLO : C_TEXT);   /* yellow: an outside clock sets it (reloj externo) */
     {                                      /* the pattern (patrón): A04, and >B08 when one is queued */
         char p[8];
         const int q = epk_pattern_queued();
@@ -2517,6 +2606,7 @@ void app_frame(void)
 {
     static uint32_t last_head;
     uint32_t now = plat_ms(), t;
+    midi_in();
     input();
     if (ui.splash) {                          /* the boot screen until time or a touch (hasta tocar algo) */
         static uint32_t drawn;
@@ -2662,6 +2752,11 @@ int app_expect(const char *what, int *got)
         *got = epk_scene_count(what[5] - '1');
     else if (!strcmp(what, "evohold"))
         *got = epk_evolve_held();
+    else if (!strncmp(what, "tempo_", 6)) {    /* tempo_N: 1 when within 3 BPM of N (cerca de N) */
+        const int d = (int)(epk_tempo() + 0.5f) - atoi(what + 6);
+        *got = d >= -3 && d <= 3;
+    } else if (!strcmp(what, "extclock"))        /* 1: following an outside clock (reloj externo) */
+        *got = ext_clock();
     else if (!strcmp(what, "saves"))           /* saves done (guardados) */
         *got = ui.saves;
     else if (!strcmp(what, "saved")) {         /* 1: the current pattern was saved (lleva '*') */

@@ -360,7 +360,21 @@ Hay 8 escenas en el proyecto.
   reverb), 7 SHIMMER (placa con shimmer, larga, 2 compases), 8 ECO INFINITO (el eco a 97 % y ninguna pista le envía: lo que hay se queda).
 - Se guardan con el proyecto (HOME + SAVE, sección 6).
 
-## 12. Pendiente
-Siguiente: reloj y MIDI, nombres, nota por paso. Después: más motores y prueba en el aparato (solo cuando se
+## 12. MIDI
+Entra por USB, por el jack TRS y por Bluetooth, sin elegir nada.
+- **Reloj:** si llega un reloj MIDI, el tempo lo sigue y el número del tempo se pone **amarillo**. HOME + SELECT
+  deja de cambiarlo mientras tanto. Si el reloj se calla un segundo, EPICYKLOS sigue solo al último tempo.
+- **Start / Stop:** Start arranca desde el principio en el siguiente pulso de reloj; Stop para. Continue se trata
+  como Start (desde el principio).
+- Mientras suena con reloj externo, corrige hasta un 4 % para mantenerse sobre el pulso del que manda.
+- **Notas:** los canales 1 a 6 tocan las pistas 1 a 6; cualquier otro canal, la pista elegida.
+- **Sale:** las notas del teclado, por USB y Bluetooth (canal 1). El FM-1 no tiene salida MIDI por jack.
+- **No hay todavía:** salida de reloj ni de Start/Stop (EPICYKLOS no puede hacer de maestro), CC, cambio de
+  programa, ni posición de canción.
+- Probado solo en el simulador. La precisión con un reloj real (Digitone, OXI One, Ableton) está *pendiente en
+  el dispositivo*.
+
+## 13. Pendiente
+Siguiente: nombres, nota por paso, salida de reloj. Después: más motores y prueba en el aparato (solo cuando se
 decida).
 - FILL ya no tiene atajo: HOME + PLAY ahora congela la EVOLUCIÓN.

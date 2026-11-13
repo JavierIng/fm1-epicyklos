@@ -366,3 +366,12 @@
 - No se guarda solo (desgaste de la flash y porque en directo no siempre se quiere). No se guardan solos, escenas puestas, freeze ni octava.
 - Borrar una ranura del banco en memoria recarga el banco: se pierde lo editado sin guardar en sus otras ranuras.
 - Probado en el simulador (`app/tests/project.txt`): cambiar tempo, mute y nivel, guardar, reiniciar y encontrarlos; una sola pulsación no guarda; borrar y reiniciar devuelve el de fábrica; guardar y borrar una ranura. En el navegador real y en el FM-1: sin probar.
+
+## Reloj MIDI y notas de entrada (2026-11-13)
+- Entrada por USB, TRS y Bluetooth sin menú (modo automático): con reloj, se sigue; sin reloj, tempo interno.
+- **Reloj:** periodo entre pulsos suavizado (8 % por pulso) → tempo; con Start, PLAY desde el principio en el pulso siguiente; mientras suena, corrección de fase proporcional (5 % del error en semicorcheas, tope ±4 %) comparando los pulsos contados con la posición del motor (`epk_pos16`). Un segundo sin pulsos = reloj perdido.
+- La hora de cada pulso es la marca de llegada de fm1-base en el aparato (`plat_midi_in_t24`); en el simulador, su propio tiempo en ms (los guiones corren más rápido que el reloj real).
+- **Notas:** canal 1-6 → pista 1-6; otro canal → pista elegida.
+- **No hecho:** salida de reloj (necesita emitirse desde el audio para ser exacta), Continue con posición, CC, selección de fuente de reloj (si llegan dos relojes a la vez se mezclan: usar uno solo).
+- Supuesto sin medir: que el bucle principal lea los pulsos con suficiente frecuencia en el aparato. La marca de tiempo exacta en USB/TRS pide `midi_stamp = true` en fm1.toml, **que no está activado** (no sé su coste); hoy la hora es la de lectura. Bluetooth llega a ráfagas: seguirá peor.
+- Probado en el simulador (`app/tests/midi.txt`): nota por canal 3 dispara la pista 3; Start + 200 pulsos a 25 ms → suena y el tempo queda en 100; al callarse el reloj sigue sonando a 100; Stop para.

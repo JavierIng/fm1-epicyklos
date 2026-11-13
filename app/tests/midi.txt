@@ -1,0 +1,24 @@
+# MIDI in: a clock sets the tempo, Start plays from the top, Stop stops; notes on channels 1-6 play tracks 1-6
+wait 3500
+expect tempo 124
+expect extclock 0
+expect playing 0
+# a note on channel 3 plays track 3 (the chord) without selecting it
+midi 92 3E 64
+wait 100
+expect trig3_1 1
+midi 82 3E 00
+# Start, then a clock at 100 BPM (25 ms a clock) for 5 s
+midi FA 00 00
+clock 200 25
+expect extclock 1
+expect playing 1
+expect tempo_100 1
+shot reloj.png
+wait 1500
+expect extclock 0
+expect playing 1
+expect tempo_100 1
+midi FC 00 00
+wait 60
+expect playing 0
