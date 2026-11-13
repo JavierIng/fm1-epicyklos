@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
 // EPICYKLOS voices (motores de sonido): TEST (prueba), GRAVE (kick + rumble), METAL (808 / 909 hats and rides),
-// GOLPE (clap, snare, rim), TAMBOR (toms, congas, metallic percussion), ACORDE DUB (chords), DRONE.
+// GOLPE (clap, snare, rim), TAMBOR (toms, congas, metallic percussion), ACORDE DUB (chords), DRONE, MACRO (six models).
 // Every voice is plain data with init / trigger / render; parameters arrive 0..1 (p[EPK_P_*]).
 // Rules: no heap, float only, no 64-bit multiplies.
 #pragma once
@@ -396,7 +396,7 @@ struct Acorde {
             const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
             ic1 = fm_flush(2.0f * v1 - ic1);
             ic2 = fm_flush(2.0f * v2 - ic2);
-            out[i] = fm_tanhf(v2 * amp * attack * 1.6f);
+            out[i] = fm_tanhf(v2 * amp * attack * 4.2f);
             if (attack < 1.0f) attack = fm_minf(attack + attack_inc, 1.0f);
             else { amp = fm_flush(amp * amp_mul); fenv = fm_flush(fenv * fenv_mul); }
         }
@@ -471,10 +471,197 @@ struct Drone {
                 amp += (vel - amp) * rise;
                 if (--hold <= 0.0f) gate = 0;
             } else amp = fm_flush(amp - amp * fall);
-            out[i] = fm_tanhf(v2 * amp * 1.4f);
+            out[i] = fm_tanhf(v2 * amp * 0.8f);
         }
     }
     float a1, a2, a3, vel;
+};
+
+// ------------------------------------------------------------------ MACRO (macro-oscilador)
+// Several ways of making a sound behind the same few knobs, the idea of Mutable Instruments Plaits (the code here is
+// written for EPICYKLOS, not ported: see CREDITS.md). One model at a time:
+//   ANALOG   two oscillators, saw -> square -> narrow pulse (TIMBRE); the second detuned, then a sub octave, a fifth,
+//            an octave (ARMON)
+//   PLIEGUE  a sine through a wavefolder (TIMBRE: how many folds; ARMON: asymmetry)
+//   FM       two operators (ARMON: the ratio; TIMBRE: how much, falling with the note)
+//   GRANO    two formants restarted every period, like a voice (TIMBRE: the formant; ARMON: the second one's place)
+//   CUERDA   a plucked string, Karplus-Strong (TIMBRE: brightness; ARMON: how hard the pick is); DECAY is its ring
+//   ARMONICO eight sine harmonics under a bump (ARMON: where; TIMBRE: how wide)
+// After the model, a low-pass that the note's envelope opens (a low-pass gate): TONE at 1 is open, lower and each
+// note closes as it fades. NOTE, CHARACTER = TIMBRE, TONE, DECAY, EXTRA1 = MODELO, EXTRA2 = ARMON, ATTACK.
+enum { MACRO_ANALOG, MACRO_PLIEGUE, MACRO_FM, MACRO_GRANO, MACRO_CUERDA, MACRO_ARMONICO, MACRO_MODELS };
+struct Macro {
+    static constexpr int kString = 1400;       // a string down to 32 Hz at 44.1 kHz (cuerda)
+    float ph, ph2, freq, amp, env, attack, vel, ic1, ic2, a1, a2, a3, fb, hp, ks_lp, ks_pos;
+    int fresh, di, sub;
+    int16_t dl[kString];
+    Rng rng;
+
+    void init(uint32_t seed) {
+        ph = 0.0f; ph2 = 0.37f; freq = 110.0f; amp = env = vel = 0.0f; attack = 1.0f; ic1 = ic2 = 0.0f;
+        a1 = a2 = a3 = 0.0f; fb = hp = ks_lp = ks_pos = 0.0f; fresh = 0; di = 0; sub = 0;
+        for (int16_t &v : dl) v = 0;
+        rng.init(seed ^ 0x3AC20u);
+    }
+    void trigger(float hz, float velocity) { freq = hz; vel = velocity; amp = velocity; env = 1.0f; attack = 0.0f; fresh = 1; }
+    static inline int model_of(const float *p) {
+        return clampi((int)(p[EPK_P_EXTRA1] * (float)(MACRO_MODELS - 1) + 0.5f), 0, MACRO_MODELS - 1);
+    }
+    void render(float *out, uint32_t n, const float *p, float sr) {
+        const int model = model_of(p);
+        const float timbre = p[EPK_P_CHARACTER], harm = p[EPK_P_EXTRA2], tone = p[EPK_P_TONE];
+        const float decay_s = 0.02f * fm_exp2f(p[EPK_P_DECAY] * 7.6f);            // 20 ms .. ~4 s
+        const float amp_mul = fm_expf(-6.9f / (decay_s * sr));
+        const float attack_inc = 1.0f / (0.001f * fm_exp2f(p[EPK_P_ATTACK] * 10.5f) * sr);
+        const float base = 45.0f * fm_exp2f(tone * 8.5f);                         // 45 Hz .. ~16 kHz
+        const float gate_oct = (1.0f - tone) * 4.5f;                              // what the envelope opens (LPG)
+        const float inc = fm_minf(freq / sr, 0.45f);
+        // per model, once a block (por modelo, una vez por bloque)
+        float inc2 = inc, mix2 = 0.0f, width = 0.5f, drive = 1.0f, bias = 0.0f, ratio = 1.0f, index = 0.0f;
+        float f1 = 1.0f, f2 = 1.0f, damp = 0.5f, ks_fb = 0.99f, period = 100.0f, gain = 1.0f;
+        float hw[8];
+        for (float &w : hw) w = 0.0f;
+        switch (model) {
+        case MACRO_ANALOG: {
+            static const float kIv[4] = {-12.0f, 7.0f, 12.0f, 19.0f};
+            const float semis = harm < 0.5f ? harm : kIv[clampi((int)((harm - 0.5f) * 8.0f), 0, 3)] + 0.04f;
+            inc2 = fm_minf(inc * fm_exp2f(semis / 12.0f), 0.45f);
+            mix2 = timbre < 0.5f ? timbre * 2.0f : 1.0f;                          // saw -> square
+            width = timbre < 0.5f ? 0.5f : 0.5f - (timbre - 0.5f) * 0.84f;        // -> a narrow pulse (pulso)
+            gain = 0.8f;
+            break;
+        }
+        case MACRO_PLIEGUE:
+            drive = 1.0f + timbre * timbre * 9.0f;
+            bias = harm * 0.9f;
+            gain = 1.1f;
+            break;
+        case MACRO_FM: {
+            static const float kRatio[9] = {0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 3.5f, 4.0f, 5.0f, 7.0f};
+            ratio = kRatio[clampi((int)(harm * 8.0f + 0.5f), 0, 8)];
+            index = timbre * timbre * 5.0f * 0.159f;                              // radians -> turns
+            gain = 1.25f;
+            break;
+        }
+        case MACRO_GRANO:
+            f1 = fm_maxf(150.0f * fm_exp2f(timbre * 4.5f) / freq, 1.0f);          // formants, in periods (formantes)
+            f2 = f1 * (1.3f + harm * 2.2f);
+            gain = 0.8f;
+            break;
+        case MACRO_CUERDA: {
+            period = fm_clampf(sr / freq, 8.0f, (float)(kString - 2));
+            damp = 0.12f + 0.85f * timbre;
+            ks_fb = fm_expf(-6.9f / (0.25f * fm_exp2f(p[EPK_P_DECAY] * 5.0f) * freq));   // rings 0.25 .. 8 s
+            if (fresh) {                                             // the pick: a noise burst (la púa)
+                const int len = (int)period;
+                const float soft = 0.08f + 0.9f * harm;
+                float z = 0.0f;
+                for (int k = 0; k < len; k++) {
+                    z += (rng.bipolar() - z) * soft;
+                    int w = di - len + k;
+                    if (w < 0) w += kString;
+                    dl[w] = (int16_t)(z * vel * 20000.0f);
+                }
+                ks_lp = 0.0f;
+            }
+            gain = 1.6f;
+            break;
+        }
+        default: {                                                   // ARMONICO
+            const float centre = 1.0f + harm * 7.0f, wide = 0.7f + timbre * 4.0f;
+            float sum = 0.0f;
+            for (int k = 0; k < 8; k++) {
+                const float d = fm_fabsf((float)(k + 1) - centre) / wide;
+                hw[k] = (float)(k + 1) * inc < 0.45f && d < 1.0f ? (1.0f - d) * (1.0f - d) : 0.0f;
+                sum += hw[k];
+            }
+            if (hw[0] < 0.15f) { sum += 0.15f - hw[0]; hw[0] = 0.15f; }           // always some fundamental
+            for (float &w : hw) w /= sum;
+            gain = 1.1f;
+            break;
+        }
+        }
+        fresh = 0;
+        for (uint32_t i = 0; i < n; i++) {
+            if (sub == 0) {                                          // the gate's filter every 16 samples
+                const float fc = fm_minf(base * fm_exp2f(gate_oct * env), sr * 0.45f);
+                const float g = fm_tanf(3.14159265f * fc / sr), k = 1.3f;
+                a1 = 1.0f / (1.0f + g * (g + k)); a2 = g * a1; a3 = g * a2;
+            }
+            sub = (sub + 1) & 15;
+            ph += inc;
+            if (ph >= 1.0f) ph -= 1.0f;
+            float s;
+            switch (model) {
+            case MACRO_ANALOG: {
+                float q = ph + width;
+                if (q >= 1.0f) q -= 1.0f;
+                ph2 += inc2;
+                if (ph2 >= 1.0f) ph2 -= 1.0f;
+                float q2 = ph2 + width;
+                if (q2 >= 1.0f) q2 -= 1.0f;
+                s = blep_saw(ph, inc) - mix2 * blep_saw(q, inc) + blep_saw(ph2, inc2) - mix2 * blep_saw(q2, inc2);
+                break;
+            }
+            case MACRO_PLIEGUE: {
+                float x = (fm_sin_turns(ph) * drive + bias) * 0.25f;              // sin(pi/2 x): a sine folder
+                x -= fm_floorf(x);
+                s = fm_sin_turns(x);
+                break;
+            }
+            case MACRO_FM: {
+                ph2 += inc * ratio;
+                if (ph2 >= 1.0f) ph2 -= 1.0f;
+                float m = ph2 + fb * 0.08f;
+                m -= fm_floorf(m);
+                fb = fm_sin_turns(m);
+                float c = ph + fb * index * (0.25f + 0.75f * env);
+                c -= fm_floorf(c);
+                s = fm_sin_turns(c);
+                break;
+            }
+            case MACRO_GRANO: {
+                const float w = (1.0f - ph) * (1.0f - ph);
+                float x1 = ph * f1, x2 = ph * f2;
+                x1 -= fm_floorf(x1); x2 -= fm_floorf(x2);
+                s = (fm_sin_turns(x1) + 0.6f * fm_sin_turns(x2)) * w;
+                break;
+            }
+            case MACRO_CUERDA: {
+                float rd = (float)di - period;
+                if (rd < 0.0f) rd += (float)kString;
+                const int r0 = (int)rd;
+                const float fr = rd - (float)r0;
+                const int r1 = r0 + 1 >= kString ? 0 : r0 + 1;
+                const float y = ((float)dl[r0] + ((float)dl[r1] - (float)dl[r0]) * fr) * (1.0f / 20000.0f);
+                ks_lp = fm_flush(ks_lp + (y - ks_lp) * damp);
+                dl[di] = (int16_t)(fm_clampf(ks_lp * ks_fb, -1.6f, 1.6f) * 20000.0f);
+                if (++di >= kString) di = 0;
+                s = y;
+                break;
+            }
+            default: {
+                s = 0.0f;
+                for (int k = 0; k < 8; k++) {
+                    if (hw[k] == 0.0f) continue;
+                    float x = ph * (float)(k + 1);
+                    x -= fm_floorf(x);
+                    s += fm_sin_turns(x) * hw[k];
+                }
+                break;
+            }
+            }
+            hp = fm_flush(hp + (s - hp) * 0.0025f);                               // ~18 Hz: no DC (sin continua)
+            s -= hp;
+            const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
+            ic1 = fm_flush(2.0f * v1 - ic1);
+            ic2 = fm_flush(2.0f * v2 - ic2);
+            const float level = model == MACRO_CUERDA ? vel : amp;                // the string fades by itself
+            out[i] = fm_tanhf(v2 * level * attack * gain);
+            if (attack < 1.0f) attack = fm_minf(attack + attack_inc, 1.0f);
+            else { amp = fm_flush(amp * amp_mul); env = amp / fm_maxf(vel, 0.001f); }
+        }
+    }
 };
 
 // ------------------------------------------------------------------ a track's voice (la voz de una pista)
@@ -490,6 +677,7 @@ struct Voice {
         Tambor tambor;
         Acorde acorde;
         Drone drone;
+        Macro macro;
     } u;
 
     void init(int eng, uint32_t sd) {
@@ -501,6 +689,7 @@ struct Voice {
         case EPK_ENG_TAMBOR: u.tambor.init(sd); break;
         case EPK_ENG_ACORDE: u.acorde.init(sd); break;
         case EPK_ENG_DRONE: u.drone.init(sd); break;
+        case EPK_ENG_MACRO: u.macro.init(sd); break;
         default: u.test.init(sd); break;
         }
     }
@@ -512,6 +701,7 @@ struct Voice {
         case EPK_ENG_TAMBOR: u.tambor.trigger(hz, velocity); break;
         case EPK_ENG_ACORDE: u.acorde.trigger(hz, velocity); break;
         case EPK_ENG_DRONE: u.drone.trigger(hz, velocity); break;
+        case EPK_ENG_MACRO: u.macro.trigger(hz, velocity); break;
         default: u.test.trigger(hz, velocity); break;
         }
     }
@@ -524,6 +714,7 @@ struct Voice {
         case EPK_ENG_TAMBOR: u.tambor.render(out, n, p, sr); break;
         case EPK_ENG_ACORDE: u.acorde.render(out, n, p, sr); break;
         case EPK_ENG_DRONE: u.drone.render(out, n, p, sr); break;
+        case EPK_ENG_MACRO: u.macro.render(out, n, p, sr); break;
         default: u.test.render(out, n, p, sr); break;
         }
     }

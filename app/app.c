@@ -55,7 +55,7 @@ static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_LFO_SHAPE, EPK_P_LFO_RATE, EPK_P_LFO_DEST, EPK_P_LFO_AMT},   /* the track LFO (movimiento) */
     {EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B},   /* sends: A the delay, B the reverb */
 };
-static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};
+static const char *const ENG_NAME[EPK_ENG_COUNT] = {"PRUEBA", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE", "MACRO"};
 /* what NOTE, CHARACTER, TONE, DECAY, EXTRA1, EXTRA2, ATTACK are in each engine (0 = unused) */
 static const char *const SND_NAME[EPK_ENG_COUNT][7] = {
     {"NOTA", "CARACTER", "TONO", "CAIDA", 0, 0, "ATAQUE"},
@@ -65,6 +65,7 @@ static const char *const SND_NAME[EPK_ENG_COUNT][7] = {
     {"AFINA", "TIMBRE", "FM", "CAIDA", "BARRIDO", "CLICK", 0},
     {"NOTA", "ACORDE", "TONO", "CAIDA", "TABLA", "ENVOLV", "ATAQUE"},
     {"NOTA", "TIMBRE", "TONO", "SOSTEN", "DERIVA", "INTERVALO", "ATAQUE"},
+    {"NOTA", "TIMBRE", "TONO", "CAIDA", "MODELO", "ARMON", "ATAQUE"},
 };
 static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
     {"La nota de la secuencia", "Seno con caida, sierra, ruido", "Hasta donde se abre el filtro",
@@ -81,6 +82,8 @@ static const char *const SND_HINT[EPK_ENG_COUNT][7] = {
      "Tabla de acordes de Plaits Palette", "Cuanto abre el filtro al golpear", "Entra de golpe o poco a poco"},
     {"La nota del dron", "Seno, triangulo, sierra, aire", "Donde se cierra el filtro", "Cuanto se sostiene",
      "Vagabundeo lento de tono y filtro", "La segunda voz: quinta, octava...", "Lo que tarda en entrar"},
+    {"La nota de la secuencia", "El color del modelo", "Abierto, o cada nota se cierra", "Cuanto dura cada nota",
+     "Como se hace el sonido: 6 modelos", "Segundo control del modelo", "Entra de golpe o poco a poco"},
 };
 static const char *const DIV_NAME[EPK_DIV_COUNT] = {"1/32", "1/16T", "1/16", "1/8T", "1/8", "1/4"};
 static const char *const PROB_NAME[EPK_PROB_COUNT] = {"100%", "75%", "50%", "25%"};
@@ -638,6 +641,10 @@ static void param_str(int track, int p, char *b)
     case EPK_P_EXTRA1:
         if (epk_engine(track) == EPK_ENG_ACORDE) {
             str_cat(b, epk_chord_table_name((int)(v * (float)(epk_chord_tables() - 1) + 0.5f)));
+            break;
+        }
+        if (epk_engine(track) == EPK_ENG_MACRO) {          /* the model's name (el nombre del modelo) */
+            str_cat(b, epk_macro_name((int)(v * (float)(EPK_MACRO_MODELS - 1) + 0.5f)));
             break;
         }
         int_str((int)(v * 100.0f + 0.5f), b);

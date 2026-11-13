@@ -3,7 +3,7 @@
 // The first project (primer proyecto): 16 patterns in D minor (re menor), from ambient to the peak and out again.
 // Tracks (pistas): 1 kick (bombo), 2 hats (ruido), 3 stab (acorde), 4 bass (bajo), 5 drone, 6 perc (percusión).
 // Track 1 plays GRAVE (character = drive, tone = click) and track 2 METAL (character = metal, tone = brightness);
-// the others the test voice (character 0 = sine with a pitch drop, 0.5 = saw, 1 = noise). Hits 0 = the track rests.
+// track 4 MACRO (the bass; its model and knobs are set in engine.cpp from tone and decay here). Hits 0 = the track rests.
 #include "factory.h"
 
 namespace epk {
@@ -14,6 +14,13 @@ enum : uint8_t { D32 = EPK_DIV_1_32, D16T = EPK_DIV_1_16T, D16 = EPK_DIV_1_16, D
 const char *const kFactoryNames[EPK_PATTERNS] = {
     "NEBULA", "BRUMA", "DERIVA", "ORBITA", "PULSAR", "MAREA", "PERIGEO", "APOGEO",
     "ECLIPSE", "SILICE", "FOSFORO", "CUASAR", "HORIZONTE", "NADIR", "ZENIT", "CYKLOS"};
+
+const char *const kHypnoticNames[EPK_PATTERNS] = {
+    "UMBRAL", "TUNEL", "ESPIRAL", "VORTICE", "TRANCE", "NODO", "FLUJO", "VACIO",
+    "HELICE", "PENDULO", "CICLON", "IMAN", "ABISMO", "LATIDO", "FRENESI", "RETORNO"};
+const char *const kAmbientNames[EPK_PATTERNS] = {
+    "ALBA", "NIEBLA", "ROCIO", "LAGUNA", "MUSGO", "AURORA", "GLACIAR", "SILENCIO",
+    "CORAL", "POLEN", "BOREAL", "DUNAS", "ESTELA", "PENUMBRA", "CUMBRE", "OCASO"};
 
 //  note  char   tone   decay  len hits rot div
 const TrackSpec kFactory[EPK_PATTERNS][EPK_TRACKS] = {

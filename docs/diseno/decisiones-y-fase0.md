@@ -329,3 +329,14 @@
 - Javier pasó una imagen de una galaxia espiral: "algo así moviéndose como una órbita con el nombre en medio parpadeando".
 - Hecha con código, sin imagen (una foto de 240×240 serían 115 KB y no se podría girar con soltura): 1.100 estrellas en dos brazos de espiral logarítmica, el 18 % sueltas entre brazos, núcleo blanco con halo azul, nudos rosas en los brazos; rotación diferencial (el centro gira más rápido); EPICYKLOS latiendo una vez por segundo con borde oscuro para leerse sobre el núcleo. Las estrellas salen de la misma semilla cada fotograma: no ocupan memoria.
 - 3,2 s o hasta tocar cualquier botón, tecla o knob (el toque además hace lo suyo). ~30 fps, en dos franjas de 240×120. Coste en el aparato: sin medir; solo al encender, con el secuenciador parado.
+
+## Mezcla, MACRO y bancos B y C (2026-11-13)
+- Javier, escuchando el emulador por el altavoz del móvil: "el kick está muy presente, falta presencia en los chords, el drone bass también está muy arriba; estaría bien agregar los Plaits y reorganizar los patrones que faltan de los bancos A, B, C".
+- **Medido antes de tocar** (ORBITA, cada pista en solo, RMS): bombo −18 dB, dron −20, bajo −36, acorde −38, platos −50. El dron estaba 18 dB por encima del acorde: no era cosa del altavoz.
+- **Mezcla nueva** (misma medida): bombo −18, bajo −26, acorde −29, dron −31. Cambios: salida del dron ×0,57, salida del acorde ×2,6 y su filtro algo más abierto de fábrica; niveles de fábrica bombo 74, platos 62, acorde 72, bajo 70, dron 45. Hay una prueba que lo vigila.
+- Aviso: un altavoz de móvil no reproduce por debajo de ~250 Hz. Lo que se oía "arriba" del bombo y del dron eran sus medios; los graves reales no se han juzgado con nada. Pendiente escucharlo con monitores o auriculares antes de dar la mezcla por buena.
+- **MACRO** (motor nuevo, pista 4): seis modelos (ANALOG, PLIEGUE, FM, GRANO, CUERDA, ARMONICO) con TIMBRE y ARMON, y TONO como filtro que la nota abre y cierra. Idea de Plaits, código propio: **no es un port de Plaits**. Portar el Plaits real (tablas de ondas, voz, 16 modelos) sigue sin hacerse.
+- MACRO usa la memoria que ya tenía cada voz (cabe donde GRAVE): no gasta RAM nueva. Coste medido en el ordenador: ×1,16 de la voz de prueba, menos que DRONE o TAMBOR. En el FM-1: sin medir.
+- Los bancos guardados pasan a la versión 4 (ocho motores); los de la versión 3 se convierten al cargar y conservan sus motores (probado).
+- **Banco B = techno hipnótico, banco C = ambient/drone**, con nombres y el mismo recorrido que el A. Generados con reglas por estilo, no compuestos a mano. Interpreté así "los patrones que faltan"; si Javier se refería a otra cosa, se rehace.
+- Nadie ha escuchado todavía MACRO ni los bancos B y C: solo están comprobados con medidas (suenan, no saturan, cada mando cambia el sonido).

@@ -83,7 +83,10 @@ const char *epk_scene_name(int scene);
 
 /* engines (motores) */
 enum { EPK_ENG_TEST, EPK_ENG_GRAVE, EPK_ENG_METAL, EPK_ENG_GOLPE, EPK_ENG_TAMBOR, EPK_ENG_ACORDE, EPK_ENG_DRONE,
+       EPK_ENG_MACRO,   /* six models behind TIMBRE and ARMON, the idea of Plaits (seis modelos) */
        EPK_ENG_COUNT };
+#define EPK_MACRO_MODELS 6
+const char *epk_macro_name(int model);
 /* ACORDE's chord tables (Plaits Palette, MIT): names for the screen (nombres de tablas y acordes) */
 int epk_chord_tables(void);
 int epk_chord_count(int table);
@@ -287,7 +290,7 @@ int epk_evolve_held(void);
 #define EPK_PATTERN_BYTES ((EPK_PATTERN_PARAM_BYTES + 37) * EPK_TRACKS)
 #define EPK_BANK_HEAD 8                        /* "EPKB", version, bank, half, slot mask */
 #define EPK_BANK_OBJ_BYTES (EPK_BANK_HEAD + 8 * EPK_PATTERN_BYTES)
-#define EPK_BANK_VERSION 3                      /* 1: without SCOPE; 2: without the track LFO; both still read */
+#define EPK_BANK_VERSION 4                      /* 1: without SCOPE; 2: without the track LFO; 3: seven engines; all still read */
 /* an object of an older version, rewritten as this one (convertido): bytes written to out, 0 if not convertible */
 int epk_bank_upgrade(const uint8_t *in, int len, uint8_t *out, int max);
 void epk_pattern_pack_live(uint8_t *out);      /* EPK_PATTERN_BYTES: what plays now, its evolution included */

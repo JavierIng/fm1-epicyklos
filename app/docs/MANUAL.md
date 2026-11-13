@@ -1,7 +1,7 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
 > Estado: **Fase 4b, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
-> Este manual crece con cada fase y solo describe lo que ya funciona. English: [docs/manual/en.md](https://github.com/JavierIng/fm1-epicyklos/blob/main/docs/manual/en.md).
+> Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
 ## 1. Qué es
 Firmware abierto (GPL-3.0) para el M-VAVE FM-1: seis pistas con secuenciador euclidiano y polimétrico, pensado
@@ -57,7 +57,24 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
     (la segunda voz: unísono, 3ª menor, cuarta, quinta, octava, quinta + octava) y ATAQUE (lo que tarda en entrar,
     hasta 8 s).
   - Al parar el secuenciador, el dron se apaga solo.
-- **PRUEBA** (pista 4, el bajo): voz provisional hasta que llegue un motor de bajo. Tiene ATAQUE (página MOTOR, K4).
+- **MACRO** (pista 4, el bajo; sirve también para melodías): seis maneras de hacer un sonido detrás de los mismos
+  mandos. La idea es la de Plaits, de Mutable Instruments; el código es propio, no es un port.
+  - En la página MOTOR: **MODELO**, **ARMON** (el segundo mando del modelo) y ATAQUE.
+  - En la página SONIDO: NOTA, **TIMBRE** (el primer mando del modelo), TONO y CAÍDA.
+  - **TONO** es un filtro que la propia nota abre y cierra: arriba del todo está abierto; al bajarlo, cada nota
+    empieza abierta y se va cerrando mientras se apaga (el sonido "pluck" del bajo dub).
+  - Los modelos:
+    - **ANALOG**: dos osciladores. TIMBRE va de sierra a cuadrada y a pulso estrecho. ARMON desafina el segundo
+      y, a partir de la mitad, lo pone una octava abajo, a la quinta, a la octava o a la quinta + octava.
+    - **PLIEGUE**: un seno doblado sobre sí mismo. TIMBRE: cuántos pliegues. ARMON: asimetría.
+    - **FM**: dos operadores. ARMON: la proporción (0,5 · 1 · 1,5 · 2 · 3 · 3,5 · 4 · 5 · 7). TIMBRE: cuánta FM
+      (baja sola al apagarse la nota).
+    - **GRANO**: dos formantes, parecido a una voz. TIMBRE: el formante. ARMON: dónde cae el segundo.
+    - **CUERDA**: cuerda pulsada. TIMBRE: brillo. ARMON: dureza de la púa. CAÍDA es lo que resuena.
+    - **ARMONICO**: ocho armónicos de seno. ARMON: cuáles suenan. TIMBRE: cuántos a la vez.
+  - Solo hay dos mandos por modelo (Plaits tiene tres) y falta el resto de modelos de Plaits (acordes ya está en
+    ACORDE; no hay voz, tabla de ondas, ruido ni percusión).
+- **PRUEBA**: la voz provisional que antes hacía de bajo. Sigue en la lista de motores.
 
 ## 5. Páginas (SELECT)
 SONIDO · MOTOR · RITMO (LONGITUD, GOLPES, ROTAR, DIVISIÓN) · GROOVE (SWING, DESPLAZA, AUSENCIA) · EVOLUCIÓN (MUTAR,
@@ -69,7 +86,7 @@ la siguiente, con el número de página.
 con el patrón. Cada pista puede ir cambiando poco a poco sin que toques nada. El patrón escrito no se modifica: lo
 que cambia es un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vuelve a empezar desde lo escrito.
 - **MUTAR:** cuánto cambia cada vez. Lo que cambia: golpes (uno más o uno menos), rotación, tono, caída, carácter
-  (en ACORDE, el acorde) y, en ACORDE, DRONE y PRUEBA, la nota (cuarta, quinta, octava). Nunca deja la pista sin
+  (en ACORDE, el acorde) y, en ACORDE, DRONE, MACRO y PRUEBA, la nota (cuarta, quinta, octava). Nunca deja la pista sin
   golpes: eso es cosa de AUSENCIA.
 - **QUÉ:** qué puede cambiar. TODO, RITMO (golpes y rotación), SONIDO (tono, caída, carácter/acorde) o NOTA. Por
   ejemplo, platos en SONIDO cambian de color sin mover el groove; ACORDE en SONIDO cambia de acorde en su sitio.
@@ -108,7 +125,15 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
 - Mantener SAVE + tecla hace lo mismo desde cualquier vista.
 - Un patrón guarda la secuencia y el sonido de cada pista. Mezcla, tempo, **mute y solo son del proyecto**:
   no cambian al cambiar de patrón.
-- Banco A: 16 patrones de muestra. Bancos B-K: patrones generados.
+- **Banco A, dub techno** (en re): 16 patrones hechos a mano, de NEBULA a CYKLOS.
+- **Banco B, techno hipnótico**: de UMBRAL a RETORNO. Bombo a negras, bajo MACRO en un ciclo impar (7, 9, 11, 13
+  o 15 pasos) que gira contra el bombo, acorde oscuro y escaso, percusión en ciclo corto.
+- **Banco C, ambient y drone**: de ALBA a OCASO. Sin bombo (solo uno suave a medio tiempo en 9, 11 y 15), dron
+  siempre presente, acordes lentos, una melodía de cuerda, armónicos o grano que va cambiando de notas, una campana
+  lejana.
+- Los tres siguen el mismo recorrido: entrada (1-3), subida (4-7), pausa (8), segunda subida (9-14), pico (15) y
+  salida (16). B y C están generados con reglas, no compuestos a mano: son siempre los mismos.
+- Bancos D-K: patrones generados libres (GEN D01…), con el bajo en MACRO.
 
 ### Guardar un patrón (HOME + tecla blanca)
 1. Pulsa SAVE para ir a la vista PATRONES y elige el banco de destino con una tecla negra.

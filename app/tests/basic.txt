@@ -6,6 +6,8 @@ expect view 0
 expect track 0
 expect playing 0
 expect pattern 1
+# track 4 plays MACRO (engine 7)
+expect engine4 7
 # SAVE: the PATTERNS view (patrones); stopped, a white key changes at once (pattern 4 ORBITA = key 6)
 tap SAVE
 wait 30
@@ -62,7 +64,7 @@ expect solo1 0
 # PRESETS: the selected track's level (nivel)
 turn PRESET -8
 wait 30
-expect level3 40
+expect level3 52
 # HOME+SELECT: tempo
 press HOME
 wait 30

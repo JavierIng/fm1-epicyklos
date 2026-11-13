@@ -1581,9 +1581,135 @@ int main() {
         CHECK(std::fabs(epk_param_get(2, EPK_P_TONE) - tone13) < 1e-4f, "kept: pattern 2 now has pattern 13's chord tone");
     }
 
+    // 31. MACRO: track 4 plays it; each of the six models sounds, stays finite and under full scale, and its two
+    //     knobs change the sound; the low-pass gate closes the note; a version 3 bank keeps its engines; banks B and
+    //     C have names and sound; the drone no longer buries the chord (la mezcla)
+    {
+        epk_init(SR);
+        CHECK(epk_engine(3) == EPK_ENG_MACRO, "track 4 plays MACRO (got %d)", epk_engine(3));
+        auto play = [&](int model, float timbre, float harm, float tone, int note, double *bright) {
+            epk_init(SR);
+            for (int t = 0; t < EPK_TRACKS; t++) epk_solo(t, t == 3);
+            for (int f = 0; f < EPK_FX_COUNT; f++)
+                if (f == EPK_FX_DLY_LEVEL || f == EPK_FX_REV_LEVEL) epk_fx_set(f, 0.0f);
+            epk_param_set(3, EPK_P_ENGINE, 1.0f);
+            epk_param_set(3, EPK_P_EXTRA1, (float)model / (float)(EPK_MACRO_MODELS - 1));
+            epk_param_set(3, EPK_P_CHARACTER, timbre);
+            epk_param_set(3, EPK_P_EXTRA2, harm);
+            epk_param_set(3, EPK_P_TONE, tone);
+            epk_param_set(3, EPK_P_DECAY, 0.5f);
+            epk_param_set(3, EPK_P_MUTATE, 0.0f);
+            epk_param_set(3, EPK_P_LFO_AMT, 0.5f);
+            epk_param_set(3, EPK_P_NOTE, (float)(note - 24) / 60.0f);
+            epk_param_set(3, EPK_P_LENGTH, 15.0f / 31.0f);
+            epk_param_set(3, EPK_P_HITS, 0.25f);
+            epk_play(1);
+            double e = 0.0, d = 0.0;
+            float pk = 0.0f, prev = 0.0f;
+            int bad = 0;
+            for (int k = 0; k < (int)(4.0f * SR / 256); k++) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) {
+                    if (!std::isfinite(l[i]) || !std::isfinite(r[i])) bad++;
+                    const float m = 0.5f * (l[i] + r[i]);
+                    e += (double)m * m; d += (double)(m - prev) * (m - prev); prev = m;
+                    pk = std::max(pk, std::fabs(l[i]));
+                }
+            }
+            if (bright) *bright = d / (e + 1e-12);                   // more highs, larger (más agudos, mayor)
+            CHECK(bad == 0 && pk < 1.0f, "MACRO %s note %d: %d bad samples, peak %.3f", epk_macro_name(model), note, bad, pk);
+            return e;
+        };
+        for (int m = 0; m < EPK_MACRO_MODELS; m++) {
+            double b0, b1, b2, bc;
+            const double e0 = play(m, 0.2f, 0.3f, 0.8f, 38, &b0);
+            const double e1 = play(m, 0.8f, 0.3f, 0.8f, 38, &b1);
+            const double e2 = play(m, 0.2f, 0.8f, 0.8f, 38, &b2);
+            double bo;
+            play(m, 0.8f, 0.3f, 0.9f, 50, &bo);
+            const double ec = play(m, 0.8f, 0.3f, 0.05f, 50, &bc);
+            play(m, 0.5f, 0.5f, 0.6f, 24, nullptr);                  // the lowest and the highest note
+            play(m, 1.0f, 1.0f, 1.0f, 84, nullptr);
+            play(m, 0.0f, 0.0f, 0.0f, 60, nullptr);
+            CHECK(e0 > 5.0 && e1 > 5.0 && e2 > 5.0, "MACRO %s sounds: %.1f %.1f %.1f", epk_macro_name(m), e0, e1, e2);
+            CHECK(std::fabs(b1 / b0 - 1.0) > 0.05, "MACRO %s: TIMBRE changes it (%.4f -> %.4f)", epk_macro_name(m), b0, b1);
+            CHECK(std::fabs(b2 / b0 - 1.0) > 0.05 || std::fabs(e2 / e0 - 1.0) > 0.05, "MACRO %s: ARMON changes it (%.4f -> %.4f)",
+                  epk_macro_name(m), b0, b2);
+            CHECK(bc < bo * 0.9, "MACRO %s: TONE down is darker (%.4f -> %.4f)", epk_macro_name(m), bo, bc);
+            (void)ec;
+        }
+        // a bank saved with seven engines (version 3): ACORDE stays ACORDE, DRONE stays DRONE
+        static uint8_t v3[EPK_BANK_OBJ_BYTES], v4[EPK_BANK_OBJ_BYTES];
+        epk_init(SR);
+        epk_render(l, r, 256);
+        std::memset(v3, 0, sizeof v3);
+        v3[0] = 'E'; v3[1] = 'P'; v3[2] = 'K'; v3[3] = 'B'; v3[4] = EPK_BANK_VERSION; v3[5] = 6; v3[6] = 0; v3[7] = 1;
+        epk_pattern_pack_live(v3 + EPK_BANK_HEAD);
+        int at = 4 * 2;                                              // NOTE one byte, three of two, then ENGINE
+        at = 1 + 3 * 2;
+        static const int kOld[EPK_TRACKS] = {1, 2, 5, 0, 6, 3};      // what version 3 would have stored, of 6
+        for (int t = 0; t < EPK_TRACKS; t++)
+            v3[EPK_BANK_HEAD + t * (EPK_PATTERN_PARAM_BYTES + 37) + at] = (uint8_t)((kOld[t] * 255 + 3) / 6);
+        v3[4] = 3;
+        const int n4 = epk_bank_upgrade(v3, (int)sizeof v3, v4, (int)sizeof v4);
+        CHECK(n4 == EPK_BANK_OBJ_BYTES && v4[4] == EPK_BANK_VERSION, "version 3 converts (%d bytes)", n4);
+        epk_init(SR);
+        epk_bank_stage_begin(6);
+        epk_bank_stage_half(6, 0, v4, n4);
+        epk_pattern_select(6, 0);
+        epk_render(l, r, 256);
+        CHECK(epk_engine(0) == EPK_ENG_GRAVE && epk_engine(1) == EPK_ENG_METAL && epk_engine(2) == EPK_ENG_ACORDE &&
+              epk_engine(3) == EPK_ENG_TEST && epk_engine(4) == EPK_ENG_DRONE && epk_engine(5) == EPK_ENG_GOLPE,
+              "version 3 engines kept: %d %d %d %d %d %d", epk_engine(0), epk_engine(1), epk_engine(2), epk_engine(3),
+              epk_engine(4), epk_engine(5));
+        // banks B and C: named, and every pattern sounds
+        CHECK(std::strcmp(epk_pattern_name(1, 0), "UMBRAL") == 0 && std::strcmp(epk_pattern_name(2, 15), "OCASO") == 0 &&
+              std::strncmp(epk_pattern_name(3, 0), "GEN D", 5) == 0, "names: %s, %s, %s", epk_pattern_name(1, 0),
+              epk_pattern_name(2, 15), epk_pattern_name(3, 0));
+        for (int bank = 1; bank <= 2; bank++) {
+            int quiet = 0, bad = 0, kicks = 0;
+            float worst = 0.0f;
+            for (int pt = 0; pt < EPK_PATTERNS; pt++) {
+                epk_init(SR);
+                epk_pattern_select(bank, pt);
+                epk_play(1);
+                float pk = 0.0f;
+                for (int k = 0; k < (int)(8.0f * SR / 256); k++) {
+                    epk_render(l, r, 256);
+                    for (int i = 0; i < 256; i++) {
+                        if (!std::isfinite(l[i])) bad++;
+                        pk = std::max(pk, std::fabs(l[i]));
+                    }
+                }
+                if (pk < 0.02f) quiet++;
+                if (epk_param_get(0, EPK_P_HITS) > 0.0f) kicks++;
+                worst = std::max(worst, pk);
+            }
+            CHECK(bad == 0 && quiet == 0 && worst < 1.0f, "bank %c: %d bad samples, %d silent patterns, peak %.3f", 'A' + bank,
+                  bad, quiet, worst);
+            CHECK(bank == 1 ? kicks >= 10 : kicks <= 4, "bank %c: %d patterns with a kick", 'A' + bank, kicks);
+        }
+        // the mix (ORBITA): the chord and the bass within 6 dB of the drone or above it
+        double lvl[EPK_TRACKS];
+        for (int t = 0; t < EPK_TRACKS; t++) {
+            epk_init(SR);
+            epk_pattern_select(0, 3);
+            for (int k = 0; k < EPK_TRACKS; k++) epk_solo(k, k == t);
+            epk_play(1);
+            double e = 0.0;
+            for (int k = 0; k < (int)(12.0f * SR / 256); k++) {
+                epk_render(l, r, 256);
+                for (int i = 0; i < 256; i++) e += (double)l[i] * l[i] + (double)r[i] * r[i];
+            }
+            lvl[t] = 10.0 * std::log10(e + 1e-12);
+        }
+        CHECK(lvl[2] > lvl[4] - 6.0 && lvl[3] > lvl[4] - 3.0 && lvl[0] > lvl[3],
+              "mix: kick %.1f, chord %.1f, bass %.1f, drone %.1f dB", lvl[0], lvl[2], lvl[3], lvl[4]);
+    }
+
     // 11. Relative cost of the engines (coste relativo): not the FM-1's CPU, only how they compare
     {
-        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE"};
+        static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE", "MACRO"};
         double base = 0.0;
         for (int e = 0; e < EPK_ENG_COUNT; e++) {
             epk_init(SR);
