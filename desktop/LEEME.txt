@@ -21,3 +21,11 @@ Limites de esta version
   - El proyecto del DAW guarda mezcla, efectos, modulacion y el sonido de las pistas, pero no los pasos editados
     a mano ni las escenas.
   - Sigue el tempo y el play del DAW, pero empieza siempre desde el principio del patron.
+
+Salidas de notas y entradas de audio (sin probar con ningun aparato)
+  - Boton MIDI de cada pista: sus notas salen por MIDI en su canal (pista 1 = canal 1). En Ableton Live usa el VST3:
+    el Audio Unit no saca MIDI.
+  - Salidas "CV 1" a "CV 6": un par por pista. Izquierda = tono (1 V/octava), derecha = puerta. Enrutalas a un
+    conversor acoplado en continua (por ADAT a un Expert Sleepers ES-10, por ejemplo). Hay que calibrar la afinacion.
+  - Entradas "IN 1" a "IN 6": lo que entra pasa por los efectos de esa pista.
+  - Boton INT de cada pista: apaga su voz interna; la pista sigue mandando notas y dejando pasar lo que entra.
