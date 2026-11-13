@@ -40,6 +40,20 @@ jobs:
           mkdir -p pack && cp -R VST3/EPICYKLOS.vst3 AU/EPICYKLOS.component Standalone/EPICYKLOS.app pack/
           cp ../../../LEEME.txt pack/
           cd pack && ditto -c -k --keepParent . ../EPICYKLOS-mac.zip
+      - name: Validate the Audio Unit as a host would (auval la carga, la hace sonar y guarda su estado)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R desktop/build/Epicyklos_artefacts/Release/AU/EPICYKLOS.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          auval -v aumu Epik Cykl 2>&1 | tail -40
+          auval -v aumu Epik Cykl >/dev/null 2>&1
+      - name: Validate the VST3 with pluginval (best effort)
+        continue-on-error: true
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --skip-gui-tests --validate-in-process \
+            desktop/build/Epicyklos_artefacts/Release/VST3/EPICYKLOS.vst3 2>&1 | tail -40
       - uses: actions/upload-artifact@v4
         with:
           name: epicyklos-desktop-mac
