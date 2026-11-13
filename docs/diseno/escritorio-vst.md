@@ -21,8 +21,15 @@ Estado: **primer esqueleto que compila y pasa validación automática en macOS. 
 - Los parámetros no están expuestos al DAW: no se pueden automatizar todavía.
 - Sin salidas separadas por pista.
 
-## Ventana actual (provisional)
-Transporte y tempo · aleatorio (TODO / GROOVE / SINTES) y deshacer · bancos A–K y 16 patrones con nombre · seis pistas con nivel, mute, solo y luz de golpe · 11 mandos de la pista elegida · 6 mandos de efectos y master. Redimensionable. Falta casi todo lo demás del firmware (ritmo, pasos, evolución completa, LFO, las 11 páginas de efectos, FLOW, MOD, escenas).
+## Ventana actual (13 nov, segunda versión)
+Diseño propio, dibujado con código (sin imágenes), redimensionable. Captura real hecha en la máquina de compilación: la herramienta `EpkShot` dibuja la ventana en un PNG sin pantalla y el flujo "Desktop" lo deja en el zip y en el registro.
+- **Órbita:** las seis pistas como anillos concéntricos (la 1 fuera), un punto por paso, los golpes en el color de la pista y el paso que suena resaltado. En el centro, el patrón, su ranura y el tempo.
+- **Seis carriles:** nombre, motor (y modelo de MACRO), los pasos con los golpes, nivel, M y S. **Clic en un paso lo enciende o lo apaga**; clic en el carril elige la pista.
+- **Mandos de la pista elegida**, con los nombres propios de su motor y su color: SONIDO (7), RITMO (longitud, golpes, rotar, swing), MEZCLA (pan, envíos), VIDA (mutar, ausencia).
+- **MASTER:** eco, reverb, caída, shimmer, filtro, reso, comp.
+- Arriba: PLAY, tempo, qué renueva el aleatorio, ALEATORIO, DESHACER. Bancos A–K y los 16 patrones bajo la órbita.
+- **Falta** respecto al firmware: probabilidad, condición y micro por paso; división; evolución completa (QUÉ, CADA, VUELTA); LFO de pista; el resto de efectos (tipos de eco y reverb, NUBE, MAREA, DIGITAL); FLOW; MOD; escenas; guardar patrones en ranuras.
+- Defectos vistos en la captura: los paneles de mandos de las dos filas se tocan; los botones de patrón son pequeños.
 
 ## Comprobado
 - Compila universal (arm64 + x86_64).
@@ -32,9 +39,9 @@ Transporte y tempo · aleatorio (TODO / GROOVE / SINTES) y deshacer · bancos A�
 ## Sin comprobar
 - Que se abra y se vea bien en Ableton Live, Logic o como app en el Mac de Javier.
 - Cómo suena y cuánta CPU gasta.
-- La ventana: no la he visto dibujada.
+- La ventana en una pantalla real (solo la captura de la máquina de compilación) ni el uso con ratón: arrastrar mandos, clic en pasos.
 
 ## Siguiente
-1. Javier lo abre y manda una captura.
-2. Maqueta de la interfaz definitiva para decidir el diseño antes de programarlo.
+1. Javier opina sobre la captura y, si puede, lo abre en el Mac.
+2. Completar lo que falta de la ventana por orden de uso.
 3. Parámetros automatizables, alineación con el compás del DAW, guardado completo del patrón.
