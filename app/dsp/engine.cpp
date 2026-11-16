@@ -139,7 +139,11 @@ struct Engine {
     float buf[kBlock], bus_a[kBlock], bus_b[kBlock], kick[kBlock], fx_l[kBlock], fx_r[kBlock];
 };
 
-static Engine g EPK_POOL;                  // zero-initialised (pool RAM on the device): no constructor runs at boot
+static Engine g EPK_POOL;
+// the CPU profile (perfil): the app's clock, and a running sum of its ticks for each part
+static uint32_t (*g_prof_clock)(void);
+static uint32_t g_prof[EPK_PROF_COUNT], g_prof_frames;
+static inline uint32_t prof_now() { return g_prof_clock ? g_prof_clock() : 0u; }                  // zero-initialised (pool RAM on the device): no constructor runs at boot
 
 static const float kStepsPerBeat[EPK_DIV_COUNT] = {8.0f, 6.0f, 4.0f, 3.0f, 2.0f, 1.0f};
 
@@ -1047,6 +1051,7 @@ void advance(Track &t, int len, uint32_t mask, int first) {
 
 // The sequencer for one track over a block: the voice is rendered in pieces, each trigger at its own sample.
 void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
+    const uint32_t prof0 = prof_now();
     const int len = param_int(t, EPK_P_LENGTH);
     uint32_t mask = rotate_mask(base_mask(t, len), len, rot_live(t));
     const float steps_per_sample = g.bpm * (1.0f / 60.0f) * kStepsPerBeat[param_int(t, EPK_P_DIVISION)] / g.sr;
@@ -1120,9 +1125,12 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const float marea_t = g.fx_live[EPK_FX_ON_MAREA] > 0.5f ? 1.0f : 0.0f, marea_step = 1.0f / (0.010f * g.sr);
     const int ins = (int)(g.fx_live[EPK_FX_MAREA_TRACK] * 6.0f + 0.5f) == (int)(&t - g.tr) + 1 &&
                     (marea_t > 0.0f || g.marea_g > 0.0f);
+    const uint32_t prof1 = prof_now();
+    g_prof[EPK_PROF_TRACK1 + (int)(&t - g.tr)] += prof1 - prof0;
     if (ins) {
         if (marea_t > 0.0f && g.marea_g <= 0.0f) g.marea.clear();    // back on: from empty (vuelve vacía)
         g.marea.process(g.buf, g.ins_l, g.ins_r, n, g.fx_live, g.bpm, g.sr);
+        g_prof[EPK_PROF_MAREA] += prof_now() - prof1;
     }
     float peak = t.meter;
     for (uint32_t i = 0; i < n; i++) {
@@ -1386,6 +1394,8 @@ void apply_mod(uint32_t n) {
 }
 
 void epk_render(float *left, float *right, uint32_t frames) {
+    const uint32_t prof_start = prof_now();
+    uint32_t prof_master = 0;
     drain();
     const int place = clampi((int)(g.fx_live[EPK_FX_FLT_PLACE] * (EPK_PLACE_COUNT - 1) + 0.5f), 0, EPK_PLACE_COUNT - 1);
     const int solo = any_solo();
@@ -1414,7 +1424,11 @@ void epk_render(float *left, float *right, uint32_t frames) {
         g_desk.base = done;
 #endif
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
-        g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx_live, g.bpm, g.sr);
+        {
+            const uint32_t p0 = prof_now();
+            g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx_live, g.bpm, g.sr);
+            g_prof[EPK_PROF_SENDS] += prof_now() - p0;
+        }
         if (place == EPK_PLACE_DRY) g.master.filter(left + done, right + done, n, g.fx_live, g.sr);   // FLOW
         else if (place == EPK_PLACE_FX) g.master.filter(g.fx_l, g.fx_r, n, g.fx_live, g.sr);
         float fx_peak = g.meter_fx;
@@ -1430,6 +1444,7 @@ void epk_render(float *left, float *right, uint32_t frames) {
             if (n == until) g.bar_fire = 1;
         }
     }
+    prof_master = prof_now();
     if (place == EPK_PLACE_ALL) g.master.filter(left, right, frames, g.fx_live, g.sr);   // on everything (en todo)
     g.master.dynamics(left, right, frames, g.fx_live, g.sr);         // compressor and tape (comp y cinta)
     g.crush.process(left, right, frames, g.fx_live);                 // DIGITAL: bits and rate (bits y frecuencia)
@@ -1440,6 +1455,12 @@ void epk_render(float *left, float *right, uint32_t frames) {
         peak = fm_maxf(peak, fm_maxf(fm_fabsf(left[i]), fm_fabsf(right[i])));
     }
     g.meter_master = peak;
+    {
+        const uint32_t prof_end = prof_now();
+        g_prof[EPK_PROF_MASTER] += prof_end - prof_master;
+        g_prof[EPK_PROF_TOTAL] += prof_end - prof_start;
+        g_prof_frames += frames;
+    }
 }
 
 #ifdef EPK_DESKTOP
@@ -1757,5 +1778,9 @@ float epk_meter(int track) {
 }
 float epk_meter_master(void) { float m = g.meter_master; g.meter_master = 0.0f; return m; }
 uint32_t epk_triggers(int track) { return valid(track) ? g.tr[track].triggers : 0; }
+
+void epk_prof_clock(uint32_t (*ticks)(void)) { g_prof_clock = ticks; }
+uint32_t epk_prof_ticks(int part) { return (part >= 0 && part < EPK_PROF_COUNT) ? g_prof[part] : 0u; }
+uint32_t epk_prof_frames(void) { return g_prof_frames; }
 
 }  // extern "C"

@@ -326,6 +326,14 @@ int epk_source(int track);
 void epk_turing_range(int track, int degrees);     /* 0 (one note) .. 15 (two octaves) */
 int epk_turing_range_get(int track);
 void epk_turing_regen(int track, uint32_t seed);   /* a new loop with the same density (bucle nuevo) */
+
+/* The cost of each part of the render, measured where it runs (perfil de CPU, en el propio aparato). The app gives a
+ * free-running clock (plat_ticks24); NULL turns it off. The sums run on and wrap: read them twice and take the
+ * difference, with the frames rendered in between, for a share of real time (cuota del tiempo real) */
+enum { EPK_PROF_TRACK1, EPK_PROF_MAREA = 6, EPK_PROF_SENDS, EPK_PROF_MASTER, EPK_PROF_TOTAL, EPK_PROF_COUNT };
+void epk_prof_clock(uint32_t (*ticks)(void));
+uint32_t epk_prof_ticks(int part);
+uint32_t epk_prof_frames(void);
 void epk_step_toggle(int track, int step);
 void epk_step_set(int track, int step, int prob, int cond, int micro);   /* EPK_PROB_*, EPK_COND_*, -3..3 */
 int epk_step_prob(int track, int step);

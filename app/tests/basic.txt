@@ -163,6 +163,22 @@ wait 30
 tap PLAY
 wait 1500
 shot flow.png
+# HOME held in FLOW: the CPU profile (perfil), each part's share of real time
+press HOME
+wait 1600
+shot flow_profile.png
+release HOME
+wait 30
+# HOME let go alone moves on a view (cambia de vista): four more taps come back round to FLOW
+tap HOME
+wait 30
+tap HOME
+wait 30
+tap HOME
+wait 30
+tap HOME
+wait 30
+expect view 3
 tap PLAY
 wait 30
 key 2 down

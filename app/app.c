@@ -1026,6 +1026,7 @@ void app_init(void)
 {
     uint32_t k;
     epk_init(44100.0f);
+    epk_prof_clock(plat_ticks24);             /* the CPU profile (perfil): HOME held in FLOW shows it */
     ui.track = 0;
     ui.page = PAGE_SOUND;
     ui.view = VIEW_ORBIT;
@@ -2345,6 +2346,40 @@ static void draw_foot(void)                       /* the page tabs and the four 
             int_str((int32_t)xr, n);
             str_cat(m, n);
             cv_text(234 - text_w(&FONT_XS, m), 4, &FONT_XS, m, xr ? C_MUTE : pct >= 85u ? C_SOLO : C_LABEL);
+        }
+        if (ui.view == VIEW_FLOW) {          /* in FLOW: what each part costs, measured here (perfil de CPU) */
+            static uint32_t last_ms, t0[EPK_PROF_COUNT], f0;
+            static int32_t pct[EPK_PROF_COUNT];
+            static const char *const NAME[EPK_PROF_COUNT] = {"P1", "P2", "P3", "P4", "P5", "P6", "MAR", "ENV", "MST",
+                                                             "TOT"};
+            const uint32_t now = plat_ms();
+            int k;
+            if (now - last_ms >= 700u) {        /* a new reading every 0.7 s (lectura nueva) */
+                const uint32_t f1 = epk_prof_frames(), df = f1 - f0;
+                for (k = 0; k < EPK_PROF_COUNT; k++) {
+                    const uint32_t t1 = epk_prof_ticks(k);
+                    /* ticks / 24 = us; the frames' real time = df / 44.1 kHz: a share of real time, in tenths of % */
+                    pct[k] = df ? (int32_t)((float)(t1 - t0[k]) * (44100.0f * 1000.0f / 24000000.0f) / (float)df + 0.5f)
+                                : 0;
+                    t0[k] = t1;
+                }
+                f0 = f1;
+                last_ms = now;
+            }
+            for (k = 0; k < EPK_PROF_COUNT; k++) {
+                const int32_t cx = 6 + (k % 5) * 46, cy = 19 + (k / 5) * 13;
+                char t[16], n[12];
+                t[0] = 0;
+                str_cat(t, NAME[k]);
+                str_cat(t, " ");
+                int_str(pct[k] / 10, n);
+                str_cat(t, n);
+                cv_text(cx, cy, &FONT_XS, t, k == 9 ? C_SOLO : k == 6 && pct[k] >= 150 ? C_MUTE : C_TEXT);
+            }
+            cv_text(6, 45, &FONT_XS, "% del tiempo real, medido en el aparato", C_LABEL);
+            cv_text(6, 58, &FONT_XS, "P voz  MAR marea  ENV eco+reverb  MST master", C_LABEL);
+            cv_blit(0, 168);
+            return;
         }
         if (ui.view == VIEW_PATTERNS) {      /* in PATTERNS a white key saves (guarda) */
             cv_text(6, 19, &FONT_XS, "Blanca: guardar el patron como suena", C_TEXT);
