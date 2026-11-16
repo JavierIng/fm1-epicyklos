@@ -43,14 +43,16 @@ static uint16_t dim_colour(uint16_t c)               /* a colour at ~35 % (apaga
 
 /* ------------------------------------------------------------------ pages (páginas) */
 enum { PAGE_SOUND, PAGE_ENGINE, PAGE_RHYTHM, PAGE_GROOVE, PAGE_EVOL, PAGE_MOVE, PAGE_MIX, NPAGES };
-enum { SLOT_NONE = -1, SLOT_LATER = -2 };            /* nothing there / a later phase (fase siguiente) */
+/* SLOT_SOURCE: where the track's steps come from (EUCLID, SEQ, TURING); with HOME, the TURING loop's note range */
+enum { SLOT_NONE = -1, SLOT_LATER = -2, SLOT_SOURCE = -3 };
+static const char *const SRC_NAME[EPK_SRC_COUNT] = {"EUCLID", "SEQ", "TURING"};
 static const char *const PAGE_NAME[NPAGES] = {"SONIDO", "MOTOR", "RITMO", "GROOVE", "EVOLUCION", "MOVIMIENTO",
                                                "MEZCLA"};
 static const int8_t PAGE_PARAM[NPAGES][4] = {
     {EPK_P_NOTE, EPK_P_CHARACTER, EPK_P_TONE, EPK_P_DECAY},
     {EPK_P_ENGINE, EPK_P_EXTRA1, EPK_P_EXTRA2, EPK_P_ATTACK},
     {EPK_P_LENGTH, EPK_P_HITS, EPK_P_ROTATE, EPK_P_DIVISION},
-    {EPK_P_SWING, EPK_P_SHIFT, EPK_P_ABSENCE, SLOT_NONE},     /* ABSENCE: when it rests (cuándo descansa) */
+    {EPK_P_SWING, EPK_P_SHIFT, EPK_P_ABSENCE, SLOT_SOURCE},   /* ABSENCE: when it rests (cuándo descansa) */
     {EPK_P_MUTATE, EPK_P_SCOPE, EPK_P_EVERY, EPK_P_RETURN},   /* evolution (evolución) */
     {EPK_P_LFO_SHAPE, EPK_P_LFO_RATE, EPK_P_LFO_DEST, EPK_P_LFO_AMT},   /* the track LFO (movimiento) */
     {EPK_P_LEVEL, EPK_P_PAN, EPK_P_SEND_A, EPK_P_SEND_B},   /* sends: A the delay, B the reverb */
@@ -1099,6 +1101,26 @@ static void turn_param(int page, int slot, int32_t detents, int fine)
     int p = slot_param(ui.track, page, slot);
     float v;
     int steps;
+    if (p == SLOT_SOURCE) {
+        char t[12];
+        if (fine) {                        /* HOME: how many scale degrees the loop's notes span (rango de notas) */
+            if (epk_source(ui.track) != EPK_SRC_TURING) {
+                app_say("RANGO", "SOLO EN TURING");
+            } else {
+                const int r = clamp(epk_turing_range_get(ui.track) + (detents > 0 ? 1 : -1), 0, 15);
+                epk_turing_range(ui.track, r);
+                int_str(r, t);
+                app_say("RANGO DE NOTAS", r ? t : "UNA NOTA");
+            }
+        } else {
+            const int src = clamp(epk_source(ui.track) + (detents > 0 ? 1 : -1), 0, EPK_SRC_COUNT - 1);
+            epk_undo_save();
+            epk_source_set(ui.track, src);
+            app_say("FUENTE", SRC_NAME[src]);
+        }
+        ui.dirty_main = ui.dirty_foot = 1;
+        return;
+    }
     if (p < 0)
         return;
     if (fine && (p == EPK_P_SEND_A || p == EPK_P_SEND_B)) {   /* HOME + a send: before or after the fader */
@@ -1111,7 +1133,7 @@ static void turn_param(int page, int slot, int32_t detents, int fine)
     v = epk_param_get(ui.track, p);
     if (p == EPK_P_HITS) {                 /* hits: one per detent; a pattern made by hand goes back to euclid */
         v += (float)detents / (float)(epk_length(ui.track) > 0 ? epk_length(ui.track) : 1);
-        if (epk_steps_manual(ui.track)) {
+        if (epk_source(ui.track) == EPK_SRC_SEQ) {   /* in TURING it is the loop's density (densidad) */
             epk_steps_euclid(ui.track);
             app_say("EUCLIDIANO", "");
         }
@@ -1299,7 +1321,10 @@ static void random_page(void)
         } else {
             if (p == EPK_P_HITS) {
                 target = (float)(1 + (int)(rnd() * (float)len * 0.6f)) / (float)len;
-                epk_steps_euclid(ui.track);
+                if (epk_source(ui.track) == EPK_SRC_TURING)   /* a new loop (bucle nuevo) */
+                    epk_turing_regen(ui.track, (uint32_t)(rnd() * 65535.0f));
+                else
+                    epk_steps_euclid(ui.track);
             } else if (p == EPK_P_ROTATE)
                 target = (float)(int)(rnd() * (float)len) / 31.0f;
             else if (p == EPK_P_SWING)
@@ -1865,7 +1890,7 @@ static void draw_head(void)
             } else
                 x = cv_text(x + 4, 7, &FONT_XS, ENG_NAME[epk_engine(ui.track)], C_LABEL);
             if (ui.view == VIEW_STEPS && epk_steps_manual(ui.track))
-                cv_text(x + 5, 7, &FONT_XS, "A MANO", C_SOLO);
+                cv_text(x + 5, 7, &FONT_XS, epk_source(ui.track) == EPK_SRC_TURING ? "TURING" : "A MANO", C_SOLO);
         }
     }
     int_str((int32_t)(epk_tempo() + 0.5f), t);
@@ -2495,7 +2520,19 @@ static void draw_foot(void)                       /* the page tabs and the four 
     for (i = 0; i < 4; i++) {
         const int p = slot_param(ui.track, ui.page, i);
         const int32_t cx = i * 60 + 2;
-        if (p < 0) {
+        if (p == SLOT_SOURCE) {
+            const int src = epk_source(ui.track);
+            char lab[16] = "FUENTE";
+            v[0] = 0;
+            str_cat(v, SRC_NAME[src]);
+            if (src == EPK_SRC_TURING) {   /* the loop's note range beside the label (el rango, junto al rótulo) */
+                char n[8];
+                int_str(epk_turing_range_get(ui.track), n);
+                str_cat(lab, " R");
+                str_cat(lab, n);
+            }
+            draw_card(i, lab, v, (float)src / (float)(EPK_SRC_COUNT - 1), 0);
+        } else if (p < 0) {
             cv_rect(cx, 18, 56, 52, C_PANEL);
         } else {
             param_str(ui.track, p, v);

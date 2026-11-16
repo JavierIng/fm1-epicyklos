@@ -124,6 +124,31 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
   moviéndose al cargarlo.
 - De fábrica, en el banco A, el acorde respira hacia el eco (ENVÍO A, 4 compases) y el tono del bajo hace DERIVA.
 
+### FUENTE: de dónde salen los pasos (página GROOVE, K4)
+Cada pista elige una de tres fuentes. Se cambia con **K4 en la página GROOVE**.
+- **EUCLID:** como hasta ahora. LONGITUD, GOLPES y ROTAR reparten los golpes. Una sola nota.
+- **SEQ:** los pasos dibujados a mano en la vista PASOS. Una sola nota. Girar GOLPES vuelve a EUCLID.
+- **TURING:** un bucle de LONGITUD pasos que hace de ritmo **y de notas**.
+  - Los golpes son los unos del bucle. **GOLPES** es cuántos hay (densidad): al subirlo aparecen golpes nuevos sin
+    mover los que había.
+  - En los motores con nota (ACORDE, MACRO, DRONE), la nota de cada golpe sale de los cuatro pasos que le siguen,
+    dentro de la escala menor por encima de la NOTA de la pista.
+  - **HOME + K4: RANGO**, de 0 (una sola nota) a 15 grados (dos octavas). Se ve junto al rótulo: "FUENTE R7".
+  - En bombo, platos y percusión el bucle solo hace el ritmo.
+  - **Cómo cambia:** con la página EVOLUCIÓN. MUTAR mueve golpes de sitio cada CADA compases (siempre quedan los
+    mismos); VUELTA lo devuelve hacia el bucle escrito; QUÉ = SONIDO lo deja quieto. Con MUTAR a 0 el bucle se
+    repite igual. PLAY vuelve al bucle escrito.
+  - Se pueden encender y apagar pasos a mano en PASOS; GOLPES sigue al dibujo.
+  - Pasar de TURING a SEQ **congela** el bucle como pasos fijos.
+  - **Bucle nuevo:** ARP en la página RITMO (aleatorio de página) con GOLPES libre.
+  - Guardar el patrón guarda el bucle que suena y su rango.
+- **El aleatorio de patrón** (ARP en PATRONES) también reparte fuentes: el bajo sale en TURING una de cada tres
+  veces, la percusión una de cada cinco, y las líneas ácidas siempre.
+- En los bancos de fábrica, las líneas ácidas (PULSAR, ECLIPSE, FOSFORO, ZENIT y los pares del banco B) son ahora
+  bucles TURING: tienen varias notas, no una.
+- Límite: no hay nota por paso escrita a mano. Las notas de un bucle TURING salen del propio bucle.
+- Idea tomada del módulo Turing Machine (Music Thing Modular) y de su uso en el firmware EXS/MT6. Código propio.
+
 ## 6. Patrones y bancos (SAVE)
 - **Teclas negras = bancos A a K. Teclas blancas = los 16 patrones del banco.**
 - Con el secuenciador parado el cambio es inmediato; sonando, espera al final del compás (parpadea "en cola").
@@ -139,7 +164,7 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
 - Los tres siguen el mismo recorrido: entrada (1-3), subida (4-7), pausa (8), segunda subida (9-14), pico (15) y
   salida (16). B y C están generados con reglas, no compuestos a mano: son siempre los mismos.
 - Bancos D-K: patrones generados libres (GEN D01…), con el bajo en MACRO.
-- **Líneas ácidas en lugar del dron** (pista 5 con MACRO ACIDO): en el banco A, en PULSAR, ECLIPSE, FOSFORO y
+- **Líneas ácidas en lugar del dron** (desde la 0.1.8 son bucles TURING, con varias notas) (pista 5 con MACRO ACIDO): en el banco A, en PULSAR, ECLIPSE, FOSFORO y
   ZENIT; en el banco B, en los patrones pares (los impares llevan dron); en los generados, uno de cada tres.
   Vienen con el filtro subiendo y bajando en 16 compases (página MOVIMIENTO: TRIANG a TONO) hasta cerrarse del
   todo, y con AUSENCIA 20 (descansan algún tramo entero). Para que entre y salga a mano: TONO de la pista 5, o

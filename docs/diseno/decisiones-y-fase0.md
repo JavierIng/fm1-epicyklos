@@ -379,3 +379,14 @@
 ## Nombres de lo guardado y número de bancos (2026-11-13, tarde)
 - Javier: "¿cada vez que guarda un patrón que salga un nombre random?". Hecho sin tocar el formato: el nombre (tres sílabas, 6 letras, + `*`) se calcula de los bytes guardados, así que no ocupa sitio, no hace falta convertir lo ya guardado y vuelve igual tras apagar. No es editable. Caso raro conocido: si la evolución cambia el patrón justo en el instante de guardar, el nombre mostrado puede cambiar al recargar el banco.
 - "¿Acortar bancos para dar más memoria?": **no libera RAM**. En RAM solo hay un banco a la vez (16 patrones); los demás se generan al entrar o se leen de la flash. Quitar bancos solo libera flash de datos (8 KB por medio banco), que no falta y no sirve para código ni para RAM. Se quedan los 11.
+
+## Comparación con EXS/MT6 y fuentes de pasos (2026-11-16)
+- Javier pasó el firmware de un amigo (Exsiderurgica, EXS MT4/MT6 para el FM-1) para tomar ideas. Leídos su página y su manual. El archivo que pasó como "código" es el paquete compilado y cifrado: no se lee y no se ha intentado abrir. Sin licencia publicada: se toman ideas, no código.
+- Lo suyo: 6 voces iguales tipo Plaits + muestras, Turing Machine y secuenciador de 16 pasos con bloqueos, sin guardado, reloj que entra y sale, páginas de diagnóstico con el segundo núcleo ("CPU1 JOBS").
+- **Segundo núcleo:** nuestra base ya lo ofrece (`cpu2 = true`, `plat_cpu2_*`), marcado beta y sin correr aún en un aparato en esta versión; hay unidades cuyo segundo núcleo lee mal la memoria. No se activa hasta medir la CPU con uno.
+- **Recuperación:** su kit confirma que desde macOS no hay rescate directo por USB (hace falta Windows o un adaptador con microcontrolador). Javier usa Mac: conviene tener un PC localizado antes de instalar.
+- **Hecho: FUENTE por pista (EUCLID / SEQ / TURING).** El bucle TURING vive donde ya estaban los pasos a mano (la máscara de 32 bits) y su rango en el byte que decía "a mano": **el formato guardado no cambia** y lo antiguo se lee igual. Notas: ventana de 4 bits tras cada golpe → grado de la escala menor sobre la NOTA. Densidad = GOLPES. Variación = la página EVOLUCIÓN (intercambia un golpe y un hueco; el número de golpes no cambia).
+- Decisión: no añadir mandos nuevos de "variación" como en el módulo original; se reutiliza MUTAR/CADA/VUELTA para que haya una sola manera de hacer evolucionar una pista.
+- Nota por paso escrita a mano: sigue sin hacerse. No cabe en los objetos de flash actuales (quedan 41 bytes libres por patrón; harían falta 96 o más).
+- Probado en el ordenador: número de golpes = GOLPES, notas dentro del rango y más de una, bucle quieto con MUTAR 0, se mueve con MUTAR 90 sin cambiar de densidad, PLAY lo devuelve, se guarda y se recupera igual, TURING → SEQ conserva los pasos. No escuchado.
+- Pendiente de esa comparación: CONTROL ALL (mover un mando en todas las pistas a la vez), salida de reloj, FUENTE en la ventana del VST.

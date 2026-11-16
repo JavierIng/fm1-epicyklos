@@ -312,6 +312,20 @@ void epk_pattern_randomize(uint32_t seed);     /* a whole new pattern in the cur
 /* steps (pasos): a track's hits are euclidean (from HITS) until a step is edited by hand; then they are the
  * player's (manual). ROTATE turns both. Chance, condition and micro-timing belong to each step: micro is -3..3
  * eighths of a step, early or late (antes o después). SWING, SHIFT and micro add up, within +-0.9 of a step. */
+/* Where a track's steps come from (de dónde salen los pasos):
+ *   EUCLID  LENGTH, HITS and ROTATE spread them evenly; one note.
+ *   SEQ     the steps drawn by hand (a mano); one note.
+ *   TURING  a loop of LENGTH bits (un bucle): its 1s are the hits, and in a melodic engine each hit's note comes from
+ *           the four bits that follow it, over RANGE degrees of the minor scale above the track's NOTE. HITS is how
+ *           many 1s (density). The EVOLUTION page moves it: MUTATE swaps a hit and a gap every EVERY bars, RETURN
+ *           brings it back towards the loop as written. Steps can still be drawn; a loop turned into SEQ stays as it is.
+ * It is stored where the manual steps already were: no change in what is saved. */
+enum { EPK_SRC_EUCLID, EPK_SRC_SEQ, EPK_SRC_TURING, EPK_SRC_COUNT };
+void epk_source_set(int track, int source);
+int epk_source(int track);
+void epk_turing_range(int track, int degrees);     /* 0 (one note) .. 15 (two octaves) */
+int epk_turing_range_get(int track);
+void epk_turing_regen(int track, uint32_t seed);   /* a new loop with the same density (bucle nuevo) */
 void epk_step_toggle(int track, int step);
 void epk_step_set(int track, int step, int prob, int cond, int micro);   /* EPK_PROB_*, EPK_COND_*, -3..3 */
 int epk_step_prob(int track, int step);

@@ -36,8 +36,8 @@ inline uint32_t rotate_mask(uint32_t m, int length, int rotate) {
 
 // A track's steps (los pasos de una pista): by hand or not, and each step's chance and condition.
 struct Steps {
-    uint32_t mask;                         // the manual hits, before rotation (golpes a mano)
-    uint8_t manual;
+    uint32_t mask;                         // the manual hits, before rotation (golpes a mano); TURING: the loop
+    uint8_t manual;                        // 0 euclid, 1 by hand, 2 | range << 2 TURING (see EPK_SRC_*)
     uint8_t meta[EPK_MAX_STEPS];           // bits 0-1 EPK_PROB_*, 2-4 EPK_COND_*, 5-7 micro-timing (signed, eighths
                                            // of a step); indexed before rotation
 };
@@ -61,6 +61,7 @@ struct Track {
     // evolution (evolución): offsets over the pattern, moved every EVERY bars (desvíos sobre el patrón)
     float m_tone, m_decay, m_char;
     int m_note, m_hits, m_rot;             // semitones, hits, steps
+    uint32_t home, tm_rng;                 // TURING: the loop as written, and its own dice (el bucle escrito)
     int absent;                            // resting this stretch (en ausencia)
     int evo_off;                           // evolution off for this track (apagada; del proyecto)
     // the track's LFO (LFO de pista): its output with the amount, and what it does to the rhythm this block
@@ -79,7 +80,7 @@ struct Track {
 
 struct Event { uint8_t type, track, a, b; };
 enum { EV_NOTE_ON = 1, EV_PLAY, EV_STOP, EV_PATTERN, EV_STEP_TOGGLE, EV_STEP_META, EV_EUCLID, EV_UNDO, EV_RANDOM,
-       EV_KEEP };
+       EV_KEEP, EV_SOURCE, EV_TURING_RANGE, EV_TURING_REGEN };
 
 constexpr int kQueue = 64;                 // a power of two
 constexpr uint32_t kBlock = 256;           // the largest block the platform renders (APP_BLOCK)
@@ -171,6 +172,27 @@ inline int note_live(const Track &t) { return clampi(param_int(t, EPK_P_NOTE) + 
 static const uint8_t kEveryBars[5] = {1, 2, 4, 8, 16};
 inline int every_bars(const Track &t) { return kEveryBars[clampi((int)(t.p[EPK_P_EVERY] * 4.0f + 0.5f), 0, 4)]; }
 
+// TURING (see epk.h): the loop lives in the manual steps' mask (el bucle vive en la máscara de pasos)
+inline int is_turing(const Steps &s) { return (s.manual & 3) == 2; }
+inline int turing_range(const Steps &s) { return s.manual >> 2; }
+inline uint32_t len_mask(int len) { return len >= 32 ? 0xFFFFFFFFu : (1u << len) - 1u; }
+inline int popcount32(uint32_t v) { int n = 0; for (; v; v &= v - 1) n++; return n; }
+inline int nth_bit(uint32_t m, int k) {                              // the k-th 1 of m
+    for (int b = 0; b < 32; b++) if ((m >> b & 1u) && !k--) return b;
+    return 0;
+}
+inline uint32_t tm_next(Track &t) { t.tm_rng = t.tm_rng * 1664525u + 1013904223u; return t.tm_rng >> 10; }
+static const int8_t kMinor7[7] = {0, 2, 3, 5, 7, 8, 10};
+// a loop of len bits with n 1s (un bucle con n unos)
+inline uint32_t turing_draw(Track &t, int len, int n) {
+    uint32_t m = 0;
+    for (int k = 0; k < n && k < len; k++) {
+        const uint32_t gaps = ~m & len_mask(len);
+        m |= 1u << nth_bit(gaps, (int)(tm_next(t) % (uint32_t)popcount32(gaps)));
+    }
+    return m;
+}
+
 // The hits before rotation (golpes sin rotar), and as they play (como suenan)
 inline uint32_t base_mask(const Track &t, int len) {
     return t.st.manual ? t.st.mask : euclid(len, hits_live(t, len));
@@ -231,6 +253,21 @@ void set_spec(int pt, int i, int note, float ch, float tone, float dec, float e1
 }
 
 inline void set_engine(int pt, int i, int eng) { g.bank[pt][i][EPK_P_ENGINE] = (float)eng / (float)(EPK_ENG_COUNT - 1); }
+// A track's steps become a TURING loop with the hits it already has (los pasos pasan a ser un bucle)
+void make_turing(int pt, int i, uint32_t seed, int range) {
+    const float *b = g.bank[pt][i];
+    const int len = 1 + (int)(b[EPK_P_LENGTH] * 31.0f + 0.5f), hits = clampi((int)(b[EPK_P_HITS] * (float)len + 0.5f), 0, len);
+    Steps &s = g.bank_steps[pt][i];
+    uint32_t x = seed * 2654435761u + 0x7F4A7C15u, m = 0;
+    for (int k = 0; k < hits; k++) {
+        const uint32_t gaps = ~m & len_mask(len);
+        x = x * 1664525u + 1013904223u;
+        m |= 1u << nth_bit(gaps, (int)((x >> 10) % (uint32_t)popcount32(gaps)));
+    }
+    s.mask = m;
+    s.manual = (uint8_t)(2 | clampi(range, 0, 15) << 2);
+}
+
 // How an acid line comes and goes (cómo entra y sale): a triangle over 16 bars on its filter, wide enough to close it
 // to nothing; the sound drifts every 8 bars; and now and then it rests a whole stretch
 void acid_moves(int pt, int i) {
@@ -270,6 +307,7 @@ void fill_factory(int pt) {
             set_engine(pt, i, EPK_ENG_MACRO);
             g.bank[pt][i][EPK_P_ATTACK] = 0.35f + 0.1f * (float)q;   // SALTOS
             acid_moves(pt, i);
+            make_turing(pt, i, 0xA51Du + (uint32_t)pt, 3 + q);       // a line of notes, not one (una línea de notas)
             continue;
         }
         if (kEngine[i] == EPK_ENG_DRONE) {                           // a fifth that drifts (una quinta que deriva)
@@ -455,7 +493,16 @@ void generate(int pt, uint32_t seed, int key) {
         }
         if (synth && r.unipolar() < 0.3f) b[EPK_P_ABSENCE] = rr(r, 0.05f, 0.25f);
     }
-    if (acid5) acid_moves(pt, 4);
+    if (acid5) {
+        acid_moves(pt, 4);
+        make_turing(pt, 4, seed + 5u, 3 + ri(r, 4));
+    }
+    // TURING loops: the bass one time in three, the percussion one in five (bucles: el bajo y la percusión)
+    if (r.unipolar() < 0.35f && g.bank[pt][3][EPK_P_HITS] > 0.0f) {
+        make_turing(pt, 3, seed + 3u, 2 + ri(r, 5));
+        if (g.bank[pt][3][EPK_P_MUTATE] < 0.15f) g.bank[pt][3][EPK_P_MUTATE] = rr(r, 0.15f, 0.4f);
+    }
+    if (r.unipolar() < 0.2f && g.bank[pt][5][EPK_P_HITS] > 0.0f) make_turing(pt, 5, seed + 6u, 0);
 }
 
 // Banks B and C: generated too, but each to a style and along an arc, like bank A (bancos B y C: con estilo y con
@@ -523,6 +570,7 @@ void generate_hypnotic(int pt, uint32_t seed, int key) {
         set_engine(pt, 4, EPK_ENG_MACRO);
         g.bank[pt][4][EPK_P_ATTACK] = rr(r, 0.25f, 0.75f);           // SALTOS
         acid_moves(pt, 4);
+        make_turing(pt, 4, seed + 77u, 3 + ri(r, 4));
     } else {        // 5 in the odd ones the drone: one long low note under everything
         set_spec(pt, 4, scale_note(r, 38 + key, 3), rr(r, 0.2f, 0.6f), rr(r, 0.28f, 0.40f), 0.88f, rr(r, 0.4f, 0.8f), (float)ri(r, 6) / 5.0f,
                  7, 1 + (arc > 0.5f), 0, EPK_DIV_1_4);
@@ -625,7 +673,8 @@ void unpack_pattern(const uint8_t *in, int pt) {
         Steps &st = g.bank_steps[pt][i];
         st.mask = (uint32_t)in[0] | (uint32_t)in[1] << 8 | (uint32_t)in[2] << 16 | (uint32_t)in[3] << 24;
         in += 4;
-        st.manual = *in++ ? 1 : 0;
+        const uint8_t m = *in++;
+        st.manual = (m & 3) == 2 ? m : (m ? 1 : 0);                  // TURING keeps its range (su rango)
         for (int k = 0; k < EPK_MAX_STEPS; k++) st.meta[k] = *in++;
     }
 }
@@ -697,6 +746,7 @@ inline void evo_reset(Track &t) {
     t.m_note = t.m_hits = t.m_rot = 0;
     t.absent = 0;
     t.bars = 0;
+    if (is_turing(t.st)) t.st.mask = t.home;                         // the loop as written (el bucle escrito)
 }
 
 inline float clamp_off(float base, float off) { return clamp01(base + off) - base; }
@@ -732,6 +782,23 @@ void evolve(Track &t) {
     if (!sound) t.m_tone = t.m_decay = t.m_char = 0.0f;              // what is out of scope is the pattern
     if (!rhythm) t.m_hits = t.m_rot = 0;
     if (!note) t.m_note = 0;
+    if (is_turing(t.st)) {                                           // the loop: a step home, then hits that move
+        const int len = param_int(t, EPK_P_LENGTH);
+        const uint32_t lm = len_mask(len), diff = (t.st.mask ^ t.home) & lm;
+        if (diff && t.evo.unipolar() < back) {
+            const uint32_t extra = t.st.mask & diff, missing = t.home & diff;
+            if (extra) t.st.mask &= ~(1u << nth_bit(extra, 0));
+            if (missing) t.st.mask |= 1u << nth_bit(missing, 0);
+        }
+        if (a > 0.0f && scope != EPK_SCOPE_SOUND)
+            for (int k = 0; k < 1 + (int)(a * 3.0f); k++) {
+                if (t.evo.unipolar() >= a) continue;
+                const uint32_t hits = t.st.mask & lm, gaps = ~t.st.mask & lm;
+                if (!hits || !gaps) break;
+                t.st.mask ^= 1u << nth_bit(hits, (int)(t.evo.unipolar() * (float)popcount32(hits)) % popcount32(hits)) |
+                             1u << nth_bit(gaps, (int)(t.evo.unipolar() * (float)popcount32(gaps)) % popcount32(gaps));
+            }
+    }
     if (a > 0.0f) {
         const int len = param_int(t, EPK_P_LENGTH), span = 1 + (int)(a * 3.0f);
         if (sound) {
@@ -757,6 +824,7 @@ void load_live(int pt, int restart) {
         Track &tr = g.tr[t];
         for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) tr.p[p] = g.bank[pt][t][p];
         tr.st = g.bank_steps[pt][t];
+        tr.home = tr.st.mask;
         evo_reset(tr);
         if (restart && g.playing) { tr.step = -1; tr.pos = 0; tr.fire = 1; tr.cycle = 0xFFFFFFFFu; }
     }
@@ -769,6 +837,7 @@ void switch_pattern(int to, int bank) {
         for (int t = 0; t < EPK_TRACKS; t++) {
             for (int p = 0; p < EPK_P_PATTERN_COUNT; p++) g.bank[g.pattern][t][p] = g.tr[t].p[p];
             g.bank_steps[g.pattern][t] = g.tr[t].st;
+            if (is_turing(g.tr[t].st)) g.bank_steps[g.pattern][t].mask = g.tr[t].home;   // not what it drifted to
         }
     } else {
         load_bank(bank);                                             // the old bank's edits are not kept yet (fase 6)
@@ -797,10 +866,31 @@ void drain() {
             if (e.a < len) {
                 if (!t->st.manual) { t->st.mask = euclid(len, param_int(*t, EPK_P_HITS)); t->st.manual = 1; }
                 t->st.mask ^= 1u << unrotated(*t, e.a, len);
+                if (is_turing(t->st)) {                              // the loop is what was drawn; HITS follows it
+                    t->home = t->st.mask;
+                    t->p[EPK_P_HITS] = (float)popcount32(t->st.mask & len_mask(len)) / (float)len;
+                }
             }
         } else if (e.type == EV_STEP_META && t) {
             const int len = param_int(*t, EPK_P_LENGTH);
             if (e.a < len) t->st.meta[unrotated(*t, e.a, len)] = e.b;
+        } else if (e.type == EV_SOURCE && t) {
+            const int len = param_int(*t, EPK_P_LENGTH);
+            if (e.a == EPK_SRC_EUCLID) t->st.manual = 0;
+            else {
+                if (!t->st.manual) t->st.mask = euclid(len, param_int(*t, EPK_P_HITS));
+                if (e.a == EPK_SRC_SEQ) { if (is_turing(t->st)) t->st.mask = t->home; t->st.manual = 1; }
+                else if (!is_turing(t->st)) t->st.manual = (uint8_t)(2 | 7 << 2);
+                t->home = t->st.mask;
+            }
+        } else if (e.type == EV_TURING_RANGE && t) {
+            if (is_turing(t->st)) t->st.manual = (uint8_t)(2 | clampi(e.a, 0, 15) << 2);
+        } else if (e.type == EV_TURING_REGEN && t) {
+            if (is_turing(t->st)) {
+                const int len = param_int(*t, EPK_P_LENGTH);
+                t->tm_rng ^= (uint32_t)(e.a | e.b << 8) * 2654435761u;
+                t->st.mask = t->home = turing_draw(*t, len, clampi(param_int(*t, EPK_P_HITS), 0, len));
+            }
         } else if (e.type == EV_EUCLID && t) {
             t->st.manual = 0;
         } else if (e.type == EV_UNDO) {
@@ -813,6 +903,7 @@ void drain() {
                     u.p[EPK_P_SEND_A] = g.undo.mix[k][1];
                     u.p[EPK_P_SEND_B] = g.undo.mix[k][2];
                     u.st = g.undo.st[k];
+                    u.home = u.st.mask;
                 }
             }
             g.undo.ready = 0;
@@ -907,7 +998,15 @@ static Desk g_desk;
 #endif
 
 inline void trigger_step(Track &t, int step) {
-    const int note = t.key_note >= 0 ? t.key_note : note_live(t);
+    int note = t.key_note >= 0 ? t.key_note : note_live(t);
+    if (t.key_note < 0 && is_turing(t.st) && turing_range(t.st) && melodic(t)) {
+        // TURING: the four bits after this hit choose its note (los cuatro bits siguientes eligen la nota)
+        const int len = param_int(t, EPK_P_LENGTH), at = unrotated(t, step, len);
+        uint32_t w = 0;
+        for (int k = 1; k <= 4; k++) w = w << 1 | (t.st.mask >> ((at + k) % len) & 1u);
+        const int d = (int)(w * (uint32_t)turing_range(t.st) + 7u) / 15;
+        note = clampi(note + 12 * (d / 7) + kMinor7[d % 7], 24, 96);
+    }
     t.voice.trigger(note_hz(note), step == 0 ? 1.0f : 0.8f);         // the first step accented (acento)
     t.triggers++;
 #ifdef EPK_DESKTOP
@@ -949,11 +1048,25 @@ void advance(Track &t, int len, uint32_t mask, int first) {
 // The sequencer for one track over a block: the voice is rendered in pieces, each trigger at its own sample.
 void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
     const int len = param_int(t, EPK_P_LENGTH);
-    const uint32_t mask = rotate_mask(base_mask(t, len), len, rot_live(t));
+    uint32_t mask = rotate_mask(base_mask(t, len), len, rot_live(t));
     const float steps_per_sample = g.bpm * (1.0f / 60.0f) * kStepsPerBeat[param_int(t, EPK_P_DIVISION)] / g.sr;
     const uint32_t inc = (uint32_t)(steps_per_sample * 4294967296.0f);   // Q32 per sample (por muestra)
     sync_engine(t);
     if (t.step >= len) t.step = len - 1;                             // the length was shortened (se acortó)
+    if (is_turing(t.st)) {                                           // TURING: as many 1s as HITS says, one a block
+        const uint32_t lm = len_mask(len);
+        t.st.mask &= lm; t.home &= lm;
+        const int want = clampi(param_int(t, EPK_P_HITS), 0, len), have = popcount32(t.st.mask);
+        if (have < want) {
+            const uint32_t gaps = ~t.st.mask & lm;
+            const uint32_t bit = 1u << nth_bit(gaps, (int)(tm_next(t) % (uint32_t)popcount32(gaps)));
+            t.st.mask |= bit; t.home |= bit;
+        } else if (have > want) {
+            const uint32_t bit = 1u << nth_bit(t.st.mask, (int)(tm_next(t) % (uint32_t)have));
+            t.st.mask &= ~bit; t.home &= ~bit;
+        }
+        mask = play_mask(t);
+    }
     uint32_t done = 0;
     while (done < n) {
 #ifdef EPK_DESKTOP
@@ -1463,7 +1576,12 @@ static int step_meta(int track, int step) {
 int epk_step_prob(int track, int step) { return step_meta(track, step) & 3; }
 int epk_step_cond(int track, int step) { return step_meta(track, step) >> 2 & 7; }
 int epk_step_micro(int track, int step) { const int m = step_meta(track, step) >> 5 & 7; return m > 3 ? m - 8 : m; }
-int epk_steps_manual(int track) { return valid(track) ? g.tr[track].st.manual : 0; }
+int epk_steps_manual(int track) { return valid(track) ? g.tr[track].st.manual & 3 : 0; }
+void epk_source_set(int track, int source) { if (valid(track)) push(EV_SOURCE, track, clampi(source, 0, EPK_SRC_COUNT - 1), 0); }
+int epk_source(int track) { return valid(track) ? (is_turing(g.tr[track].st) ? EPK_SRC_TURING : g.tr[track].st.manual ? EPK_SRC_SEQ : EPK_SRC_EUCLID) : 0; }
+void epk_turing_range(int track, int degrees) { if (valid(track)) push(EV_TURING_RANGE, track, clampi(degrees, 0, 15), 0); }
+int epk_turing_range_get(int track) { return valid(track) && is_turing(g.tr[track].st) ? turing_range(g.tr[track].st) : 0; }
+void epk_turing_regen(int track, uint32_t seed) { if (valid(track)) push(EV_TURING_REGEN, track, (int)(seed & 0xFF), (int)(seed >> 8 & 0xFF)); }
 void epk_steps_euclid(int track) { if (valid(track)) push(EV_EUCLID, track, 0, 0); }
 
 void epk_undo_save(void) {

@@ -127,6 +127,31 @@ Each track has its own LFO, saved with the pattern. While the sequencer runs it 
   moving when it loads.
 - In bank A by default the chord breathes into the delay (send A, 4 bars) and the bass's tone drifts.
 
+### SOURCE [FUENTE]: where the steps come from (GROOVE page, K4)
+Each track picks one of three sources, with **K4 on the GROOVE page**.
+- **EUCLID:** as before. Length, hits and rotation spread the hits. One note.
+- **SEQ:** the steps drawn by hand in the STEPS view. One note. Turning hits [GOLPES] goes back to EUCLID.
+- **TURING:** a loop of LENGTH steps that is the rhythm **and the notes**.
+  - The hits are the loop's ones. **GOLPES** is how many there are (density): raising it adds hits without moving
+    the others.
+  - In the engines with a note (ACORDE, MACRO, DRONE) each hit's note comes from the four steps after it, in the
+    minor scale above the track's note.
+  - **HOME + K4: range [RANGO]**, 0 (one note) to 15 degrees (two octaves). Shown by the label: "FUENTE R7".
+  - On kick, hats and percussion the loop is the rhythm only.
+  - **How it changes:** with the EVOLUTION page. MUTAR moves hits every CADA bars (as many stay); VUELTA brings it
+    back towards the loop as written; QUÉ = SONIDO keeps it still. With MUTAR at 0 the loop repeats. PLAY goes
+    back to the loop as written.
+  - Steps can be turned on and off by hand in STEPS; GOLPES follows the drawing.
+  - Going from TURING to SEQ **freezes** the loop as fixed steps.
+  - **A new loop:** ARP on the RHYTHM page (the page random) with GOLPES unlocked.
+  - Saving the pattern saves the loop that sounds and its range.
+- **The pattern random** (ARP in PATTERNS) deals sources too: the bass comes out as TURING one time in three,
+  the percussion one in five, the acid lines always.
+- In the factory banks the acid lines (PULSAR, ECLIPSE, FOSFORO, ZENIT and bank B's even patterns) are now TURING
+  loops: several notes, not one.
+- Limit: there is no hand-written note per step. A TURING loop's notes come from the loop itself.
+- The idea is that of the Turing Machine module (Music Thing Modular) and its use in the EXS/MT6 firmware. Own code.
+
 ## 6. Patterns and banks (SAVE)
 - **Black keys = banks A to K. White keys = the bank's 16 patterns.**
 - Stopped, the change is immediate; playing, it waits for the end of the bar (the queued pattern blinks).
