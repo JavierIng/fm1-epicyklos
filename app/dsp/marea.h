@@ -40,32 +40,46 @@ struct Marea {
     Svf band[kMareaBands];
     SvfCoef coef[kMareaBands];
     float gain[kMareaBands];                     // each band's level now (nivel de cada banda)
+    float area[kMareaBands];                     // how much the wave acts on each band, from FROM / TO (área)
+    float wl[kMareaBands], wr[kMareaBands];      // each band's weight on each side: k, level, width, makeup (pesos)
     float phase;
-    float reso_set, makeup;
+    float reso_set, makeup, from_set, to_set;
     int sub;
 
     void init() {
-        for (int b = 0; b < kMareaBands; b++) { band[b].clear(); gain[b] = 1.0f; }
-        phase = 0.0f; reso_set = -1.0f; makeup = 0.8f; sub = 0;
+        for (int b = 0; b < kMareaBands; b++) { band[b].clear(); gain[b] = 1.0f; area[b] = 1.0f; wl[b] = wr[b] = 0.0f; }
+        phase = 0.0f; reso_set = -1.0f; makeup = 0.8f; from_set = to_set = -1.0f; sub = 0;
     }
     void clear() { for (int b = 0; b < kMareaBands; b++) band[b].clear(); }
 
-    // the level a band would have now (para la pantalla también)
-    static float band_target(int b, const float *fx, float phase) {
-        const float x = (float)b / (float)(kMareaBands - 1);
+    // the area (área): inside FROM..TO the wave acts, outside a band stays at its level. Only when FROM / TO move:
+    // it costs two logs a band (en el FM-1 era la mitad del coste de MAREA)
+    void set_area(float from, float to) {
+        from_set = from; to_set = to;
+        const float lo = marea_edge_hz(from), hi = marea_edge_hz(to);
+        for (int b = 0; b < kMareaBands; b++) {
+            const float f = marea_band_hz(b);
+            area[b] = fm_clampf(fm_log2f(f / lo) + 0.5f, 0.0f, 1.0f) * fm_clampf(fm_log2f(hi / f) + 0.5f, 0.0f, 1.0f);
+        }
+    }
+
+    // every band's level for the wave now (nivel de las bandas): the knobs read once, not once per band
+    void update_gains(const float *fx) {
         const float mult = 0.5f + 5.5f * fx[EPK_FX_MAREA_MULTIPLY], ripple = fx[EPK_FX_MAREA_RIPPLE];
-        const float off = fx[EPK_FX_MAREA_OFFSET];
-        float w = fm_sin_turns(x * mult + phase + off) + ripple * fm_sin_turns(3.3f * x * mult - 1.7f * phase + 2.0f * off);
-        w /= 1.0f + ripple;
-        float h = fm_powf(0.5f + 0.5f * w, 1.0f + 8.0f * fx[EPK_FX_MAREA_GRAVITY]);   // gravity (gravedad)
-        const float d = (fx[EPK_FX_MAREA_INVERT] - 0.5f) * 2.0f;                         // depth -1..1
-        if (d < 0.0f) h = 1.0f - h;
-        const float g = 1.0f - fm_fabsf(d) + fm_fabsf(d) * h;
-        // the area (área): inside FROM..TO the wave acts, outside the band stays at its level
-        const float f = marea_band_hz(b);
-        const float lo = marea_edge_hz(fx[EPK_FX_MAREA_FROM]), hi = marea_edge_hz(fx[EPK_FX_MAREA_TO]);
-        const float a = fm_clampf(fm_log2f(f / lo) + 0.5f, 0.0f, 1.0f) * fm_clampf(fm_log2f(hi / f) + 0.5f, 0.0f, 1.0f);
-        return 1.0f + a * (g - 1.0f);
+        const float off = fx[EPK_FX_MAREA_OFFSET], norm = 1.0f / (1.0f + ripple);
+        const float expo = 1.0f + 8.0f * fx[EPK_FX_MAREA_GRAVITY];                          // gravity (gravedad)
+        const float d = (fx[EPK_FX_MAREA_INVERT] - 0.5f) * 2.0f, ad = fm_fabsf(d);         // depth -1..1
+        const float p1 = phase + off, p2 = -1.7f * phase + 2.0f * off, step = mult / (float)(kMareaBands - 1);
+        for (int b = 0; b < kMareaBands; b++) {
+            const float xm = (float)b * step;
+            float w = fm_sin_turns(xm + p1);
+            if (ripple > 0.001f) w += ripple * fm_sin_turns(3.3f * xm + p2);
+            float h = 0.5f + 0.5f * w * norm;
+            if (expo > 1.01f) h = fm_powf(h, expo);
+            if (d < 0.0f) h = 1.0f - h;
+            const float g = 1.0f - ad + ad * h;
+            gain[b] += (1.0f + area[b] * (g - 1.0f) - gain[b]) * 0.3f;
+        }
     }
 
     // mono in, stereo out (mono entra, estéreo sale)
@@ -80,24 +94,31 @@ struct Marea {
             for (int b = 0; b < kMareaBands; b++) coef[b].set(marea_band_hz(b), k, sr);
             makeup = 0.8f * fm_powf(0.41f / k, 0.75f);                 // narrow bands keep the level (mismo nivel)
         }
+        if (fx[EPK_FX_MAREA_FROM] != from_set || fx[EPK_FX_MAREA_TO] != to_set)
+            set_area(fx[EPK_FX_MAREA_FROM], fx[EPK_FX_MAREA_TO]);
         // the bands split between the sides at fixed frequencies; WIDTH 0 = mono (ancho)
-        const float near = 1.0f + width, far = 1.0f - width;
+        const float near = (1.0f + width) * makeup, far = (1.0f - width) * makeup;
         for (uint32_t i = 0; i < n; i++) {
             if (sub == 0) {
                 phase -= hz * 16.0f / sr;                                // forwards: the wave climbs (sube)
                 phase -= fm_floorf(phase);
-                for (int b = 0; b < kMareaBands; b++) gain[b] += (band_target(b, fx, phase) - gain[b]) * 0.3f;
+                update_gains(fx);
+                for (int b = 0; b < kMareaBands; b++) {                  // unity at the peak (k), then the side
+                    const float y = coef[b].k * gain[b];
+                    wl[b] = y * (b & 1 ? far : near);
+                    wr[b] = y * (b & 1 ? near : far);
+                }
             }
             sub = (sub + 1) & 15;
             float yl = 0.0f, yr = 0.0f;
             for (int b = 0; b < kMareaBands; b++) {
                 float bl, bb, bh;
                 band[b].tick(in[i], coef[b].a1, coef[b].a2, coef[b].a3, coef[b].k, bl, bb, bh);
-                const float y = bb * coef[b].k * gain[b];                // unity at the peak
-                if (b & 1) { yl += y * far; yr += y * near; } else { yl += y * near; yr += y * far; }
+                yl += bb * wl[b];
+                yr += bb * wr[b];
             }
-            out_l[i] = in[i] + (yl * makeup - in[i]) * mix;
-            out_r[i] = in[i] + (yr * makeup - in[i]) * mix;
+            out_l[i] = in[i] + (yl - in[i]) * mix;
+            out_r[i] = in[i] + (yr - in[i]) * mix;
         }
     }
 };
