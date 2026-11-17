@@ -648,8 +648,8 @@ void hand_steps(int pt, int i, uint32_t hits, uint32_t ghosts) {
     for (int k = 0; k < 32; k++) s.meta[k] = (ghosts >> k & 1u) ? EPK_PROB_50 : 0;
 }
 
-// Bank B (BREAKS Y DEEP): patterns 1-8 deep (a soft kick on four, swung hats, a pad or dub stabs, a warm low bass,
-// a clap on 2 and 4), 9-16 breaks (the kick broken, a snare on 2 and 4 with ghost notes, busier swung hats, a bass
+// Bank B (BREAKS Y DEEP): patterns 1-8 deep (a soft kick on four, light hats, a pad or dub stabs, a sub bass,
+// a clap on 2 and 4), 9-16 breaks (the kick broken, a snare on 2 and 4 with ghost notes, busier hats, a bass
 // that answers the kick). Each half from sparse to full.
 void generate_deep_breaks(int pt, uint32_t seed, int key, float arc) {
     Rng r;
@@ -662,27 +662,31 @@ void generate_deep_breaks(int pt, uint32_t seed, int key, float arc) {
         if (!breaks) {
             set_spec(pt, 0, note, drive, click, dec, 0.35f, rr(r, 0.1f, 0.4f), 16, arc < 0.12f ? 0 : 4, 0, EPK_DIV_1_16);
         } else {
-            static const uint32_t kBreak[6] = {1u << 0 | 1u << 10,                       // 2-step
+            // from sparse to busy; 3, 5 and 7 from Javier's reference (Kontinum, Vibrating Vision: low hits on 0, 5,
+            // 8, 12, 14), the rest classic breaks
+            static const uint32_t kBreak[8] = {1u << 0 | 1u << 10,                       // 2-step
                                                1u << 0 | 1u << 6 | 1u << 10,
                                                1u << 0 | 1u << 3 | 1u << 10,
+                                               1u << 0 | 1u << 5 | 1u << 8 | 1u << 14,
                                                1u << 0 | 1u << 7 | 1u << 10 | 1u << 13,
+                                               1u << 0 | 1u << 5 | 1u << 8 | 1u << 12 | 1u << 14,
                                                1u << 0 | 1u << 6 | 1u << 8 | 1u << 11,
-                                               1u << 0 | 1u << 3 | 1u << 6 | 1u << 10 | 1u << 13};
-            const int k = clampi((int)(arc * 5.0f + 0.5f) + ri(r, 2) - 1, 0, 5);
+                                               1u << 0 | 1u << 2 | 1u << 5 | 1u << 8 | 1u << 12 | 1u << 14};
+            const int k = clampi((int)(arc * 7.0f + 0.5f) + ri(r, 2) - 1, 0, 7);
             set_spec(pt, 0, note, drive + 0.1f, click, dec - 0.04f, 0.4f, rr(r, 0.0f, 0.3f), 16, 4, 0, EPK_DIV_1_16);
             hand_steps(pt, 0, kBreak[k], r.unipolar() < 0.6f ? 1u << 15 : 0u);
         }
     }
-    {   // 2 hats: deep, off the beat and a little open; breaks, sixteenths with chances. Swung (con swing)
+    {   // 2 hats: deep, off the beat and a little open; breaks, sixteenths with chances. Nearly straight (casi sin swing)
         if (!breaks) {
             const int hits = arc < 0.4f ? 4 : 8;
             set_spec(pt, 1, 82 + ri(r, 6), rr(r, 0.55f, 0.9f), rr(r, 0.75f, 0.92f), rr(r, 0.10f, 0.22f), rr(r, 0.2f, 0.5f),
                      rr(r, 0.2f, 0.5f), 16, hits, 2, EPK_DIV_1_16);
-            g.bank[pt][1][EPK_P_SWING] = rr(r, 0.25f, 0.5f);
+            g.bank[pt][1][EPK_P_SWING] = rr(r, 0.0f, 0.15f);              // nearly straight, as the reference
         } else {
             set_spec(pt, 1, 84 + ri(r, 6), rr(r, 0.6f, 1.0f), rr(r, 0.82f, 0.98f), rr(r, 0.03f, 0.08f), rr(r, 0.1f, 0.4f),
                      rr(r, 0.3f, 0.6f), 16, 8 + (int)(8.0f * arc), 0, EPK_DIV_1_16);
-            g.bank[pt][1][EPK_P_SWING] = rr(r, 0.35f, 0.65f);
+            g.bank[pt][1][EPK_P_SWING] = rr(r, 0.0f, 0.2f);
             chance_steps(r, pt, 1, 0.3f);
         }
     }
@@ -707,7 +711,8 @@ void generate_deep_breaks(int pt, uint32_t seed, int key, float arc) {
     {   // 4 the bass: warm and low in deep; in breaks a line that answers the kick (responde al bombo)
         if (!breaks) {
             const int len = r.unipolar() < 0.5f ? 16 : 32;
-            set_spec(pt, 3, scale_note(r, 38 + key, 3), rr(r, 0.15f, 0.35f), rr(r, 0.28f, 0.42f), rr(r, 0.30f, 0.42f), 0.0f,
+            // a sub bass: the reference's weight is below 60 Hz, its mids far back (el peso abajo, los medios atrás)
+            set_spec(pt, 3, scale_note(r, 38 + key, 3), rr(r, 0.05f, 0.2f), rr(r, 0.20f, 0.32f), rr(r, 0.36f, 0.50f), 0.0f,
                      rr(r, 0.4f, 0.6f), len, arc < 0.2f ? 0 : 3 + (int)((float)len * 0.2f * arc), 2 + ri(r, 3), EPK_DIV_1_16);
         } else {
             static const uint8_t kM[3] = {MACRO_ANALOG, MACRO_FM, MACRO_ANALOG};
