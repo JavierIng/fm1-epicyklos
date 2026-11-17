@@ -45,6 +45,8 @@ struct Master {
     float v_s;                                    // the filter knob, smoothed (suavizado)
     int type;
     float env, gain_db, gr_max;                   // the compressor (compresor)
+    float comp_gn, comp_step;                     // its gain now and its slope to the next (ganancia y pendiente)
+    int comp_sub, idle;                           // idle: the DJ filter in the middle, not computed (en reposo)
     float tone[2], dc_x[2], dc_y[2];              // saturation's top roll-off and DC blocker
     int sub;
     float flt_g, comp_g, sat_g;                   // FLOW: on 1 .. off 0 (activo .. quitado)
@@ -56,6 +58,7 @@ struct Master {
         clear_filters();
         for (int c = 0; c < 2; c++) tone[c] = dc_x[c] = dc_y[c] = 0.0f;
         v_s = 0.5f; type = -1; env = 0.0f; gain_db = 0.0f; gr_max = 0.0f; sub = 0;
+        comp_gn = 1.0f; comp_step = 0.0f; comp_sub = 0; idle = 0;
         flt_g = comp_g = sat_g = 1.0f;
     }
 
@@ -70,6 +73,14 @@ struct Master {
         const float reso = fx[EPK_FX_FLT_RESO], dbl = fx[EPK_FX_FLT_DOUBLE];
         const int ty = (int)(fx[EPK_FX_FLT_TYPE] * (float)(EPK_FLT_COUNT - 1) + 0.5f);
         if (ty != type) { type = ty; clear_filters(); }               // another filter: from empty (desde vacío)
+        // DJ in the middle, settled and fully on: it does nothing, so it is not computed (no se calcula). The knob
+        // leaving the middle starts it again from empty, still wide open (abierto del todo: sin salto)
+        if (type == EPK_FLT_DJ && on > 0.0f && flt_g >= 1.0f && fm_fabsf(fx[EPK_FX_FLT] - 0.5f) < 0.002f &&
+            fm_fabsf(v_s - 0.5f) < 0.002f) {
+            if (!idle) { idle = 1; clear_filters(); }
+            return;
+        }
+        idle = 0;
         float act = 0.0f;
         for (uint32_t i = 0; i < n; i++) {
             if (sub == 0) {                                              // every 16 samples (cada 16 muestras)
@@ -144,15 +155,20 @@ struct Master {
                 if (!do_sat && comp > 0.001f && comp_g > 0.0f) {         // the bus compressor (compresor de bus)
                     const float lvl = fm_maxf(fm_fabsf(x[0]), fm_fabsf(x[1]));
                     env += (lvl - env) * (lvl > env ? att : rel);
-                    const float db = 6.0206f * fm_log2f(fm_maxf(env, 1e-5f));
-                    const float over = db - thr;
-                    float gr = 0.0f;
-                    if (over > 3.0f) gr = over * slope;                  // a 6 dB soft knee (rodilla suave)
-                    else if (over > -3.0f) gr = slope * (over + 3.0f) * (over + 3.0f) / 12.0f;
-                    gain_db = makeup - gr;
-                    gr_max = fm_maxf(gr_max, gr * comp_g);
-                    const float gn = 1.0f + (fm_exp2f(gain_db * (1.0f / 6.0206f)) - 1.0f) * comp_g;
-                    x[0] *= gn; x[1] *= gn;
+                    if (comp_sub == 0) {          // the gain every 8 samples, a straight line between (cada 8 muestras)
+                        const float db = 6.0206f * fm_log2f(fm_maxf(env, 1e-5f));
+                        const float over = db - thr;
+                        float gr = 0.0f;
+                        if (over > 3.0f) gr = over * slope;              // a 6 dB soft knee (rodilla suave)
+                        else if (over > -3.0f) gr = slope * (over + 3.0f) * (over + 3.0f) / 12.0f;
+                        gain_db = makeup - gr;
+                        gr_max = fm_maxf(gr_max, gr * comp_g);
+                        const float target = 1.0f + (fm_exp2f(gain_db * (1.0f / 6.0206f)) - 1.0f) * comp_g;
+                        comp_step = (target - comp_gn) * 0.125f;
+                    }
+                    comp_sub = (comp_sub + 1) & 7;
+                    comp_gn += comp_step;
+                    x[0] *= comp_gn; x[1] *= comp_gn;
                 }
                 if (do_sat && sat > 0.001f && sat_g > 0.0f) {            // tape (cinta): asymmetric, darker on top
                     for (int c = 0; c < 2; c++) {

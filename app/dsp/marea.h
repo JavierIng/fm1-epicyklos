@@ -10,7 +10,11 @@
 //   GRAVITY pulls it down: h = ((w + 1) / 2) ^ (1 + 8 GRAVITY): wide valleys, thin crests ("wormholes" at the top)
 //   INVERT is the depth, bipolar: 1 full, 0.5 none, 0 upside down (al revés)
 //   outside the area (FROM .. TO, one octave of slope) a band keeps its level (fuera del área, nivel fijo)
-// Levels are worked out every 16 samples and glide (se deslizan). Rules: no heap, float only.
+// Levels are worked out every 64 samples and the weights ramp between (rampa). Rules: no heap, float only.
+// The 14 lower bands run at half the sample rate (a media frecuencia): on the FM-1 the 16 filters at 44.1 kHz took a
+// quarter of the CPU. In: a [1/4 1/2 1/4] average of each pair; out: a straight line between the bank's samples; each
+// band's level makes up for what those two take off near the top. The two highest bands (10 and 15 kHz) stay at the
+// full rate. The half-rate bands come out ~1.5 samples late against the dry sound and the top two.
 #pragma once
 #include "epk.h"
 #include "fastmath.h"
@@ -19,6 +23,7 @@
 namespace epk {
 
 constexpr int kMareaBands = 16;
+constexpr int kMareaHalf = 14;                                  // the bands at half rate; the rest at full rate
 constexpr float kMareaLow = 40.0f, kMareaOctaves = 8.6f;        // fixed points: 40 Hz .. ~15.5 kHz (puntos fijos)
 
 inline float marea_band_hz(int b) { return kMareaLow * fm_exp2f((float)b * (kMareaOctaves / (float)(kMareaBands - 1))); }
@@ -42,15 +47,23 @@ struct Marea {
     float gain[kMareaBands];                     // each band's level now (nivel de cada banda)
     float area[kMareaBands];                     // how much the wave acts on each band, from FROM / TO (área)
     float wl[kMareaBands], wr[kMareaBands];      // each band's weight on each side: k, level, width, makeup (pesos)
+    float dl[kMareaBands], dr[kMareaBands];      // how much they move each bank sample, to the next update (rampa)
+    float comp[kMareaBands];                     // what the half rate's in and out take off, put back (compensación)
     float phase;
     float reso_set, makeup, from_set, to_set;
-    int sub;
+    float x_even, x_odd;                         // the pair coming in (el par que entra)
+    float yl_a, yl_b, yr_a, yr_b;                // the bank's last two samples on each side (últimas dos salidas)
+    int sub, odd;
 
     void init() {
-        for (int b = 0; b < kMareaBands; b++) { band[b].clear(); gain[b] = 1.0f; area[b] = 1.0f; wl[b] = wr[b] = 0.0f; }
+        for (int b = 0; b < kMareaBands; b++) { band[b].clear(); gain[b] = 1.0f; area[b] = 1.0f; wl[b] = wr[b] = dl[b] = dr[b] = 0.0f; }
         phase = 0.0f; reso_set = -1.0f; makeup = 0.8f; from_set = to_set = -1.0f; sub = 0;
+        clear();
     }
-    void clear() { for (int b = 0; b < kMareaBands; b++) band[b].clear(); }
+    void clear() {
+        for (int b = 0; b < kMareaBands; b++) band[b].clear();
+        x_even = x_odd = yl_a = yl_b = yr_a = yr_b = 0.0f; odd = 0;
+    }
 
     // the area (área): inside FROM..TO the wave acts, outside a band stays at its level. Only when FROM / TO move:
     // it costs two logs a band (en el FM-1 era la mitad del coste de MAREA)
@@ -78,7 +91,7 @@ struct Marea {
             if (expo > 1.01f) h = fm_powf(h, expo);
             if (d < 0.0f) h = 1.0f - h;
             const float g = 1.0f - ad + ad * h;
-            gain[b] += (1.0f + area[b] * (g - 1.0f) - gain[b]) * 0.3f;
+            gain[b] += (1.0f + area[b] * (g - 1.0f) - gain[b]) * 0.76f;   // = 0.3 every 16 samples
         }
     }
 
@@ -91,7 +104,13 @@ struct Marea {
         if (fm_fabsf(reso - reso_set) > 0.002f) {
             reso_set = reso;
             const float k = 0.9f - 0.84f * reso;
-            for (int b = 0; b < kMareaBands; b++) coef[b].set(marea_band_hz(b), k, sr);
+            for (int b = 0; b < kMareaBands; b++) {
+                const float f = marea_band_hz(b);
+                coef[b].set(f, k, b < kMareaHalf ? sr * 0.5f : sr);     // half rate below, full rate on top
+                // [1/4 1/2 1/4] in and the straight line out each give 1/2 + 1/2 cos(2 pi f / sr) (cada uno)
+                const float h = 0.5f + 0.5f * fm_cosf(6.2831853f * f / sr);
+                comp[b] = b < kMareaHalf ? 1.0f / fm_maxf(h * h, 0.25f) : 1.0f;
+            }
             makeup = 0.8f * fm_powf(0.41f / k, 0.75f);                 // narrow bands keep the level (mismo nivel)
         }
         if (fx[EPK_FX_MAREA_FROM] != from_set || fx[EPK_FX_MAREA_TO] != to_set)
@@ -99,26 +118,48 @@ struct Marea {
         // the bands split between the sides at fixed frequencies; WIDTH 0 = mono (ancho)
         const float near = (1.0f + width) * makeup, far = (1.0f - width) * makeup;
         for (uint32_t i = 0; i < n; i++) {
-            if (sub == 0) {
-                phase -= hz * 16.0f / sr;                                // forwards: the wave climbs (sube)
-                phase -= fm_floorf(phase);
-                update_gains(fx);
-                for (int b = 0; b < kMareaBands; b++) {                  // unity at the peak (k), then the side
-                    const float y = coef[b].k * gain[b];
-                    wl[b] = y * (b & 1 ? far : near);
-                    wr[b] = y * (b & 1 ? near : far);
+            float wet_l, wet_r;
+            if (!odd) {                                                  // even: between the last two (a mitad)
+                x_even = in[i];
+                wet_l = 0.5f * (yl_a + yl_b);
+                wet_r = 0.5f * (yr_a + yr_b);
+            } else {                                                     // odd: one sample of the bank (una muestra)
+                if (sub == 0) {                                          // every 64 samples (32 of the bank)
+                    phase -= hz * 64.0f / sr;                            // forwards: the wave climbs (sube)
+                    phase -= fm_floorf(phase);
+                    update_gains(fx);
+                    for (int b = 0; b < kMareaBands; b++) {              // unity at the peak (k), then the side
+                        const float y = coef[b].k * gain[b] * comp[b];
+                        dl[b] = (y * (b & 1 ? far : near) - wl[b]) * (1.0f / 32.0f);
+                        dr[b] = (y * (b & 1 ? near : far) - wr[b]) * (1.0f / 32.0f);
+                    }
                 }
+                sub = (sub + 2) & 63;
+                const float x = 0.25f * x_odd + 0.5f * x_even + 0.25f * in[i];
+                x_odd = in[i];
+                float yl = 0.0f, yr = 0.0f;
+                for (int b = 0; b < kMareaHalf; b++) {
+                    float bl, bb, bh;
+                    band[b].tick(x, coef[b].a1, coef[b].a2, coef[b].a3, coef[b].k, bl, bb, bh);
+                    wl[b] += dl[b]; wr[b] += dr[b];
+                    yl += bb * wl[b];
+                    yr += bb * wr[b];
+                }
+                for (int b = kMareaHalf; b < kMareaBands; b++) { wl[b] += dl[b]; wr[b] += dr[b]; }
+                yl_a = yl_b; yl_b = yl;
+                yr_a = yr_b; yr_b = yr;
+                wet_l = yl_a;
+                wet_r = yr_a;
             }
-            sub = (sub + 1) & 15;
-            float yl = 0.0f, yr = 0.0f;
-            for (int b = 0; b < kMareaBands; b++) {
+            for (int b = kMareaHalf; b < kMareaBands; b++) {             // the top two, every sample (cada muestra)
                 float bl, bb, bh;
                 band[b].tick(in[i], coef[b].a1, coef[b].a2, coef[b].a3, coef[b].k, bl, bb, bh);
-                yl += bb * wl[b];
-                yr += bb * wr[b];
+                wet_l += bb * wl[b];
+                wet_r += bb * wr[b];
             }
-            out_l[i] = in[i] + (yl - in[i]) * mix;
-            out_r[i] = in[i] + (yr - in[i]) * mix;
+            odd ^= 1;
+            out_l[i] = in[i] + (wet_l - in[i]) * mix;
+            out_r[i] = in[i] + (wet_r - in[i]) * mix;
         }
     }
 };

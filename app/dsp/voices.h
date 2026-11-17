@@ -418,7 +418,7 @@ struct Drone {
     void init(uint32_t seed) {
         ph[0] = 0.0f; ph[1] = 0.33f; ph[2] = 0.66f; hz = hz_to = 110.0f; amp = 0.0f; hold = 0.0f; ic1 = ic2 = 0.0f;
         drift_p = drift_f = drift_s = d_to_p = d_to_f = d_to_s = 0.0f; gate = 0; sub = 0;
-        a1 = a2 = a3 = 0.0f; vel = 0.0f;
+        a1 = a2 = a3 = 0.0f; vel = 0.0f; mul[0] = mul[1] = mul[2] = 0.0f;
         rng.init(seed ^ 0xD20E5u);
     }
     void trigger(float h, float velocity) {
@@ -448,22 +448,26 @@ struct Drone {
                 const float fc = fm_minf(50.0f * fm_exp2f(p[EPK_P_TONE] * 8.0f + drift * drift_f * 1.2f), sr * 0.45f);
                 const float g = fm_tanf(3.14159265f * fc / sr), k = 1.1f;
                 a1 = 1.0f / (1.0f + g * (g + k)); a2 = g * a1; a3 = g * a2;
+                // the three oscillators' steps per Hz: the drift moves slowly, so every 32 samples (cada 32 muestras)
+                const float m0 = fm_exp2f(drift * drift_p * 0.25f / 12.0f) / sr;
+                const float spread = 0.002f + drift * 0.012f * drift_s;
+                mul[0] = m0;
+                mul[1] = m0 * (1.0f + spread);
+                mul[2] = m0 * fm_exp2f(iv / 12.0f) * (1.0f - spread * 0.5f);
             }
             sub = (sub + 1) & 31;
             hz += (hz_to - hz) * glide;
-            const float base = hz * fm_exp2f(drift * drift_p * 0.25f / 12.0f);
-            const float spread = 0.002f + drift * 0.012f * drift_s;
-            const float f[3] = {base, base * (1.0f + spread), base * fm_exp2f(iv / 12.0f) * (1.0f - spread * 0.5f)};
             float s = 0.0f;
-            for (int o = 0; o < 3; o++) {
-                const float inc = f[o] / sr;
+            for (int o = 0; o < 3; o++) {                            // only the shapes that sound (solo las que suenan)
+                const float inc = hz * mul[o];
                 ph[o] += inc;
                 if (ph[o] >= 1.0f) ph[o] -= 1.0f;
-                const float sine = fm_sin_turns(ph[o]);
-                const float tri = ph[o] < 0.5f ? 4.0f * ph[o] - 1.0f : 3.0f - 4.0f * ph[o];
-                s += sine * w_sine + tri * w_tri + blep_saw(ph[o], inc) * w_saw * 0.8f;
+                if (w_sine > 0.0f) s += fm_sin_turns(ph[o]) * w_sine;
+                if (w_tri > 0.0f) s += (ph[o] < 0.5f ? 4.0f * ph[o] - 1.0f : 3.0f - 4.0f * ph[o]) * w_tri;
+                if (w_saw > 0.0f) s += blep_saw(ph[o], inc) * w_saw * 0.8f;
             }
-            s = s * 0.3f + rng.bipolar() * air * 0.12f;
+            s *= 0.3f;
+            if (air > 0.0f) s += rng.bipolar() * air * 0.12f;
             const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
             ic1 = fm_flush(2.0f * v1 - ic1);
             ic2 = fm_flush(2.0f * v2 - ic2);
@@ -475,6 +479,7 @@ struct Drone {
         }
     }
     float a1, a2, a3, vel;
+    float mul[3];                                // each oscillator's step per Hz (paso por Hz)
 };
 
 // ------------------------------------------------------------------ MACRO (macro-oscilador)
@@ -713,9 +718,15 @@ struct Macro {
 
 // ------------------------------------------------------------------ a track's voice (la voz de una pista)
 // One engine at a time, in the same memory (una a la vez, en la misma memoria).
+// A voice that has gone quiet (below -100 dB for 512 samples) is not computed until its next hit: on the FM-1 the
+// percussion voices spent most of their CPU working out silence (silencio). A hit or an init wakes it.
+constexpr uint32_t kQuietAfter = 512;
+constexpr float kQuietLevel = 1e-5f;
+
 struct Voice {
     int engine;
     uint32_t seed;
+    uint32_t quiet;                              // samples below kQuietLevel in a row (muestras en silencio)
     union {
         TestVoice test;
         Grave grave;
@@ -728,7 +739,7 @@ struct Voice {
     } u;
 
     void init(int eng, uint32_t sd) {
-        engine = eng; seed = sd;
+        engine = eng; seed = sd; quiet = 0;
         switch (eng) {
         case EPK_ENG_GRAVE: u.grave.init(sd); break;
         case EPK_ENG_METAL: u.metal.init(sd); break;
@@ -741,6 +752,7 @@ struct Voice {
         }
     }
     void trigger(float hz, float velocity) {
+        quiet = 0;
         switch (engine) {
         case EPK_ENG_GRAVE: u.grave.trigger(hz, velocity); break;
         case EPK_ENG_METAL: u.metal.trigger(hz, velocity); break;
@@ -754,6 +766,16 @@ struct Voice {
     }
     void release() { if (engine == EPK_ENG_DRONE) u.drone.gate = 0; }   // the sequencer stopped: let it fade
     void render(float *out, uint32_t n, const float *p, float sr) {
+        if (quiet >= kQuietAfter) {                                  // asleep: silence, nothing computed (dormida)
+            for (uint32_t i = 0; i < n; i++) out[i] = 0.0f;
+            return;
+        }
+        render_engine(out, n, p, sr);
+        float pk = 0.0f;
+        for (uint32_t i = 0; i < n; i++) pk = fm_maxf(pk, fm_fabsf(out[i]));
+        quiet = pk < kQuietLevel ? quiet + n : 0;
+    }
+    void render_engine(float *out, uint32_t n, const float *p, float sr) {
         switch (engine) {
         case EPK_ENG_GRAVE: u.grave.render(out, n, p, sr); break;
         case EPK_ENG_METAL: u.metal.render(out, n, p, sr); break;

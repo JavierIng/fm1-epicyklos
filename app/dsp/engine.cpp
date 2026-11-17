@@ -1133,6 +1133,34 @@ void render_track(Track &t, float *l, float *r, uint32_t n, int solo) {
         g_prof[EPK_PROF_MAREA] += prof_now() - prof1;
     }
     float peak = t.meter;
+    // nothing gliding (nada se desliza): the common case, a plain loop. On the FM-1 the mixing of the six tracks
+    // was ~17 % of the CPU (la mezcla de las pistas)
+    const int steady = !ins && fm_fabsf(target - t.gain) < 1e-4f && fm_fabsf(lvl - t.lvl_s) < 1e-5f &&
+                       fm_fabsf(throw_target - t.throw_g) < 1e-4f;
+    if (steady) {
+        t.gain = target; t.lvl_s = lvl; t.throw_g = throw_target;
+        const float k = lvl * target, ka = send_a + (1.0f - send_a) * throw_target;
+        const float pk = pre ? target : k;                          // PRE: the level does not touch it, mute does
+        float bp = 0.0f;
+        if (k == 0.0f && pk == 0.0f) {                              // silent and not sending: nothing to add
+            if (is_kick) for (uint32_t i = 0; i < n; i++) g.kick[i] = 0.0f;
+        } else {
+            const float kl = k * gl, kr = k * gr, sa = pk * ka, sb = pk * send_b;
+            for (uint32_t i = 0; i < n; i++) {
+                const float x = g.buf[i];
+                l[i] += x * kl;
+                r[i] += x * kr;
+                g.bus_a[i] += x * sa;
+                g.bus_b[i] += x * sb;
+                bp = fm_maxf(bp, fm_fabsf(x));
+            }
+            if (is_kick) for (uint32_t i = 0; i < n; i++) g.kick[i] = g.buf[i] * k;
+            bp *= k;
+        }
+        t.meter = fm_maxf(peak, bp);
+        t.peak_block = bp;
+        return;
+    }
     for (uint32_t i = 0; i < n; i++) {
         t.gain += (target - t.gain) * 0.003f;                        // ~8 ms: mutes do not click
         t.lvl_s += (lvl - t.lvl_s) * 0.003f;                         // a modulated level glides (sin escalones)

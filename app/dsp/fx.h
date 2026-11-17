@@ -36,13 +36,18 @@ struct Delay {
     int w, type;
     float cur;                                         // the delay now, in half-rate samples (suavizado)
     float lp, hp, wow, flutter;
+    float a_c, target_c;                               // the loop's low-pass and the time aimed at, every 16 samples
+    int sub;
     Rng rng;
 
     void clear() {
         for (int i = 0; i < kDelayLen; i++) g_delay_buf[i] = 0;
         lp = hp = 0.0f;
     }
-    void init() { w = 0; type = -1; cur = 0.0f; wow = flutter = 0.0f; rng.init(0x51ED270Bu); clear(); }
+    void init() {
+        w = 0; type = -1; cur = 0.0f; wow = flutter = 0.0f; a_c = 0.5f; target_c = 0.0f; sub = 0;
+        rng.init(0x51ED270Bu); clear();
+    }
 
     static inline float rd(int base, int len, int w, float delay) {      // linear interpolation (interpolación)
         const int whole = (int)delay;
@@ -62,11 +67,22 @@ struct Delay {
         if (ty != type) { type = ty; clear(); w = 0; cur = 0.0f; }      // another machine: an empty tape
         const int len = type == EPK_DLY_PINGPONG ? kDelayHalf : kDelayLen;
         const float wear = fx[EPK_FX_DLY_WEAR];
-        const int steps = 1 + (int)(fx[EPK_FX_DLY_TIME] * 15.0f + 0.5f);
-        float target = (float)steps * hsr * 15.0f / bpm;                // a sixteenth = 15 / bpm seconds
-        const float longest = (float)(len - 8) * 0.98f;
-        while (target > longest) target *= 0.5f;
-        if (cur <= 0.0f) cur = target;
+        // what does not change from one sample to the next, worked out every 16 (lo lento, cada 16 muestras): on the
+        // FM-1 the divides, the exp and the exp2 of every sample were a good part of the delay's cost
+        if (sub == 0 || cur <= 0.0f) {
+            const int steps = 1 + (int)(fx[EPK_FX_DLY_TIME] * 15.0f + 0.5f);
+            float target = (float)steps * hsr * 15.0f / bpm;            // a sixteenth = 15 / bpm seconds
+            const float longest = (float)(len - 8) * 0.98f;
+            while (target > longest) target *= 0.5f;
+            target_c = target;
+            if (cur <= 0.0f) cur = target;
+            float fc = 400.0f * fm_exp2f(fx[EPK_FX_DLY_TONE] * 4.5f);   // 400 Hz .. 9 kHz
+            if (type == EPK_DLY_BBD) fc *= fm_clampf(0.25f * hsr / cur, 0.25f, 1.0f) * (1.0f - 0.5f * wear);   // long = dark
+            else fc *= 1.0f - 0.45f * wear;
+            a_c = 1.0f - fm_expf(-6.2831853f * fm_minf(fc, hsr * 0.45f) / hsr);
+        }
+        sub = (sub + 1) & 15;
+        const float target = target_c, a = a_c;
         // the time glides: the pitch bends like a tape changing speed (el tono se desliza)
         cur += (target - cur) * (type == EPK_DLY_TAPE ? 0.0004f : type == EPK_DLY_BBD ? 0.001f : 0.002f);
         float delay = cur;
@@ -80,10 +96,6 @@ struct Delay {
         if (delay < 2.0f) delay = 2.0f;
         if (delay > (float)(len - 4)) delay = (float)(len - 4);
 
-        float fc = 400.0f * fm_exp2f(fx[EPK_FX_DLY_TONE] * 4.5f);       // 400 Hz .. 9 kHz
-        if (type == EPK_DLY_BBD) fc *= fm_clampf(0.25f * hsr / cur, 0.25f, 1.0f) * (1.0f - 0.5f * wear);   // long = dark
-        else fc *= 1.0f - 0.45f * wear;
-        const float a = 1.0f - fm_expf(-6.2831853f * fm_minf(fc, hsr * 0.45f) / hsr);
         const float fb = fx[EPK_FX_DLY_FEEDBACK] * 1.1f;
         const float drive = type == EPK_DLY_TAPE ? 1.0f + 1.5f * wear : 1.0f;
 
@@ -111,7 +123,7 @@ struct Delay {
             hp = fm_flush(hp + (lp - hp) * 0.025f);                     // ~90 Hz: the lows do not pile up
             float x = in + (lp - hp) * fb;
             if (type == EPK_DLY_BBD) x += rng.bipolar() * 0.0015f * (0.3f + wear);   // the clock's hiss (soplido)
-            g_delay_buf[w] = pack(fm_tanhf(x * drive) / drive);
+            g_delay_buf[w] = pack(drive > 1.0f ? fm_tanhf(x * drive) * (1.0f / drive) : fm_tanhf(x));
             out_l = out_r = y;
         }
         if (++w >= len) w = 0;
@@ -202,6 +214,7 @@ struct Plate {
             len[i] = n;
             if (w[i] >= n) w[i] = 0;
         }
+        set_taps();
     }
     inline float rd(int line, int back) const {                         // back: 1 .. the line's length
         int i = w[line] - back;
@@ -230,12 +243,25 @@ struct Plate {
         wr(line, x);
         return d;
     }
-    inline float tap(int line, int at) const {                          // an output tap, scaled with SIZE
-        int k = (int)((float)at * scale);
-        if (k < 1) k = 1;
-        if (k > len[line]) k = len[line];
-        return rd(line, k);
+    // the output taps (tomas de salida), Dattorro's, left then right: line, distance at size 1
+    static constexpr int kTaps = 14;
+    int tap_k[kTaps];                                                    // scaled with SIZE, by set_size (escaladas)
+    static int tap_line(int i) {
+        static const int8_t kLine[kTaps] = {R_DL1, R_DL1, R_AP, R_DL2, L_DL1, L_AP, L_DL2,
+                                            L_DL1, L_DL1, L_AP, L_DL2, R_DL1, R_AP, R_DL2};
+        return kLine[i];
     }
+    void set_taps() {
+        static const int16_t kAt[kTaps] = {197, 2204, 1418, 1479, 1475, 139, 790, 262, 2688, 910, 1981, 1564, 248, 90};
+        for (int i = 0; i < kTaps; i++) {
+            const int line = tap_line(i);
+            int k = (int)((float)kAt[i] * scale);
+            if (k < 1) k = 1;
+            if (k > len[line]) k = len[line];
+            tap_k[i] = k;
+        }
+    }
+    inline float tap(int i) const { return rd(tap_line(i), tap_k[i]); }
 
     void tick(float in, const float *fx, float hsr, int freeze, float &out_l, float &out_r) {
         const float decay = freeze ? 0.9995f : 0.30f + 0.69f * fx[EPK_FX_REV_DECAY];
@@ -277,10 +303,8 @@ struct Plate {
         const float r_out = delay(R_DL2, r);
         l_fb = l_out; r_fb = r_out;
         // the output taps (tomas de salida), Dattorro's, scaled
-        out_l = 1.2f * (tap(R_DL1, 197) + tap(R_DL1, 2204) - tap(R_AP, 1418) + tap(R_DL2, 1479) - tap(L_DL1, 1475) -
-                        tap(L_AP, 139) - tap(L_DL2, 790));
-        out_r = 1.2f * (tap(L_DL1, 262) + tap(L_DL1, 2688) - tap(L_AP, 910) + tap(L_DL2, 1981) - tap(R_DL1, 1564) -
-                        tap(R_AP, 248) - tap(R_DL2, 90));
+        out_l = 1.2f * (tap(0) + tap(1) - tap(2) + tap(3) - tap(4) - tap(5) - tap(6));
+        out_r = 1.2f * (tap(7) + tap(8) - tap(9) + tap(10) - tap(11) - tap(12) - tap(13));
     }
 };
 
