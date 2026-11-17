@@ -249,14 +249,16 @@ int main() {
     for (int t = 0; t < EPK_TRACKS; t++) for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) changed += epk_param_get(t, q) != before[t][q];
     CHECK(changed == 0 && !epk_undo_ready(), "undo brought the pattern back (%d differ)", changed);
     epk_mute(0, 1);
-    epk_pattern_select(3, 6);                                    // bank D, pattern 7
+    epk_pattern_select(4, 6);                                    // bank E, pattern 7
     epk_render(l, r, 1);
-    CHECK(epk_bank_current() == 3 && epk_pattern_current() == 6 && epk_muted(0), "bank D pattern 7, mute kept");
-    CHECK(std::strcmp(epk_pattern_name(3, 6), "GEN D07") == 0, "generated name: %s", epk_pattern_name(3, 6));
+    CHECK(epk_bank_current() == 4 && epk_pattern_current() == 6 && epk_muted(0), "bank E pattern 7, mute kept");
+    CHECK(std::strcmp(epk_pattern_name(4, 6), "GEN E07") == 0, "generated name: %s", epk_pattern_name(4, 6));
+    CHECK(std::strcmp(epk_pattern_name(3, 0), "NEBULA") == 0 && std::strcmp(epk_pattern_name(3, 15), "CYKLOS") == 0,
+          "bank D, the first ones: %s .. %s", epk_pattern_name(3, 0), epk_pattern_name(3, 15));
     const float d7 = epk_param_get(2, EPK_P_NOTE);
     epk_pattern_select(2, 4);
     epk_render(l, r, 1);
-    epk_pattern_select(3, 6);
+    epk_pattern_select(4, 6);
     epk_render(l, r, 1);
     CHECK(epk_param_get(2, EPK_P_NOTE) == d7, "a generated bank is the same every time");
     // every generated pattern plays clean (los 160 generados suenan limpios)
@@ -1704,7 +1706,7 @@ int main() {
               epk_engine(4), epk_engine(5));
         // banks B and C: named, and every pattern sounds
         CHECK(std::strcmp(epk_pattern_name(1, 0), "SOTANO") == 0 && std::strcmp(epk_pattern_name(2, 15), "FRENESI") == 0 &&
-              std::strncmp(epk_pattern_name(3, 0), "GEN D", 5) == 0, "names: %s, %s, %s", epk_pattern_name(1, 0),
+              std::strncmp(epk_pattern_name(4, 0), "GEN E", 5) == 0, "names: %s, %s, %s", epk_pattern_name(1, 0),
               epk_pattern_name(2, 15), epk_pattern_name(3, 0));
         for (int bank = 0; bank <= 2; bank++) {
             int quiet = 0, bad = 0, kicks = 0;

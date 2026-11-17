@@ -80,6 +80,7 @@ struct Grave {
     static constexpr int kAp0 = 149, kAp1 = 211, kAp2 = 307, kDelay = 613;      // at sr / 4
 
     float phase, freq, pitch_env, amp, attack, click_env, noise_lp;
+    float hold;                             // samples the body stays full (cuerpo sostenido); -1: from the trigger
     Rng rng;
     // rumble (cola grave)
     float ap0[kAp0], ap1[kAp1], ap2[kAp2], dl[kDelay];
@@ -88,6 +89,7 @@ struct Grave {
 
     void init(uint32_t seed) {
         phase = 0.0f; freq = 55.0f; pitch_env = 0.0f; amp = 0.0f; attack = 1.0f; click_env = 0.0f; noise_lp = 0.0f;
+        hold = 0.0f;
         rng.init(seed);
         for (float &v : ap0) v = 0.0f;
         for (float &v : ap1) v = 0.0f;
@@ -97,7 +99,7 @@ struct Grave {
         acc = loop_lp = loop_hp = hp_state = wet_prev = wet_now = 0.0f;
     }
     void trigger(float hz, float velocity) {
-        freq = hz; phase = 0.0f; pitch_env = 1.0f; amp = velocity; attack = 0.0f; click_env = velocity;
+        freq = hz; phase = 0.0f; pitch_env = 1.0f; amp = velocity; attack = 0.0f; click_env = velocity; hold = -1.0f;
     }
     static inline float allpass(float *buf, int &idx, int len, float x) {
         const float d = buf[idx];
@@ -113,7 +115,10 @@ struct Grave {
         const float click = p[EPK_P_TONE] * 0.7f;
         const float decay_s = 0.06f * fm_exp2f(p[EPK_P_DECAY] * 4.6f);            // 60 ms .. ~1.5 s
         const float amp_mul = fm_expf(-6.9f / (decay_s * sr));
-        const float pitch_mul = fm_expf(-1.0f / (0.028f * sr));
+        // the body (cuerpo): the sine holds full for a third of DECAY (up to 110 ms) before it falls, and the pitch
+        // comes down a little slower (35 ms): more weight between 50 and 120 Hz, the same click
+        const float pitch_mul = fm_expf(-1.0f / (0.035f * sr));
+        if (hold < 0.0f) hold = fm_minf(decay_s * 0.33f, 0.11f) * sr;
         const float click_mul = fm_expf(-1.0f / (0.003f * sr));
         const float sweep = p[EPK_P_EXTRA1] * 4.0f;                               // octaves (octavas)
         const float rumble = p[EPK_P_EXTRA2];
@@ -128,7 +133,8 @@ struct Grave {
             s = fm_tanhf(s * drive) * drive_norm;
             attack = fm_minf(attack + 0.05f, 1.0f);
             s *= attack;
-            amp = fm_flush(amp * amp_mul);
+            if (hold > 0.0f) hold = fm_maxf(hold - 1.0f, 0.0f);
+            else amp = fm_flush(amp * amp_mul);
             pitch_env *= pitch_mul;
             click_env = fm_flush(click_env * click_mul);
             acc += s;                                                             // the rumble, every 4th sample

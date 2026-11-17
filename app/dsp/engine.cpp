@@ -110,6 +110,7 @@ struct Engine {
     int evo_hold;                          // every track's evolution frozen (todo congelado)
     int key;                               // the key in use, semitones from D (tonalidad: desde re), -5..6
     int key_lock;                          // the whole-pattern random keeps it (tonalidad fija)
+    int transpose;                         // semitones on every melodic track, live (transposición)
     int rscope;                            // EPK_RSCOPE_*: what it renews
     int8_t pat_key[EPK_PATTERNS];          // each slot's key (la de cada ranura)
     // what the store holds for the bank about to load (lo guardado del banco que va a cargar): written by the main
@@ -184,7 +185,14 @@ inline int hits_evo(const Track &t, int len) { return hits_with(t, len, 0); }
 inline int hits_live(const Track &t, int len) { return hits_with(t, len, t.lfo_hits); }
 inline int rot_evo(const Track &t) { return param_int(t, EPK_P_ROTATE) + t.m_rot; }
 inline int rot_live(const Track &t) { return rot_evo(t) + t.lfo_rot; }
-inline int note_live(const Track &t) { return clampi(param_int(t, EPK_P_NOTE) + t.m_note, 24, 84); }
+// the melodic tracks (pistas melódicas): what the transposition and the note changes move
+inline int is_melodic(const Track &t) {
+    const int e = param_int(t, EPK_P_ENGINE);
+    return e == EPK_ENG_ACORDE || e == EPK_ENG_DRONE || e == EPK_ENG_TEST || e == EPK_ENG_MACRO;
+}
+inline int note_live(const Track &t) {
+    return clampi(param_int(t, EPK_P_NOTE) + t.m_note + (is_melodic(t) ? g.transpose : 0), 24, 84);
+}
 static const uint8_t kEveryBars[5] = {1, 2, 4, 8, 16};
 inline int every_bars(const Track &t) { return kEveryBars[clampi((int)(t.p[EPK_P_EVERY] * 4.0f + 0.5f), 0, 4)]; }
 
@@ -629,7 +637,7 @@ void generate_ambient(int pt, uint32_t seed, int key, float arc) {
                  (float)m / (float)(MACRO_MODELS - 1), rr(r, 0.15f, 0.7f), len, arc < 0.2f ? 0 : 2 + (int)(3.0f * arc), ri(r, len),
                  EPK_DIV_1_8);
         g.bank[pt][3][EPK_P_ATTACK] = m == MACRO_CUERDA ? 0.0f : rr(r, 0.1f, 0.4f);
-        evolve(pt, 3, 0.4f, 2, 0.25f, EPK_SCOPE_NOTE);
+        evolve(pt, 3, 0.4f, 2, 0.25f, EPK_SCOPE_RHYTHM);
         chance_steps(r, pt, 3, 0.35f);
     }
     {   // 5 the drone: always there, a fifth or an octave on top, drifting (siempre)
@@ -777,7 +785,7 @@ void generate_techno(int pt, uint32_t seed, int key, float arc) {
 // table, generated ones by how full they are
 enum : uint8_t { SRC_HAND, SRC_AMBIENT, SRC_DEEP_BREAKS, SRC_TECHNO };
 struct Slot { uint8_t src, n; const char *name; };
-static const Slot kBanks[3][EPK_PATTERNS] = {
+static const Slot kBanks[4][EPK_PATTERNS] = {
     {   // A AMBIENTE: from almost nothing up; the three hand-made ones without a kick in their place by how full
         {SRC_AMBIENT, 2, "ALBA"}, {SRC_HAND, 0, "NEBULA"}, {SRC_AMBIENT, 6, "NIEBLA"}, {SRC_AMBIENT, 10, "ROCIO"},
         {SRC_HAND, 1, "BRUMA"}, {SRC_AMBIENT, 14, "LAGUNA"}, {SRC_AMBIENT, 18, "MUSGO"}, {SRC_HAND, 7, "APOGEO"},
@@ -794,7 +802,13 @@ static const Slot kBanks[3][EPK_PATTERNS] = {
         {SRC_HAND, 9, "SILICE"}, {SRC_HAND, 2, "DERIVA"}, {SRC_HAND, 15, "CYKLOS"}, {SRC_HAND, 5, "MAREA"},
         {SRC_HAND, 3, "ORBITA"}, {SRC_HAND, 12, "HORIZONTE"}, {SRC_HAND, 13, "NADIR"}, {SRC_HAND, 6, "PERIGEO"},
         {SRC_HAND, 11, "CUASAR"}, {SRC_HAND, 4, "PULSAR"}, {SRC_HAND, 10, "FOSFORO"}, {SRC_HAND, 8, "ECLIPSE"},
-        {SRC_TECHNO, 75, "VORTICE"}, {SRC_TECHNO, 85, "CICLON"}, {SRC_HAND, 14, "ZENIT"}, {SRC_TECHNO, 100, "FRENESI"}}};
+        {SRC_TECHNO, 75, "VORTICE"}, {SRC_TECHNO, 85, "CICLON"}, {SRC_HAND, 14, "ZENIT"}, {SRC_TECHNO, 100, "FRENESI"}},
+    {   // D ORIGEN: the sixteen hand-made ones in their first order, as bank A had them at the start (como al principio)
+        {SRC_HAND, 0, "NEBULA"}, {SRC_HAND, 1, "BRUMA"}, {SRC_HAND, 2, "DERIVA"}, {SRC_HAND, 3, "ORBITA"},
+        {SRC_HAND, 4, "PULSAR"}, {SRC_HAND, 5, "MAREA"}, {SRC_HAND, 6, "PERIGEO"}, {SRC_HAND, 7, "APOGEO"},
+        {SRC_HAND, 8, "ECLIPSE"}, {SRC_HAND, 9, "SILICE"}, {SRC_HAND, 10, "FOSFORO"}, {SRC_HAND, 11, "CUASAR"},
+        {SRC_HAND, 12, "HORIZONTE"}, {SRC_HAND, 13, "NADIR"}, {SRC_HAND, 14, "ZENIT"}, {SRC_HAND, 15, "CYKLOS"}}};
+constexpr int kStyledBanks = 4;                                    // A..D from the table, the rest generated
 
 void fill_slot(int bank, int pt, int key) {
     const Slot &s = kBanks[bank][pt];
@@ -872,10 +886,10 @@ void bake_track(int i, float *out, Steps &st) {
     }
 }
 
-// Banks A, B and C by style (kBanks); D..K generated freely. The same every time (siempre los mismos)
+// Banks A, B and C by style, D the first hand-made ones (kBanks); E..K generated freely. The same every time (siempre los mismos)
 // Each bank in one key, so its patterns follow each other (cada banco en una tonalidad): A and C in D, where the
 // hand-made patterns are; B in A; the rest spread
-inline int bank_key(int bank) { return bank == 0 || bank == 2 ? 0 : bank == 1 ? -5 : (bank * 5) % 12 - 5; }
+inline int bank_key(int bank) { return bank == 0 || bank == 2 || bank == 3 ? 0 : bank == 1 ? -5 : (bank * 5) % 12 - 5; }
 
 // A saved pattern's own name (nombre propio): a number drawn from its bytes, so the same pattern has the same name
 // after a power-off and nothing more is stored. Spelled as three syllables: 16 x 4 x 15 x 4 x 16 x 4 names
@@ -901,7 +915,7 @@ void load_bank(int bank) {
             unpack_pattern(g.stage[pt], pt);
             g.user_mask |= (uint16_t)(1u << pt);
             g.name_id[pt] = record_name(g.stage[pt]);
-        } else if (bank < 3) fill_slot(bank, pt, bank_key(bank));
+        } else if (bank < kStyledBanks) fill_slot(bank, pt, bank_key(bank));
         else generate(pt, (uint32_t)(bank * 64 + pt), bank_key(bank));
     }
     g.bank_id = bank;
@@ -920,10 +934,7 @@ inline void evo_reset(Track &t) {
 
 inline float clamp_off(float base, float off) { return clamp01(base + off) - base; }
 inline int toward0(int v) { return v > 0 ? v - 1 : v < 0 ? v + 1 : 0; }
-inline int melodic(const Track &t) {
-    const int e = param_int(t, EPK_P_ENGINE);
-    return e == EPK_ENG_ACORDE || e == EPK_ENG_DRONE || e == EPK_ENG_TEST || e == EPK_ENG_MACRO;
-}
+inline int melodic(const Track &t) { return is_melodic(t); }
 
 // A bar starts (empieza un compás): every EVERY bars each track pulls back towards its pattern by RETURN, changes by
 // MUTATE, and rests or not by ABSENCE.
@@ -942,7 +953,9 @@ void evolve(Track &t) {
     const int scope = clampi((int)(t.p[EPK_P_SCOPE] * (EPK_SCOPE_COUNT - 1) + 0.5f), 0, EPK_SCOPE_COUNT - 1);
     const int rhythm = scope == EPK_SCOPE_ALL || scope == EPK_SCOPE_RHYTHM;
     const int sound = scope == EPK_SCOPE_ALL || scope == EPK_SCOPE_SOUND;
-    const int note = scope == EPK_SCOPE_ALL || scope == EPK_SCOPE_NOTE;
+    // notes only when asked for (solo si se pide): jumps of a fourth or an octave sound abrupt, so RIT+SON (the old
+    // ALL) leaves them alone and only NOTA moves them
+    const int note = scope == EPK_SCOPE_NOTE;
     const float keep = 1.0f - back;
     t.m_tone *= keep; t.m_decay *= keep; t.m_char *= keep;
     if (t.evo.unipolar() < back) t.m_hits = toward0(t.m_hits);
@@ -1370,9 +1383,11 @@ void epk_init(float sample_rate) {
     // the project's mix (mezcla del proyecto): level, pan per track
     // the reverb (B) is fed by what holds (chord, drone), little by what hits (hats, percussion): an atmosphere, not
     // a pulse (una atmósfera, no un latido)
-    static const float kMix[EPK_TRACKS][4] = {{0.84f, 0.50f, 0.00f, 0.00f}, {0.62f, 0.58f, 0.30f, 0.12f},
+    // 0.1.16: back towards the first mix (hacia la mezcla del principio): hats and percussion wetter, the hats a
+    // little down (the drone stays: up, it covered the bass). The duck stays light, so the reverb does not pump
+    static const float kMix[EPK_TRACKS][4] = {{0.84f, 0.50f, 0.00f, 0.00f}, {0.56f, 0.58f, 0.30f, 0.22f},
                                               {0.72f, 0.40f, 0.65f, 0.60f}, {0.70f, 0.56f, 0.00f, 0.15f},
-                                              {0.45f, 0.36f, 0.40f, 0.72f}, {0.60f, 0.57f, 0.40f, 0.25f}};
+                                              {0.45f, 0.36f, 0.40f, 0.72f}, {0.60f, 0.57f, 0.40f, 0.38f}};
     // the send effects (efectos): a dotted-eighth tape echo into a long, dark plate
     static const float kFx[EPK_FX_COUNT] = {0.0f, 2.0f / 15.0f, 0.50f, 0.45f, 0.35f, 0.25f, 0.75f,
                                             0.80f, 0.45f, 0.40f, 0.75f, 0.12f,   // longer plate, a light duck
@@ -1714,9 +1729,16 @@ static void render_block(float *left, float *right, uint32_t frames) {
         g.meter_fx = fx_peak;
     }
     prof_master = prof_now();
-    if (place == EPK_PLACE_ALL) g.master.filter(left, right, frames, g.fx_live, g.sr);   // on everything (en todo)
-    g.master.dynamics(left, right, frames, g.fx_live, g.sr);         // compressor and tape (comp y cinta)
-    g.crush.process(left, right, frames, g.fx_live);                 // DIGITAL: bits and rate (bits y frecuencia)
+    {   // the master chain in FLOW's order (la cadena del master en el orden de FLOW)
+        int order[EPK_STAGES];
+        epk_chain((int)(g.fx_live[EPK_FX_DRIVE_ORDER] * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), order);
+        for (int k = 0; k < EPK_STAGES; k++) {
+            if (order[k] == EPK_STAGE_FLT) {
+                if (place == EPK_PLACE_ALL) g.master.filter(left, right, frames, g.fx_live, g.sr);   // on everything
+            } else if (order[k] == EPK_STAGE_DIGI) g.crush.process(left, right, frames, g.fx_live);  // bits, rate
+            else g.master.dynamics(left, right, frames, g.fx_live, g.sr, order[k]);               // comp or tape
+        }
+    }
     float peak = g.meter_master;
     for (uint32_t i = 0; i < frames; i++) {                           // the master (salida): a soft clip
         left[i] = fm_tanhf(left[i] * 0.9f);
@@ -1757,7 +1779,7 @@ int epk_fx_steps(int param) {
     return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT :
            param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : param == EPK_FX_MAREA_SYNC ? 2 :
            (param >= EPK_FX_ON_MAREA && param <= EPK_FX_ON_SAT) ? 2 : param == EPK_FX_FLT_PLACE ? EPK_PLACE_COUNT :
-           param == EPK_FX_SPACE_ORDER || param == EPK_FX_DRIVE_ORDER ? 2 :
+           param == EPK_FX_SPACE_ORDER ? 2 : param == EPK_FX_DRIVE_ORDER ? EPK_CHAIN_ORDERS :
            param == EPK_FX_REV_SHIM_INT ? EPK_SHIM_COUNT : param == EPK_FX_REV_TYPE ? EPK_REV_COUNT :
            param == EPK_FX_NUBE_PITCH ? EPK_NUBE_PITCH_STEPS : 0;
 }
@@ -1919,7 +1941,7 @@ const char *epk_pattern_name(int bank, int pattern) {
         name[6] = '*'; name[7] = 0;
         return name;
     }
-    if (bank <= 2)
+    if (bank < kStyledBanks)
         for (const char *c = kBanks[bank][pattern].name; *c && n < 12; c++)
             name[n++] = *c;
     else {
@@ -1961,6 +1983,8 @@ void epk_random_scope(int scope) { g.rscope = clampi(scope, 0, EPK_RSCOPE_COUNT 
 int epk_random_scope_get(void) { return g.rscope; }
 int epk_random_key_locked(void) { return g.key_lock; }
 int epk_key(void) { return ((2 + g.key) % 12 + 12) % 12; }
+void epk_transpose_set(int semis) { g.transpose = clampi(semis, -12, 12); }
+int epk_transpose(void) { return g.transpose; }
 int epk_evolve_held(void) { return g.evo_hold; }
 // Older versions had fewer parameters per track (menos parámetros), the newest last: 1 without SCOPE and the track
 // LFO, 2 without the track LFO. Each record grows by their defaults (sus valores de inicio)

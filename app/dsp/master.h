@@ -143,10 +143,11 @@ struct Master {
     }
 
     // The bus compressor and the tape (compresor y cinta), in FLOW's order
-    void dynamics(float *l, float *r, uint32_t n, const float *fx, float sr) {
+    // which: EPK_STAGE_COMP or EPK_STAGE_TAPE, one stage of the chain (una etapa de la cadena)
+    void dynamics(float *l, float *r, uint32_t n, const float *fx, float sr, int which) {
         const float comp = fx[EPK_FX_COMP], sat = fx[EPK_FX_SAT], step = 1.0f / (0.010f * sr);
         const float comp_on = fx[EPK_FX_ON_COMP] > 0.5f ? 1.0f : 0.0f, sat_on = fx[EPK_FX_ON_SAT] > 0.5f ? 1.0f : 0.0f;
-        const int sat_first = fx[EPK_FX_DRIVE_ORDER] > 0.5f;
+        const int tape = which == EPK_STAGE_TAPE;
         // compressor: threshold -8 .. -28 dB, ratio 1.5 .. 7.5, attack 10 ms, release 150 ms, makeup up to 8 dB
         const float thr = -8.0f - 20.0f * comp, slope = 1.0f - 1.0f / (1.5f + 6.0f * comp), makeup = 8.0f * comp;
         const float att = 1.0f - fm_expf(-1.0f / (0.010f * sr)), rel = 1.0f - fm_expf(-1.0f / (0.150f * sr));
@@ -154,11 +155,11 @@ struct Master {
         const float tone_a = 1.0f - fm_expf(-6.2831853f * (16000.0f - 9000.0f * sat) / sr);
         const float bias_off = fm_tanhf(bias);
         for (uint32_t i = 0; i < n; i++) {
-            comp_g = glide_to(comp_g, comp_on, step);
-            sat_g = glide_to(sat_g, sat_on, step);
+            if (tape) sat_g = glide_to(sat_g, sat_on, step);
+            else comp_g = glide_to(comp_g, comp_on, step);
             float x[2] = {l[i], r[i]};
-            for (int pass = 0; pass < 2; pass++) {
-                const int do_sat = (pass == 0) == (sat_first != 0);
+            {
+                const int do_sat = tape;
                 if (!do_sat && comp > 0.001f && comp_g > 0.0f) {         // the bus compressor (compresor de bus)
                     const float lvl = fm_maxf(fm_fabsf(x[0]), fm_fabsf(x[1]));
                     env += (lvl - env) * (lvl > env ? att : rel);
@@ -193,7 +194,8 @@ struct Master {
 
     void process(float *l, float *r, uint32_t n, const float *fx, float sr) {
         filter(l, r, n, fx, sr);
-        dynamics(l, r, n, fx, sr);
+        dynamics(l, r, n, fx, sr, EPK_STAGE_COMP);
+        dynamics(l, r, n, fx, sr, EPK_STAGE_TAPE);
     }
 };
 

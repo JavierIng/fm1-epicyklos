@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **versión de prueba 0.1.12.** Desde la 0.1.7 se ha instalado en un FM-1 real: arranca y suena; lo que
+> Estado: **versión de prueba 0.1.16.** Desde la 0.1.7 se ha instalado en un FM-1 real: arranca y suena; lo que
 > no se ha comprobado en el aparato va marcado como *pendiente en el dispositivo*.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
@@ -28,7 +28,7 @@ knob la salta.
 | SELECT | cambiar de página | **tempo** (1 BPM por clic) |
 | PRESETS | nivel de la pista | envío de la pista al eco |
 | K1-K4 | los 4 parámetros de la página | ajuste fino |
-| OCT- / OCT+ | octava del teclado | — |
+| OCT- / OCT+ | octava del teclado | **transponer** todo el patrón un semitono (los dos a la vez: 0) |
 | SAVE | vista PATRONES | **guardar el proyecto** (dos veces); en PATRONES, HOME + tecla blanca: guardar el patrón |
 | SEQ | vista PASOS | modo **ESCENAS** (teclas negras) |
 | ARP | aleatorio; mantenido + pista: evolución sí / no | **deshacer** |
@@ -40,7 +40,8 @@ Al mantener HOME, la parte baja de la pantalla muestra esta chuleta.
 ## 4. Pistas y motores
 Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 - **GRAVE** (pista 1): bombo. NOTA, DRIVE (de limpio a industrial), CLICK, CAÍDA, BARRIDO, RUMBLE (cola grave).
-  Desde la 0.1.12 la mitad baja de DRIVE es casi limpia; la saturación fuerte queda en la parte alta.
+  Desde la 0.1.12 la mitad baja de DRIVE es casi limpia; la saturación fuerte queda en la parte alta. Desde la
+  0.1.16 el cuerpo se sostiene un tercio de la CAÍDA (hasta 110 ms) antes de caer: más peso entre 50 y 120 Hz.
 - **METAL** (pista 2): platos tipo 808/909. AFINA, METAL (de ruido a metálico), BRILLO, CAÍDA, ANILLO, VARÍA.
 - **GOLPE** (pista 6): palma, caja o aro. AFINA, TIPO (PALMA → CAJA → ARO), BRILLO, CAÍDA, CUERPO, COLA.
 - **TAMBOR** (se elige en MOTOR; por defecto en la pista 6 de algunos patrones): toms, congas y percusión
@@ -99,8 +100,10 @@ que cambia es un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vue
 - **MUTAR:** cuánto cambia cada vez. Lo que cambia: golpes (uno más o uno menos), rotación, tono, caída, carácter
   (en ACORDE, el acorde) y, en ACORDE, DRONE, MACRO y PRUEBA, la nota (cuarta, quinta, octava). Nunca deja la pista sin
   golpes: eso es cosa de AUSENCIA.
-- **QUÉ:** qué puede cambiar. TODO, RITMO (golpes y rotación), SONIDO (tono, caída, carácter/acorde) o NOTA. Por
-  ejemplo, platos en SONIDO cambian de color sin mover el groove; ACORDE en SONIDO cambia de acorde en su sitio.
+- **QUÉ:** qué puede cambiar. RIT+SON (ritmo y sonido), RITMO (golpes y rotación), SONIDO (tono, caída,
+  carácter/acorde) o NOTA. Desde la 0.1.16 **las notas solo cambian con NOTA**: los saltos de cuarta u octava sonaban
+  bruscos, así que por defecto no hay cambios de nota (antes TODO los incluía). Ojo: en una pista TURING el bucle que
+  muta también mueve sus notas. Por ejemplo, platos en SONIDO cambian de color sin mover el groove; ACORDE en SONIDO cambia de acorde en su sitio.
 - **CADA:** cada cuántos compases cambia: 1, 2, 4, 8 o 16. El primer tramo suena siempre tal como está escrito.
 - **VUELTA:** cuánto vuelve hacia lo escrito cada vez. Con VUELTA alta se aleja poco y regresa; con VUELTA baja se
   va lejos.
@@ -175,7 +178,10 @@ Cada pista elige una de tres fuentes. Se cambia con **K4 en la página GROOVE**.
 - A y B, y los cuatro de techno de C, están generados con reglas, no compuestos a mano: son siempre los mismos.
 - **Los patrones guardados no se mueven:** siguen en su hueco (banco y número), aunque ahora haya otro de fábrica
   debajo.
-- Bancos D-K: patrones generados libres (GEN D01…), con el bajo en MACRO.
+- **Banco D, ORIGEN** (en re, desde la 0.1.16): los 16 patrones hechos a mano en su orden del principio (NEBULA,
+  BRUMA, DERIVA, ORBITA, PULSAR, MAREA, PERIGEO, APOGEO, ECLIPSE, SILICE, FOSFORO, CUASAR, HORIZONTE, NADIR, ZENIT,
+  CYKLOS), como estaba el banco A al empezar.
+- Bancos E-K: patrones generados libres (GEN E01…), con el bajo en MACRO.
 - **Líneas ácidas en lugar del dron** (bucles TURING, con varias notas; pista 5 con MACRO ACIDO): en PULSAR,
   ECLIPSE, FOSFORO, ZENIT, CICLON y FRENESI (banco C), en SINCOPA y TORMENTA (banco B), y en uno de cada
   tres de los generados. Vienen con el filtro subiendo y bajando en 16 compases (página MOVIMIENTO: TRIANG a TONO)
@@ -346,24 +352,30 @@ controles hacen lo que su manual describe, pero el algoritmo es propio y no suen
 
 ### FLOW: la cadena de efectos (HOME hasta FLOW)
 La pantalla dibuja la cadena tal como corre: las pistas, MAREA en su pista, los envíos, el eco y la reverb, y el
-master (filtro, compresor, cinta y limitador). Cada bloque tiene un número.
-- **Teclas blancas 1-6:** activan o quitan un bloque: 1 MAREA, 2 ECO, 3 REVERB, 4 FILTRO, 5 COMP, 6 CINTA
-  (saturación). Las teclas encendidas son los bloques activos. Al quitar uno, se funde en ~10 ms (sin clic) y deja
+master (filtro, compresor, cinta, digital y limitador). Cada bloque tiene un número.
+- **Teclas blancas 1-6:** activan o quitan un bloque al soltarlas: 1 MAREA, 2 ECO, 3 REVERB, 4 FILTRO, 5 COMP,
+  6 CINTA (saturación). La 7 es DIGITAL (se enciende con BITS o FREC en EFECTOS). Las teclas encendidas son los
+  bloques activos.
+- **Mover bloques (desde la 0.1.16):** mantén una blanca y pulsa otra: cambian de sitio. ECO y REVERB (2 y 3) se
+  cambian entre ellos; FILTRO, COMP, CINTA y DIGITAL (4 a 7) en cualquier orden dentro del master. MAREA no se mueve:
+  va en su pista. Al quitar uno, se funde en ~10 ms (sin clic) y deja
   de calcularse: en el FM-1 eso libera CPU (*pendiente en el dispositivo*). Al volver, el eco o la reverb empiezan
   vacíos.
 - **K1 FILTRO EN:** dónde va el filtro del master: TODO (como hasta ahora), SECO (solo las pistas: los ecos y la
   reverb siguen abiertos mientras cierras, el gesto clásico de dub) o EFECTOS (solo los retornos).
 - **K2 ESPACIO:** ECO>REV (el eco alimenta la reverb, como hasta ahora) o REV>ECO (la reverb alimenta el eco: ecos
   de una nube).
-- **K3 DRIVE:** COMP>SAT o SAT>COMP. La cinta antes del compresor suena más contenida; después, más sucia.
+- **K3 MASTER:** el orden del master, 24 posibles, escrito con letras: F filtro, C compresor, S cinta, D digital
+  (de inicio F>C>S>D). La cinta antes del compresor suena más contenida; después, más sucia. DIGITAL antes de la
+  cinta queda más redondo. El filtro solo está en esta cadena con FILTRO EN = TODO.
 - **K4 CRUCE:** cuánto del primero del ESPACIO entra en el segundo. Es el mismo knob que A REVERB en la página
   ECO 2; en FLOW vale para los dos sentidos.
 - El limitador del final no se puede quitar. FLOW es del proyecto, como los efectos.
-- No hay orden libre: solo estas opciones fijas, para que no haya combinaciones que rompan el sonido.
 - **HOME mantenido en FLOW: el gasto de CPU** medido en el aparato, en % del tiempo real: P1-P6 (la voz de cada
   pista), MAR (MAREA), ENV (eco y reverb), MST (master) y TOT (el total). Arriba, CPU (con la pantalla y el resto) y
   CORTES: si CORTES sube mientras suena, el aparato no llega y se oyen chasquidos o distorsión. Quitar bloques
-  aquí mismo (MAREA, ECO, REVERB) libera CPU.
+  aquí mismo (MAREA, ECO, REVERB) libera CPU. Debajo, **NUCLEO 2**: SI si el eco y la reverb van en el segundo
+  núcleo (desde la 0.1.15; entonces ENV es lo que gastan allí y no cuenta en TOT), o NO y el motivo.
 
 ### Gestos de dub (REC)
 - **Mantener REC:** throw. La pista elegida va al eco a tope mientras lo mantienes, aunque su envío esté a 0.

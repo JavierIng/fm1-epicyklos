@@ -58,7 +58,7 @@ enum {
 
 /* what the evolution moves (qué mueve la evolución): everything, the rhythm (hits, rotation), the sound (tone, decay,
  * character: in ACORDE the chord), the note */
-enum { EPK_SCOPE_ALL, EPK_SCOPE_RHYTHM, EPK_SCOPE_SOUND, EPK_SCOPE_NOTE, EPK_SCOPE_COUNT };
+enum { EPK_SCOPE_ALL /* rhythm and sound, no notes (ritmo y sonido, sin notas) */, EPK_SCOPE_RHYTHM, EPK_SCOPE_SOUND, EPK_SCOPE_NOTE, EPK_SCOPE_COUNT };
 
 /* SCENES (escenas), the project's: each sets up to EPK_SCENE_LOCKS targets to its own value. Held or latched,
  * it comes in over its FADE and goes back the same way. A target: an effect (0 .. EPK_FX_COUNT-1) or a track's
@@ -133,8 +133,8 @@ enum {
     EPK_FX_ON_MAREA, EPK_FX_ON_DLY, EPK_FX_ON_REV, EPK_FX_ON_FLT, EPK_FX_ON_COMP, EPK_FX_ON_SAT,
     EPK_FX_FLT_PLACE,     /* EPK_PLACE_*: where the master filter sits (dónde va el filtro) */
     EPK_FX_SPACE_ORDER,   /* EPK_SPACE_*: which of delay and reverb feeds the other, by CROSS (DLY_TO_REV) */
-    EPK_FX_DRIVE_ORDER,   /* EPK_DRIVE_*: compressor then tape, or tape then compressor */
-    /* DIGITAL: at the end of the master, before the limiter (al final del master) */
+    EPK_FX_DRIVE_ORDER,   /* the master chain's order (orden del master): one of EPK_CHAIN_ORDERS, epk_chain() */
+    /* DIGITAL: in the master chain, where its order puts it (default last, before the limiter) */
     EPK_FX_BITS,          /* 0 off, up: 16 .. 4 bits (reducción de bits) */
     EPK_FX_SRR,           /* 0 off, up: the sample rate divided by 1 .. 32 (reducción de frecuencia) */
     /* (STUTTER was here: taken out on 12 Nov 2026 for memory; these two slots are now the plate's shimmer) */
@@ -160,7 +160,35 @@ enum {
 /* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */
 enum { EPK_PLACE_ALL, EPK_PLACE_DRY, EPK_PLACE_FX, EPK_PLACE_COUNT };
 enum { EPK_SPACE_DLY_REV, EPK_SPACE_REV_DLY };   /* ECO > REVERB / REVERB > ECO */
-enum { EPK_DRIVE_COMP_SAT, EPK_DRIVE_SAT_COMP };  /* COMP > SATURA / SATURA > COMP */
+enum { EPK_DRIVE_COMP_SAT, EPK_DRIVE_SAT_COMP };  /* (old: the order's two ends, 0 and 1) */
+/* The master chain (cadena del master): the filter (when FLOW puts it on everything), the compressor, the tape and
+ * DIGITAL, in any of 24 orders. 0 is filter > comp > tape > digital and 23 filter > tape > comp > digital, so the
+ * old two-way order (0 / 1) reads the same. */
+enum { EPK_STAGE_FLT, EPK_STAGE_COMP, EPK_STAGE_TAPE, EPK_STAGE_DIGI, EPK_STAGES };
+#define EPK_CHAIN_ORDERS 24
+static inline void epk_chain(int idx, int out[EPK_STAGES]) {
+    int left[EPK_STAGES] = {0, 1, 2, 3}, n = EPK_STAGES, f = 6, i, k;
+    if (idx < 0) idx = 0;
+    if (idx > 23) idx = 23;
+    idx = idx == 2 ? 23 : idx == 23 ? 2 : idx;          /* the old ends at 0 and 23 (los extremos antiguos) */
+    for (i = 0; i < EPK_STAGES; i++) {
+        const int q = idx / f;
+        out[i] = left[q];
+        for (k = q; k < n - 1; k++) left[k] = left[k + 1];
+        n--;
+        idx %= f;
+        if (n > 1) f /= n;
+    }
+}
+static inline int epk_chain_index(const int order[EPK_STAGES]) {
+    int i, k, o[EPK_STAGES];
+    for (i = 0; i < EPK_CHAIN_ORDERS; i++) {
+        epk_chain(i, o);
+        for (k = 0; k < EPK_STAGES && o[k] == order[k]; k++) {}
+        if (k == EPK_STAGES) return i;
+    }
+    return 0;
+}
 enum { EPK_SHIM_OCT, EPK_SHIM_FIFTH, EPK_SHIM_OCT_FIFTH, EPK_SHIM_2OCT, EPK_SHIM_DOWN, EPK_SHIM_COUNT };  /* +12 +7 +19 +24 -12 */
 enum { EPK_REV_PLACA, EPK_REV_NUBE, EPK_REV_COUNT };
 #define EPK_NUBE_PITCH_STEPS 49
@@ -284,6 +312,9 @@ enum { EPK_RSCOPE_ALL, EPK_RSCOPE_GROOVE, EPK_RSCOPE_SYNTHS, EPK_RSCOPE_COUNT };
 void epk_random_scope(int scope);
 int epk_random_scope_get(void);
 int epk_key(void);                             /* the key in use: 0 = C .. 11 = B (A and factory: 2, D) */
+/* the transposition (transposición): semitones, -12 .. 12, on every melodic track (chord, drone, bass), live */
+void epk_transpose_set(int semis);
+int epk_transpose(void);
 int epk_evolve_held(void);
 
 /* Saving (guardar): a pattern as it sounds now (with its evolution) goes to a slot of any bank. The core packs it;

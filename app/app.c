@@ -147,7 +147,7 @@ static const char *param_hint(int track, int p)
     case EPK_P_EVERY: return "Cada cuantos compases cambia";
     case EPK_P_RETURN: return "Cuanto vuelve al patron";
     case EPK_P_ABSENCE: return "Que descanse cada CADA compases";
-    case EPK_P_SCOPE: return "Ritmo, sonido, nota o todo";
+    case EPK_P_SCOPE: return "Notas solo con NOTA (por defecto no)";
     case EPK_P_LFO_SHAPE: return "La onda; DERIVA vaga sin ciclo";
     case EPK_P_LFO_RATE: return "Lo que dura un ciclo";
     case EPK_P_LFO_DEST: return "Que mueve el LFO de esta pista";
@@ -197,7 +197,7 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "PISTA", "MEZCLA", "VELOC", "SYNC", "MULTI", "RIZO", "DESFASE",
                                                   "INVIERTE", "GRAVEDAD", "DESDE", "HASTA", "RESO", "ANCHO",
                                                   "MAREA", "ECO", "REVERB", "FILTRO", "COMP", "SATURA",
-                                                  "FILTRO EN", "ESPACIO", "DRIVE",
+                                                  "FILTRO EN", "ESPACIO", "MASTER",
                                                   "BITS", "MUESTREO", "SHIMMER", "INTERVALO",
                                                   "TIPO", "POSICION", "TAMANO", "DENSIDAD", "AFINA",
                                                   "PREDELAY", "TAMANO", "DIFUSION", "GRAVES", "ANCHO",
@@ -308,6 +308,7 @@ static struct {
     int track, page, view, octave;
     uint32_t btn, keys;                    /* held at the last input (pulsados) */
     int home_used;                         /* HOME was a shift while held: no view change on release */
+    int flow_held, flow_swapped;           /* FLOW: the white held, and whether it swapped (blanca mantenida) */
     int save_used, arp_used;               /* SAVE / ARP were held for a combination: no action on release */
     int save_bank, save_slot;              /* a save waiting for its second press (guardar: falta confirmar), -1 none */
     int scene_mode;                        /* ESCENAS: the black keys are the scenes (HOME+SEQ) */
@@ -417,8 +418,17 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         str_cat(b, PL[(int)(v * (float)(EPK_PLACE_COUNT - 1) + 0.5f)]);
     } else if (p == EPK_FX_SPACE_ORDER)
         str_cat(b, v > 0.5f ? "REV>ECO" : "ECO>REV");
-    else if (p == EPK_FX_DRIVE_ORDER)
-        str_cat(b, v > 0.5f ? "SAT>COMP" : "COMP>SAT");
+    else if (p == EPK_FX_DRIVE_ORDER) {    /* the master chain (cadena): F filter, C comp, S tape, D digital */
+        static const char LET[EPK_STAGES] = {'F', 'C', 'S', 'D'};
+        int o[EPK_STAGES], k, n = 0;
+        epk_chain((int)(v * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), o);
+        for (k = 0; k < EPK_STAGES; k++) {
+            if (k)
+                b[n++] = '>';
+            b[n++] = LET[o[k]];
+        }
+        b[n] = 0;
+    }
     else if (p == EPK_FX_BITS) {
         if (v < 0.001f)
             str_cat(b, "NO");
@@ -633,7 +643,7 @@ static void param_str(int track, int p, char *b)
         break;
     }
     case EPK_P_SCOPE: {
-        static const char *const SC[EPK_SCOPE_COUNT] = {"TODO", "RITMO", "SONIDO", "NOTA"};
+        static const char *const SC[EPK_SCOPE_COUNT] = {"RIT+SON", "RITMO", "SONIDO", "NOTA"};
         str_cat(b, SC[i]);
         break;
     }
@@ -1165,6 +1175,7 @@ void app_init(void)
     ui.page = PAGE_SOUND;
     ui.view = VIEW_ORBIT;
     ui.hold_step = -1;
+    ui.flow_held = -1;
     ui.pop_fx = -1;
     ui.amount = 10;
     ui.rng = 0x1F123BB5u;
@@ -1225,7 +1236,7 @@ static void set_view(int v)
     if (v == VIEW_PATTERNS)
         ui.bank = epk_bank_current();
     app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : v == VIEW_FX ? "ECO+REV" : v == VIEW_MOD ? "LFO+SEG" :
-            v == VIEW_FLOW ? "BLANCAS 1-6" : v == VIEW_GLOBAL ? "AJUSTES" : "");
+            v == VIEW_FLOW ? "BLANCAS 1-7" : v == VIEW_GLOBAL ? "AJUSTES" : "");
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -1519,6 +1530,32 @@ static void flow_toggle(int block)
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
+/* FLOW view: two blocks swap places (cambian de sitio): ECO and REVERB (whites 2, 3), or two of the master chain's
+ * FILTRO, COMP, CINTA, DIGITAL (whites 4..7). MAREA sits on its track: it does not move */
+static void flow_swap(int a, int b)
+{
+    if ((a == 1 && b == 2) || (a == 2 && b == 1)) {
+        epk_fx_set(EPK_FX_SPACE_ORDER, epk_fx_get(EPK_FX_SPACE_ORDER) > 0.5f ? 0.0f : 1.0f);
+        app_say("ESPACIO", epk_fx_get(EPK_FX_SPACE_ORDER) > 0.5f ? "REV>ECO" : "ECO>REV");
+    } else if (a >= 3 && a <= 6 && b >= 3 && b <= 6) {
+        int o[EPK_STAGES], i, ia = 0, ib = 0;
+        char v[16];
+        epk_chain((int)(epk_fx_get(EPK_FX_DRIVE_ORDER) * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), o);
+        for (i = 0; i < EPK_STAGES; i++) {
+            if (o[i] == a - 3)
+                ia = i;
+            if (o[i] == b - 3)
+                ib = i;
+        }
+        i = o[ia]; o[ia] = o[ib]; o[ib] = i;
+        epk_fx_set(EPK_FX_DRIVE_ORDER, (float)epk_chain_index(o) / (float)(EPK_CHAIN_ORDERS - 1));
+        fx_str(EPK_FX_DRIVE_ORDER, v);
+        app_say("MASTER", v);
+    } else
+        app_say("NO SE MUEVE", a == 0 || b == 0 ? "MAREA VA EN SU PISTA" : "SOLO EN SU FILA");
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+
 /* MOD view: K1 shape or track, K2 rate or release, K3 destination, K4 amount; with HOME, K3/K4 the second ones */
 static void turn_mod(int slot, int32_t detents, int shift)
 {
@@ -1726,9 +1763,21 @@ static void input(void)
             }
             continue;
         }
-        if (flowing) {
-            if (down && WHITE_OF[k] >= 0 && WHITE_OF[k] < 6)
-                flow_toggle(WHITE_OF[k]);
+        if (flowing) {                     /* a white alone: on / off when let go; held + another: they swap */
+            const int w = WHITE_OF[k];
+            if (w >= 0 && w < 7) {
+                if (down && ui.flow_held >= 0 && ui.flow_held != w) {
+                    flow_swap(ui.flow_held, w);
+                    ui.flow_swapped = 1;
+                } else if (down) {
+                    ui.flow_held = w;
+                    ui.flow_swapped = 0;
+                } else if (up && w == ui.flow_held) {
+                    if (!ui.flow_swapped && w < 6)
+                        flow_toggle(w);
+                    ui.flow_held = -1;
+                }
+            }
             continue;
         }
         if (stepping) {
@@ -1798,6 +1847,17 @@ static void input(void)
         } else if ((k == B_OCTDN || k == B_OCTUP) && ui.view == VIEW_STEPS) {
             ui.step_page = k == B_OCTUP && epk_length(ui.track) > 16 ? 1 : 0;
             app_say("PASOS", ui.step_page ? "17-32" : "1-16");
+            ui.dirty_main = 1;
+        } else if ((k == B_OCTDN || k == B_OCTUP) && shift) {   /* HOME+OCT: the whole pattern a semitone */
+            const int both = (btn >> B_OCTDN & 1u) && (btn >> B_OCTUP & 1u);
+            char t[8];
+            ui.home_used = 1;
+            epk_transpose_set(both ? 0 : epk_transpose() + (k == B_OCTUP ? 1 : -1));
+            t[0] = 0;
+            if (epk_transpose() > 0)
+                str_cat(t, "+");
+            int_str(epk_transpose(), t + (epk_transpose() > 0));
+            app_say("TONO", t);
             ui.dirty_main = 1;
         } else if (k == B_OCTDN || k == B_OCTUP) {
             int o = clamp(ui.octave + (k == B_OCTUP ? 1 : -1), -2, 2);
@@ -2572,7 +2632,7 @@ static void draw_flow(void)
                        epk_fx_get(EPK_FX_ON_REV) > 0.5f, epk_fx_get(EPK_FX_ON_FLT) > 0.5f,
                        epk_fx_get(EPK_FX_ON_COMP) > 0.5f, epk_fx_get(EPK_FX_ON_SAT) > 0.5f};
     const int place = (int)(epk_fx_get(EPK_FX_FLT_PLACE) * (float)(EPK_PLACE_COUNT - 1) + 0.5f);
-    const int rev_first = epk_fx_get(EPK_FX_SPACE_ORDER) > 0.5f, sat_first = epk_fx_get(EPK_FX_DRIVE_ORDER) > 0.5f;
+    const int rev_first = epk_fx_get(EPK_FX_SPACE_ORDER) > 0.5f;
     /* 1: the tracks and MAREA on its track (las pistas y MAREA en la suya) */
     fx_str(EPK_FX_MAREA_TRACK, v);
     flow_box(2, 4, 70, 0, "PISTAS", "6 MOTORES", 1);
@@ -2589,19 +2649,24 @@ static void draw_flow(void)
     cv_text(120 - text_w(&FONT_XS, v) / 2, 52, &FONT_XS, v, C_LABEL);
     /* 3: the master (el master): the filter where FLOW puts it, compressor and tape in their order, the limiter */
     {
-        static const char *const WHERE[EPK_PLACE_COUNT] = {"EN TODO", "EN PISTAS", "EN EFECTOS"};
+        static const char *const WHERE[EPK_PLACE_COUNT] = {"EN TODO", "PISTAS", "EFECTOS"};
         const int32_t y = 96;
         w[0] = 0;
         str_cat(w, FLT_TYPE_SHORT[flt_type()]);
-        flow_box(2, y, 64, 4, "FILTRO", WHERE[place], on[3]);
-        flow_arrow(66, 72, y + 17, C_RULE);
-        flow_box(72, y, 56, sat_first ? 6 : 5, sat_first ? "CINTA" : "COMP", sat_first ? "SATURA" : "BUS",
-                 on[sat_first ? 5 : 4]);
-        flow_arrow(128, 134, y + 17, C_RULE);
-        flow_box(134, y, 56, sat_first ? 5 : 6, sat_first ? "COMP" : "CINTA", sat_first ? "BUS" : "SATURA",
-                 on[sat_first ? 4 : 5]);
-        flow_arrow(190, 196, y + 17, C_RULE);
-        flow_box(196, y, 42, 0, "LIM", "SALE", 1);
+        {   /* the four stages in their order, then the limiter (las cuatro etapas en su orden) */
+            static const char *const NAME[EPK_STAGES] = {"FILT", "COMP", "CINTA", "DIGI"};
+            static const int KEY[EPK_STAGES] = {4, 5, 6, 7};
+            const int dig = epk_fx_get(EPK_FX_BITS) > 0.001f || epk_fx_get(EPK_FX_SRR) > 0.001f;
+            const int lit[EPK_STAGES] = {on[3], on[4], on[5], dig};
+            const char *sub[EPK_STAGES] = {WHERE[place], "BUS", "SATURA", dig ? "ACTIVO" : "NO"};
+            int o[EPK_STAGES], k;
+            epk_chain((int)(epk_fx_get(EPK_FX_DRIVE_ORDER) * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), o);
+            for (k = 0; k < EPK_STAGES; k++) {
+                flow_box(2 + k * 48, y, 44, KEY[o[k]], NAME[o[k]], sub[o[k]], lit[o[k]]);
+                flow_arrow(46 + k * 48, 50 + k * 48, y + 17, C_RULE);
+            }
+            flow_box(194, y, 44, 0, "LIM", "SALE", 1);
+        }
         (void)w;
     }
 }
@@ -2724,7 +2789,28 @@ static void draw_foot(void)                       /* the page tabs and the four 
                 str_cat(t, n);
                 cv_text(cx, cy, &FONT_XS, t, k == 9 ? C_SOLO : k == 6 && pct[k] >= 150 ? C_MUTE : C_TEXT);
             }
-            cv_text(6, 45, &FONT_XS, "% del tiempo real, medido en el aparato", C_LABEL);
+            {   /* the second core: running, or why not (segundo núcleo: si va, o por qué no) */
+                char t[48], n[12];
+                t[0] = 0;
+#ifdef FM1B_CPU2
+                if (epk_worker_on() && plat_cpu2_on())
+                    str_cat(t, "NUCLEO 2: SI (ENV va en el 2)");
+                else {
+                    static const char *const WHY[6] = {"NO ARRANCO", "LEYO MAL", "LLEGO TARDE", "BLOQUEADO",
+                                                       "FALLO", "NO RESPONDE"};
+                    const int w = plat_cpu2_gave_up();
+                    str_cat(t, "NUCLEO 2: NO ");
+                    str_cat(t, WHY[w >= 0 && w < 6 ? w : 0]);
+                    int_str(w, n);
+                    str_cat(t, " (");
+                    str_cat(t, n);
+                    str_cat(t, ")");
+                }
+#else
+                str_cat(t, "NUCLEO 2: NO (sin compilar)");
+#endif
+                cv_text(6, 45, &FONT_XS, t, epk_worker_on() ? C_LABEL : C_MUTE);
+            }
             cv_text(6, 58, &FONT_XS, "P voz  MAR marea  ENV eco+reverb  MST master", C_LABEL);
             cv_blit(0, 168);
             return;
@@ -2818,7 +2904,7 @@ static void draw_foot(void)                       /* the page tabs and the four 
     }
     if (ui.view == VIEW_FLOW) {               /* FLOW's four knobs (los cuatro knobs de FLOW) */
         cv_text(x, 3, &FONT_XS, "FLOW", C_FX);
-        cv_text(x + 40, 3, &FONT_XS, "Blancas 1-6: activar / quitar", C_LABEL);
+        cv_text(x + 40, 3, &FONT_XS, "Blancas 1-7: activar o mover", C_LABEL);
         for (i = 0; i < 4; i++) {
             const int p = FLOW_PARAM[i], steps = epk_fx_steps(p);
             const int32_t cx = i * 60 + 2;
@@ -3185,6 +3271,10 @@ int app_expect(const char *what, int *got)
         *got = epk_key();
     else if (!strncmp(what, "on", 2) && what[2] >= '1' && what[2] <= '6' && !what[3])   /* FLOW block onN */
         *got = epk_fx_get(EPK_FX_ON_MAREA + what[2] - '1') > 0.5f;
+    else if (!strcmp(what, "transpose"))    /* the whole pattern's transposition, semitones */
+        *got = epk_transpose();
+    else if (!strcmp(what, "chain"))        /* the master chain's order, 0..23 */
+        *got = (int)(epk_fx_get(EPK_FX_DRIVE_ORDER) * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f);
     else if (!strcmp(what, "scenemode"))
         *got = ui.scene_mode;
     else if (!strncmp(what, "scene", 5) && what[5] >= '1' && what[5] <= '8' && !what[6])   /* sceneN: x100 */
