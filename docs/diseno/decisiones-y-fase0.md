@@ -404,3 +404,9 @@
 - **Bancos:** A ambient (generado de menos a más + NEBULA, BRUMA, APOGEO), B deep (1-8) y breaks (9-16) con un generador nuevo, C los patrones a mano reordenados (SILICE → ECLIPSE) y techno al final (VORTICE, CICLON, ZENIT, FRENESI). A y C en re, B en la. Los patrones guardados se quedan en su hueco.
 - Tempo por patrón: no se hace por ahora (Javier usa reloj MIDI; podría servir a otros). Hay 41 bytes libres por patrón si se decide.
 - CPU estimada de los 48 patrones nuevos: 55–77 % (más alto: C08 PERIGEO). Sin probar en el aparato. Nadie lo ha escuchado todavía.
+
+## Reverb que bombea (2026-11-17)
+- Javier (0.1.11 en el aparato): "la reverb suena a bombeo, ya no es como una atmósfera". Medido (oscilación del retorno de la reverb dentro de cada tiempo, ORBITA): 4,2 dB con DUCK 35, 2,7 dB sin DUCK, 2,3 dB sin DUCK ni compresor. El DUCK era la causa principal; con la subida del bombo a 84 (0.1.12) habría sido más.
+- 0.1.13: DUCK de fábrica 12; la reverb la alimentan sobre todo los sonidos sostenidos (envío B: acorde 60, dron 72) y poco los golpes (platos 12, percusión 25, bajo 15); caída de la placa 80 (antes 72). Resultado: 3,3 dB, y lo que queda es la propia cola respondiendo a cada golpe de acorde.
+- Son ajustes del proyecto: si Javier tiene un proyecto guardado, manda el suyo (DUCK en EFECTOS > ECO 2, K4; o ARP + SAVE dos veces y reiniciar).
+- Quitar bancos no libera RAM: los bancos generados no ocupan memoria (solo el que suena) y los guardados están en la flash. Los 30 KB del audio Bluetooth tienen que salir de los búferes de efectos.

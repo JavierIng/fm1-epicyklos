@@ -1433,6 +1433,7 @@ int main() {
             }
             epk_fx_set(EPK_FX_REV_PREDELAY, predelay);
             epk_fx_set(EPK_FX_REV_LEVEL, 1.0f);
+            epk_fx_set(EPK_FX_REV_DECAY, 0.72f);                     // a tail that dies within the 4 s below
             for (long d = 0; d < (long)(4.0f * SR); d += 256) epk_render(l, r, 256);   // levels glide to 0, tails die
             epk_play(1);
         };

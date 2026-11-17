@@ -1351,12 +1351,14 @@ void scenes_factory();                     // with the scenes, below (más abajo
 
 void epk_init(float sample_rate) {
     // the project's mix (mezcla del proyecto): level, pan per track
-    static const float kMix[EPK_TRACKS][4] = {{0.84f, 0.50f, 0.00f, 0.00f}, {0.62f, 0.58f, 0.30f, 0.30f},
-                                              {0.72f, 0.40f, 0.65f, 0.55f}, {0.70f, 0.56f, 0.00f, 0.20f},
-                                              {0.45f, 0.36f, 0.40f, 0.70f}, {0.60f, 0.57f, 0.40f, 0.50f}};
+    // the reverb (B) is fed by what holds (chord, drone), little by what hits (hats, percussion): an atmosphere, not
+    // a pulse (una atmósfera, no un latido)
+    static const float kMix[EPK_TRACKS][4] = {{0.84f, 0.50f, 0.00f, 0.00f}, {0.62f, 0.58f, 0.30f, 0.12f},
+                                              {0.72f, 0.40f, 0.65f, 0.60f}, {0.70f, 0.56f, 0.00f, 0.15f},
+                                              {0.45f, 0.36f, 0.40f, 0.72f}, {0.60f, 0.57f, 0.40f, 0.25f}};
     // the send effects (efectos): a dotted-eighth tape echo into a long, dark plate
     static const float kFx[EPK_FX_COUNT] = {0.0f, 2.0f / 15.0f, 0.50f, 0.45f, 0.35f, 0.25f, 0.75f,
-                                            0.72f, 0.45f, 0.40f, 0.75f, 0.35f,
+                                            0.80f, 0.45f, 0.40f, 0.75f, 0.12f,   // longer plate, a light duck
                                             0.5f, 0.30f, 0.0f, 0.30f, 0.15f,    // master: open, glue, a little tape
                                             0.0f,                               // the DJ filter
                                             // MAREA on track 3, to be heard: all wet, ~3 s a cycle forwards, two

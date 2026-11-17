@@ -264,7 +264,8 @@ En la vista EFECTOS, SELECT cambia de página y K1-K4 son los controles:
 - **ECO:** TIPO (TAPE, BBD, PINGPONG), TIEMPO (en semicorcheas, de 1 a 16: prueba 3, 5 o 7), REPITE (arriba del
   todo el eco se realimenta solo), TONO (cada repetición más oscura).
 - **ECO 2:** DESGASTE (cinta gastada en TAPE, reloj sucio en BBD), A REVERB (el eco entra en la reverb), NIVEL,
-  DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms).
+  DUCK (el bombo de la pista 1 baja el eco y la reverb mientras suena; vuelven en ~150 ms). Desde la 0.1.13 viene
+  en 12 (antes 35): alto hace que la reverb bombee con el bombo en vez de quedarse como atmósfera.
 - **REVERB:** K1 **TIPO** elige **PLACA** o **NUBE**; los otros tres knobs dependen del tipo. Al cambiar de tipo,
   la reverb empieza vacía. Solo suena una de las dos (comparten memoria).
 - **REVERB 2:** CAÍDA, TONO (lo oscura que es la cola), MOVER (movimiento interno), NIVEL. En NUBE cambia (ver abajo).

@@ -266,7 +266,8 @@ In the EFFECTS view, SELECT changes page and K1-K4 are the controls:
 - **Delay [ECO]:** type [TIPO: TAPE, BBD, PINGPONG], time [TIEMPO] in sixteenths, 1 to 16 (try 3, 5 or 7),
   feedback [REPITE] (at the top the delay feeds itself), tone [TONO] (each repeat darker).
 - **Delay 2 [ECO 2]:** wear [DESGASTE] (worn tape in TAPE, a dirty clock in BBD), to reverb [A REVERB], level,
-  DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms).
+  DUCK (track 1's kick pushes the delay and the reverb down while it sounds; they come back in ~150 ms). Since
+  0.1.13 it starts at 12 (was 35): high, the reverb pumps with the kick instead of staying an atmosphere.
 - **REVERB:** K1 **type [TIPO]** picks **PLACA** or **NUBE**; the other three knobs follow the type. Changing it
   starts the reverb empty. Only one of the two plays (they share memory).
 - **REVERB 2:** decay [CAÍDA], tone (how dark the tail is), movement [MOVER], level. In NUBE it changes (below).

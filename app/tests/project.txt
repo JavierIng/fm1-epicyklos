@@ -3,7 +3,7 @@ wait 3500
 expect tempo 124
 expect level1 84
 expect mute2 0
-expect fx7 72
+expect fx7 80
 press HOME
 turn SELECT 6
 tap SEL
@@ -34,7 +34,7 @@ wait 3500
 expect tempo 130
 expect mute2 1
 expect level1 74
-expect fx7 72
+expect fx7 80
 # back to the factory project (de vuelta al de fábrica)
 press ARP
 tap SAVE
