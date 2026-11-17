@@ -12,6 +12,15 @@
 #include <vector>
 #include "epk.h"
 
+// The hand-made patterns moved to banks A and C on 2026-11-17 (A ambient, B deep and breaks, C deep techno and
+// techno): the tests start where the engine used to start, on NEBULA (now A02), and name the others by their slot
+static void start(float sr) {
+    epk_init(sr);
+    epk_pattern_select(0, 1);
+    float l, r;
+    epk_render(&l, &r, 1);                                       // stopped: only applies the selection (solo aplica)
+}
+
 static int failures = 0;
 #define CHECK(cond, ...) do { if (!(cond)) { std::printf("FAIL %s:%d: ", __FILE__, __LINE__); \
     std::printf(__VA_ARGS__); std::printf("\n"); failures++; } } while (0)
@@ -47,8 +56,8 @@ static std::vector<long> trigger_times(int track, float seconds) {
 
 int main() {
     // 1. Timing: track 1, 1/16 at 124 BPM, 4 euclidean hits in 16 -> one hit every 4 steps = one beat
-    epk_init(SR);
-    epk_pattern_select(0, 3);                                       // ORBITA: kick 4 in 16, stab 3 in 12
+    start(SR);
+    epk_pattern_select(2, 4);                                       // ORBITA: kick 4 in 16, stab 3 in 12
     epk_play(1);
     std::vector<long> t = trigger_times(0, 4.0f);
     const double beat = 60.0 / 124.0 * SR;                       // samples per beat
@@ -60,8 +69,8 @@ int main() {
     }
 
     // 2. Polymetry: track 3 has 12 steps, track 1 has 16; after 48 steps both are back at step 0 together
-    epk_init(SR);
-    epk_pattern_select(0, 3);
+    start(SR);
+    epk_pattern_select(2, 4);
     epk_play(1);
     float l[256], r[256];
     const long steps48 = (long)std::lround(48.0 * 60.0 / 124.0 / 4.0 * SR);
@@ -75,7 +84,7 @@ int main() {
           epk_step(0), epk_step(2));
 
     // 3. Mute and solo (silencio y solo)
-    epk_init(SR);
+    start(SR);
     epk_play(1);
     for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 0);
     CHECK(epk_audible(0) && !epk_audible(1), "solo on track 1: track 1 audible, track 2 not");
@@ -85,8 +94,8 @@ int main() {
     epk_mute(1, 0);
 
     // 4. A groove, 8 s: no NaN, a sane level; written out to listen to (para escuchar)
-    epk_init(SR);
-    epk_pattern_select(0, 3);
+    start(SR);
+    epk_pattern_select(2, 4);
     epk_play(1);
     std::vector<float> L, R;
     float peak = 0.0f, sum2 = 0.0f;
@@ -120,15 +129,15 @@ int main() {
     CHECK(epk_step(0) == -1, "stopped: no step");
 
     // 6. Patterns (patrones): a change waits for the bar; mutes stay; edits stay in their pattern
-    epk_init(SR);
-    epk_pattern_select(0, 3);
+    start(SR);
+    epk_pattern_select(2, 4);
     epk_play(1);
     epk_render(l, r, 1);
-    CHECK(epk_pattern_current() == 3, "stopped then play: pattern 4 now (got %d)", epk_pattern_current() + 1);
+    CHECK(epk_pattern_current() == 4, "stopped then play: pattern 5 now (got %d)", epk_pattern_current() + 1);
     const long sixteenth = (long)std::lround(60.0 / 124.0 / 4.0 * SR);
     for (long i = 1; i < 5 * sixteenth; i++) epk_render(l, r, 1);  // five sixteenths into the bar
     epk_mute(0, 1);
-    epk_pattern_select(0, 7);                                       // APOGEO: no kick
+    epk_pattern_select(2, 7);                                       // PERIGEO, in the same bank (C)
     long switched = -1;
     for (long i = 5 * sixteenth; i < 20 * sixteenth; i++) {
         epk_render(l, r, 1);
@@ -139,20 +148,21 @@ int main() {
     CHECK(std::labs(switched - bar) <= 1, "the change came at sample %ld, the bar starts at %ld", switched, bar);
     CHECK(epk_muted(0), "track 1 is still muted after the pattern change (el mute es del proyecto)");
     CHECK(epk_step(2) >= 0 && epk_step(2) <= 4, "the new pattern restarted its steps (track 3 at %d)", epk_step(2));
-    epk_param_set(2, EPK_P_TONE, 0.123f);                        // an edit on APOGEO
+    epk_param_set(2, EPK_P_TONE, 0.123f);                        // an edit on PERIGEO
     epk_play(0);
-    epk_pattern_select(0, 4);
+    epk_pattern_select(2, 9);
     epk_render(l, r, 1);
-    CHECK(epk_pattern_current() == 4, "stopped: the change is immediate");
-    epk_pattern_select(0, 7);
+    CHECK(epk_pattern_current() == 9, "stopped: the change is immediate");
+    epk_pattern_select(2, 7);
     epk_render(l, r, 1);
     CHECK(std::fabs(epk_param_get(2, EPK_P_TONE) - 0.123f) < 1e-6f, "the edit stayed in its pattern (%.3f)",
           epk_param_get(2, EPK_P_TONE));
-    CHECK(std::strcmp(epk_pattern_name(0, 0), "NEBULA") == 0, "pattern names");
+    CHECK(std::strcmp(epk_pattern_name(0, 1), "NEBULA") == 0 && std::strcmp(epk_pattern_name(2, 2), "CYKLOS") == 0,
+          "pattern names");
 
     // 7. Every factory pattern plays without NaN or overload (los 16 patrones suenan)
     for (int pt = 0; pt < EPK_PATTERNS; pt++) {
-        epk_init(SR);
+        start(SR);
         epk_pattern_select(0, pt);
         epk_play(1);
         float pk = 0.0f;
@@ -169,8 +179,8 @@ int main() {
     }
 
     // 8. Steps by hand (pasos a mano): a toggle makes the track manual; ROTATE still turns it; euclid comes back
-    epk_init(SR);
-    epk_pattern_select(0, 3);
+    start(SR);
+    epk_pattern_select(2, 4);
     epk_render(l, r, 1);
     const uint32_t eu = epk_pattern(0);                           // kick: 4 in 16 -> steps 0 4 8 12
     CHECK(eu == 0x1111u, "kick mask %x (expected 1111)", eu);
@@ -197,8 +207,8 @@ int main() {
             {EPK_PROB_100, EPK_COND_NONE, 16, 16}, {EPK_PROB_100, EPK_COND_1_2, 8, 8}, {EPK_PROB_100, EPK_COND_2_2, 8, 8},
             {EPK_PROB_100, EPK_COND_3_4, 4, 4}, {EPK_PROB_50, EPK_COND_NONE, 3, 13}, {EPK_PROB_25, EPK_COND_NONE, 1, 9}};
         for (auto &c : cases) {
-            epk_init(SR);
-            epk_pattern_select(0, 3);
+            start(SR);
+            epk_pattern_select(2, 4);
             epk_render(l, r, 1);
             epk_param_set(0, EPK_P_HITS, 1.0f / 16.0f);
             epk_step_set(0, 0, c.prob, c.cond, 0);
@@ -211,8 +221,8 @@ int main() {
     }
 
     // 10. Random and undo (aleatorio y deshacer); banks (bancos)
-    epk_init(SR);
-    epk_pattern_select(0, 3);
+    start(SR);
+    epk_pattern_select(2, 4);
     epk_render(l, r, 1);
     float before[EPK_TRACKS][EPK_P_PATTERN_COUNT];
     for (int t = 0; t < EPK_TRACKS; t++) for (int q = 0; q < EPK_P_PATTERN_COUNT; q++) before[t][q] = epk_param_get(t, q);
@@ -235,7 +245,7 @@ int main() {
     CHECK(epk_bank_current() == 3 && epk_pattern_current() == 6 && epk_muted(0), "bank D pattern 7, mute kept");
     CHECK(std::strcmp(epk_pattern_name(3, 6), "GEN D07") == 0, "generated name: %s", epk_pattern_name(3, 6));
     const float d7 = epk_param_get(2, EPK_P_NOTE);
-    epk_pattern_select(0, 3);
+    epk_pattern_select(2, 4);
     epk_render(l, r, 1);
     epk_pattern_select(3, 6);
     epk_render(l, r, 1);
@@ -246,7 +256,7 @@ int main() {
         float worst = 0.0f;
         for (int b = 1; b < EPK_BANKS; b++)
             for (int pt = 0; pt < EPK_PATTERNS; pt++) {
-                epk_init(SR);
+                start(SR);
                 epk_pattern_select(b, pt);
                 epk_play(1);
                 float pk = 0.0f;
@@ -265,8 +275,8 @@ int main() {
     {
         const double step = 60.0 / 124.0 / 4.0 * SR;                 // samples per sixteenth
         auto fresh = [&]() {
-            epk_init(SR);
-            epk_pattern_select(0, 3);                                // kick 4 in 16: steps 0, 4, 8, 12
+            start(SR);
+            epk_pattern_select(2, 4);                                // kick 4 in 16: steps 0, 4, 8, 12
             epk_render(l, r, 1);
         };
         fresh();                                                     // late by 0.225 of a step
@@ -311,7 +321,7 @@ int main() {
 
     // 13. GOLPE: clap, snare and rim sound, without NaN (palma, caja y aro suenan)
     for (float type : {0.0f, 0.5f, 1.0f}) {
-        epk_init(SR);
+        start(SR);
         for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
         epk_param_set(5, EPK_P_CHARACTER, type);
         epk_note_on(5, 52, 1.0f);
@@ -330,7 +340,7 @@ int main() {
     // must move by at least 25 % between a knob's ends, for each type.
     {
         auto energy = [&](int eng, float type, int param, float v) {
-            epk_init(SR);
+            start(SR);
             for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
             epk_param_set(5, EPK_P_ENGINE, (float)eng / (float)(EPK_ENG_COUNT - 1));
             epk_param_set(5, EPK_P_CHARACTER, type);
@@ -367,7 +377,7 @@ int main() {
     {
         auto hit = [&](int type, float fb, float send_a, float send_b, float decay, float seconds, std::vector<float> &L2,
                        std::vector<float> &R2) {
-            epk_init(SR);
+            start(SR);
             for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
             epk_param_set(5, EPK_P_PAN, 0.5f);
             epk_param_set(5, EPK_P_SEND_A, send_a);
@@ -429,7 +439,7 @@ int main() {
     // listening; DUCK pushes the returns down under the kick.
     {
         auto setup = [&]() {
-            epk_init(SR);
+            start(SR);
             for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
             epk_param_set(5, EPK_P_SEND_A, 0.0f);
             epk_param_set(5, EPK_P_SEND_B, 0.0f);
@@ -478,11 +488,11 @@ int main() {
         epk_freeze(0);
 
         auto duck_run = [&](float duck) {                            // kick 4 in 16, sending to the reverb
-            epk_init(SR);
+            start(SR);
             for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 0);
             epk_param_set(0, EPK_P_SEND_B, 1.0f);
             epk_fx_set(EPK_FX_DUCK, duck);
-            epk_pattern_select(0, 3);
+            epk_pattern_select(2, 4);
             epk_render(l, r, 1);
             epk_play(1);
             returns(2.0f);
@@ -498,13 +508,13 @@ int main() {
     {
         auto run = [&](float flt, float reso, float dbl, float comp, float sat, double &energy, double &bright,
                        double &crest) {
-            epk_init(SR);
+            start(SR);
             epk_fx_set(EPK_FX_FLT, flt);
             epk_fx_set(EPK_FX_FLT_RESO, reso);
             epk_fx_set(EPK_FX_FLT_DOUBLE, dbl);
             epk_fx_set(EPK_FX_COMP, comp);
             epk_fx_set(EPK_FX_SAT, sat);
-            epk_pattern_select(0, 8);                                // ECLIPSE: kick, hats, chord, perc
+            epk_pattern_select(2, 11);                                // ECLIPSE: kick, hats, chord, perc
             epk_render(l, r, 1);
             epk_play(1);
             double e = 0.0, h = 0.0, w = 0.0;
@@ -536,7 +546,7 @@ int main() {
         run(0.85f, 0.3f, 0.0f, 0.0f, 0.0f, e2, b2, c2);              // high-pass open
         CHECK(b1 < b0 * 0.5 && b2 > b0 * 1.5 && e2 < e0 * 0.7, "filter: brightness %.4f flat, %.4f LP, %.4f HP; energy HP %.0f %%",
               b0, b1, b2, 100.0 * e2 / e0);
-        epk_init(SR);                                                // the middle is transparent: same as before it
+        start(SR);                                                // the middle is transparent: same as before it
         run(0.5f, 1.0f, 1.0f, 0.0f, 0.0f, e3, b3, c3);
         CHECK(std::fabs(e3 / e0 - 1.0) < 0.05, "filter open (even with RESO and DOBLE up): energy %.1f %% of flat", 100.0 * e3 / e0);
         run(0.5f, 0.3f, 0.0f, 1.0f, 0.0f, e3, b3, c3);
@@ -558,12 +568,12 @@ int main() {
             epk_mod_set(src, slot == 0 ? EPK_M_DEST1 : EPK_M_DEST2, (float)dest / (float)(EPK_DEST_COUNT - 1));
             epk_mod_set(src, slot == 0 ? EPK_M_AMT1 : EPK_M_AMT2, 0.5f + 0.5f * amount);
         };
-        epk_init(SR);
+        start(SR);
         epk_mod_set(0, EPK_M_SHAPE, 0.0f);                              // sine
         epk_mod_set(0, EPK_M_RATE, 4.0f / 9.0f);                        // 1 bar
         setdest(0, 0, EPK_DEST_FLT, 0.4f);
         setdest(1, 0, EPK_DEST_NONE, 0.0f);
-        epk_pattern_select(0, 3);
+        epk_pattern_select(2, 4);
         epk_render(l, r, 1);
         epk_play(1);
         const int bar = (int)(16.0 * 15.0 / 124.0 * SR);                // samples per bar at 124 BPM
@@ -578,14 +588,14 @@ int main() {
         CHECK(lo < 0.13f && hi > 0.87f && epk_fx_get(EPK_FX_FLT) == 0.5f, "LFO on the filter: %.2f .. %.2f (knob 0.50)", lo, hi);
         CHECK(at_quarter > 0.85f && at_three < 0.15f, "LFO locked to the bar: %.2f at 1/4, %.2f at 3/4", at_quarter, at_three);
 
-        epk_init(SR);                                                    // follower 1 on the kick, into track 3's TONE
+        start(SR);                                                    // follower 1 on the kick, into track 3's TONE
         for (int i = 1; i < EPK_MOD_SOURCES; i++) setdest(i, 0, EPK_DEST_NONE, 0.0f);
         setdest(0, 0, EPK_DEST_NONE, 0.0f);
         epk_mod_set(2, EPK_M_SHAPE, 0.0f);
         epk_mod_set(2, EPK_M_RATE, 0.2f);
         setdest(2, 0, EPK_DEST_TONE1 + 2, -0.5f);
         setdest(2, 1, EPK_DEST_LEVEL1 + 4, 0.3f);
-        epk_pattern_select(0, 3);
+        epk_pattern_select(2, 4);
         epk_render(l, r, 1);
         const float tone = epk_param_get(2, EPK_P_TONE);
         epk_play(1);
@@ -606,14 +616,14 @@ int main() {
     // to thin, and none blows up.
     {
         auto run = [&](int type, float cut, float reso, float dbl, double &energy, double &bright, double &sway) {
-            epk_init(SR);
+            start(SR);
             epk_fx_set(EPK_FX_FLT_TYPE, (float)type / (float)(EPK_FLT_COUNT - 1));
             epk_fx_set(EPK_FX_FLT, cut);
             epk_fx_set(EPK_FX_FLT_RESO, reso);
             epk_fx_set(EPK_FX_FLT_DOUBLE, dbl);
             epk_fx_set(EPK_FX_COMP, 0.0f);
             epk_fx_set(EPK_FX_SAT, 0.0f);
-            epk_pattern_select(0, 8);
+            epk_pattern_select(2, 11);
             epk_render(l, r, 1);
             epk_play(1);
             double e = 0.0, h = 0.0, bmin = 1e9, bmax = 0.0;
@@ -661,7 +671,7 @@ int main() {
     {
         // track 3 alone, a held saw, so the colour comes from MAREA and not from the notes
         auto run = [&](float on_track, float mix, float speed, float width, double &sway, double &side, double &energy) {
-            epk_init(SR);
+            start(SR);
             for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 2);
             epk_param_set(2, EPK_P_SEND_A, 0.0f);
             epk_param_set(2, EPK_P_SEND_B, 0.0f);
@@ -669,6 +679,7 @@ int main() {
             epk_param_set(2, EPK_P_TONE, 1.0f);
             epk_param_set(2, EPK_P_DECAY, 1.0f);
             epk_param_set(2, EPK_P_PAN, 0.5f);
+            epk_param_set(2, EPK_P_LFO_AMT, 0.5f);                  // its LFO off: it would send to the delay
             epk_fx_set(EPK_FX_COMP, 0.0f);
             epk_fx_set(EPK_FX_SAT, 0.0f);
             epk_fx_set(EPK_FX_MAREA_TRACK, on_track / 6.0f);
@@ -728,7 +739,7 @@ int main() {
         CHECK(stop == 0.0f && back < 0.0f && std::fabs(synced - 124.0f / 60.0f) < 0.01f,
               "MAREA speed: %.3f in the middle, %.3f below it, %.3f Hz synced at the top", stop, back, synced);
         // INVERT in the middle flattens the wave; outside the area the bands stay at 1
-        epk_init(SR);
+        start(SR);
         epk_fx_set(EPK_FX_MAREA_INVERT, 0.5f);
         epk_fx_set(EPK_FX_MAREA_FROM, 0.0f);
         epk_fx_set(EPK_FX_MAREA_TO, 1.0f);
@@ -736,7 +747,7 @@ int main() {
         for (int k = 0; k < 40; k++) epk_render(l, r, 256);
         float flat_dev = 0.0f;
         for (int b = 0; b < 16; b++) flat_dev = std::fmax(flat_dev, std::fabs(epk_marea_band(b) - 1.0f));
-        epk_init(SR);
+        start(SR);
         epk_fx_set(EPK_FX_MAREA_INVERT, 1.0f);
         epk_fx_set(EPK_FX_MAREA_GRAVITY, 1.0f);
         epk_fx_set(EPK_FX_MAREA_FROM, 0.6f);                          // the area starts at ~1 kHz
@@ -763,7 +774,7 @@ int main() {
     // chord is clean; the drone holds past a second and fades after the sequencer stops.
     {
         auto play = [&](int track, float ch, float table, float seconds, double &energy, double &cross) {
-            epk_init(SR);
+            start(SR);
             for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == track);
             epk_fx_set(EPK_FX_MAREA_TRACK, 0.0f);
             epk_param_set(track, EPK_P_SEND_A, 0.0f);
@@ -826,8 +837,8 @@ int main() {
         auto run_bars = [&](int bars) { for (long d = 0; d < bars * bar; d += 256) epk_render(l, r, 256); };
         auto quiet_all = [&]() { for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_MUTATE, 0.0f); };
         // still (quieto): MUTATE 0, RETURN 0 everywhere: 16 bars, the same masks and tones
-        epk_init(SR);
-        epk_pattern_select(0, 0);
+        start(SR);
+        epk_pattern_select(0, 1);
         epk_play(1);
         epk_render(l, r, 256);
         quiet_all();
@@ -875,12 +886,12 @@ int main() {
         CHECK(epk_pattern(1) == held && std::fabs(epk_param_live(1, EPK_P_TONE) - held_tone) < 1e-6f,
               "MUTATE 0 + RETURN 0: frozen where it was");
         // a pattern change starts from the written pattern (desde el patrón escrito)
-        epk_pattern_select(0, 0);
+        epk_pattern_select(0, 1);
         run_bars(1);
         CHECK(epk_pattern(1) == m0[1], "after a pattern change the evolution starts again from the pattern");
         // absence (ausencia): ABSENCE 1 every bar: after the first bar, no triggers; ABSENCE 0: triggers
-        epk_init(SR);
-        epk_pattern_select(0, 0);
+        start(SR);
+        epk_pattern_select(0, 1);
         epk_play(1);
         quiet_all();
         epk_param_set(1, EPK_P_EVERY, 0.0f);
@@ -896,8 +907,8 @@ int main() {
         run_bars(2);
         CHECK(epk_triggers(1) > before, "ABSENCE 0: the hats play again");
         // the factory patterns evolve by themselves: CYKLOS over 32 bars is not one loop
-        epk_init(SR);
-        epk_pattern_select(0, 15);
+        start(SR);
+        epk_pattern_select(2, 2);
         epk_play(1);
         epk_render(l, r, 256);
         int differ = 0;
@@ -917,8 +928,8 @@ int main() {
     {
         const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
         auto run_bars = [&](int bars) { for (long d = 0; d < bars * bar; d += 256) epk_render(l, r, 256); };
-        epk_init(SR);
-        epk_pattern_select(0, 0);
+        start(SR);
+        epk_pattern_select(0, 1);
         epk_play(1);
         epk_render(l, r, 256);
         for (int t = 0; t < EPK_TRACKS; t++) epk_param_set(t, EPK_P_MUTATE, 0.0f);
@@ -979,7 +990,7 @@ int main() {
         CHECK(moved > 0, "released, it moves again");
         // bank A: the drums hold (la batería quieta), the synths move
         for (int pt = 0; pt < EPK_PATTERNS; pt++) {
-            epk_init(SR);
+            start(SR);
             epk_pattern_select(0, pt);
             epk_render(l, r, 256);
             CHECK(epk_param_get(0, EPK_P_MUTATE) == 0.0f && epk_param_get(1, EPK_P_MUTATE) == 0.0f &&
@@ -998,7 +1009,7 @@ int main() {
         }
         const int n2 = epk_bank_upgrade(v1, (int)sizeof v1, v2, (int)sizeof v2);
         CHECK(n2 == EPK_BANK_OBJ_BYTES && v2[4] == EPK_BANK_VERSION, "version 1 converts (%d bytes)", n2);
-        epk_init(SR);
+        start(SR);
         epk_bank_stage_begin(2);
         epk_bank_stage_half(2, 0, v2, n2);
         epk_pattern_select(2, 0);
@@ -1011,7 +1022,7 @@ int main() {
     // 25. The whole-pattern random (aleatorio general): many kicks, not mostly four on the floor; a new key each
     //     time unless locked; banks keep one key each, A in D
     {
-        epk_init(SR);
+        start(SR);
         uint32_t seeds = 0x1F123BB5u;
         uint32_t kicks[64];
         int nk = 0, four = 0, keyseen = 0;
@@ -1041,7 +1052,7 @@ int main() {
         }
         CHECK(moved == 0, "key locked: changed %d times", moved);
         epk_random_key_lock(0);
-        epk_pattern_select(0, 3);
+        epk_pattern_select(2, 4);
         epk_render(l, r, 256);
         CHECK(epk_key() == 2, "bank A is in D (got %d)", epk_key());
         std::printf("random: %d kicks, four on the floor %d/200, %d keys\n", nk, four, nkeys);
@@ -1053,8 +1064,8 @@ int main() {
     {
         const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
         auto setup = [&]() {
-            epk_init(SR);
-            epk_pattern_select(0, 0);
+            start(SR);
+            epk_pattern_select(0, 1);
             epk_render(l, r, 256);
             for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_LFO_AMT, 0.5f); epk_param_set(t, EPK_P_MUTATE, 0.0f); }
             epk_play(1);
@@ -1139,7 +1150,7 @@ int main() {
         }
         const int n3 = epk_bank_upgrade(v2, (int)sizeof v2, v3, (int)sizeof v3);
         CHECK(n3 == EPK_BANK_OBJ_BYTES, "version 2 converts (%d bytes)", n3);
-        epk_init(SR);
+        start(SR);
         epk_bank_stage_begin(5);
         epk_bank_stage_half(5, 0, v3, n3);
         epk_pattern_select(5, 0);
@@ -1164,8 +1175,8 @@ int main() {
             if (energy) *energy = e;
         };
         auto fresh = [&]() {
-            epk_init(SR);
-            epk_pattern_select(0, 3);
+            start(SR);
+            epk_pattern_select(2, 4);
             epk_render(l, r, 256);
             for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f); }
             epk_play(1);
@@ -1258,8 +1269,8 @@ int main() {
     {
         const long bar = (long)std::lround(16.0 * 60.0 / 124.0 / 4.0 * SR);
         auto fresh = [&]() {
-            epk_init(SR);
-            epk_pattern_select(0, 3);
+            start(SR);
+            epk_pattern_select(2, 4);
             epk_render(l, r, 256);
             for (int t = 0; t < EPK_TRACKS; t++) { epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f); }
             epk_play(1);
@@ -1334,8 +1345,8 @@ int main() {
     //     at the centre makes no new grains; extremes stay finite; back to PLACA works
     {
         auto fresh = [&]() {
-            epk_init(SR);
-            epk_pattern_select(0, 3);
+            start(SR);
+            epk_pattern_select(2, 4);
             epk_render(l, r, 256);
             for (int t = 0; t < EPK_TRACKS; t++) {
                 epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f);
@@ -1412,8 +1423,8 @@ int main() {
     {
         // only the returns: every level at 0, the B sends pre-fader (solo retornos)
         auto fresh = [&](float predelay) {
-            epk_init(SR);
-            epk_pattern_select(0, 3);
+            start(SR);
+            epk_pattern_select(2, 4);
             epk_render(l, r, 256);
             for (int t = 0; t < EPK_TRACKS; t++) {
                 epk_param_set(t, EPK_P_MUTATE, 0.0f); epk_param_set(t, EPK_P_LFO_AMT, 0.5f);
@@ -1523,8 +1534,8 @@ int main() {
     //     its name gets '*'; a slot kept in the current bank is the pattern from then on
     {
         static uint8_t obj[EPK_BANK_OBJ_BYTES];
-        epk_init(SR);
-        epk_pattern_select(0, 15);
+        start(SR);
+        epk_pattern_select(2, 2);
         epk_play(1);
         epk_param_set(2, EPK_P_MUTATE, 1.0f);
         epk_param_set(2, EPK_P_EVERY, 0.0f);
@@ -1604,10 +1615,10 @@ int main() {
     //     knobs change the sound; the low-pass gate closes the note; a version 3 bank keeps its engines; banks B and
     //     C have names and sound; the drone no longer buries the chord (la mezcla)
     {
-        epk_init(SR);
+        start(SR);
         CHECK(epk_engine(3) == EPK_ENG_MACRO, "track 4 plays MACRO (got %d)", epk_engine(3));
         auto play = [&](int model, float timbre, float harm, float tone, int note, double *bright) {
-            epk_init(SR);
+            start(SR);
             for (int t = 0; t < EPK_TRACKS; t++) epk_solo(t, t == 3);
             for (int f = 0; f < EPK_FX_COUNT; f++)
                 if (f == EPK_FX_DLY_LEVEL || f == EPK_FX_REV_LEVEL) epk_fx_set(f, 0.0f);
@@ -1659,7 +1670,7 @@ int main() {
         }
         // a bank saved with seven engines (version 3): ACORDE stays ACORDE, DRONE stays DRONE
         static uint8_t v3[EPK_BANK_OBJ_BYTES], v4[EPK_BANK_OBJ_BYTES];
-        epk_init(SR);
+        start(SR);
         epk_render(l, r, 256);
         std::memset(v3, 0, sizeof v3);
         v3[0] = 'E'; v3[1] = 'P'; v3[2] = 'K'; v3[3] = 'B'; v3[4] = EPK_BANK_VERSION; v3[5] = 6; v3[6] = 0; v3[7] = 1;
@@ -1672,7 +1683,7 @@ int main() {
         v3[4] = 3;
         const int n4 = epk_bank_upgrade(v3, (int)sizeof v3, v4, (int)sizeof v4);
         CHECK(n4 == EPK_BANK_OBJ_BYTES && v4[4] == EPK_BANK_VERSION, "version 3 converts (%d bytes)", n4);
-        epk_init(SR);
+        start(SR);
         epk_bank_stage_begin(6);
         epk_bank_stage_half(6, 0, v4, n4);
         epk_pattern_select(6, 0);
@@ -1682,14 +1693,14 @@ int main() {
               "version 3 engines kept: %d %d %d %d %d %d", epk_engine(0), epk_engine(1), epk_engine(2), epk_engine(3),
               epk_engine(4), epk_engine(5));
         // banks B and C: named, and every pattern sounds
-        CHECK(std::strcmp(epk_pattern_name(1, 0), "UMBRAL") == 0 && std::strcmp(epk_pattern_name(2, 15), "OCASO") == 0 &&
+        CHECK(std::strcmp(epk_pattern_name(1, 0), "SOTANO") == 0 && std::strcmp(epk_pattern_name(2, 15), "FRENESI") == 0 &&
               std::strncmp(epk_pattern_name(3, 0), "GEN D", 5) == 0, "names: %s, %s, %s", epk_pattern_name(1, 0),
               epk_pattern_name(2, 15), epk_pattern_name(3, 0));
-        for (int bank = 1; bank <= 2; bank++) {
+        for (int bank = 0; bank <= 2; bank++) {
             int quiet = 0, bad = 0, kicks = 0;
             float worst = 0.0f;
             for (int pt = 0; pt < EPK_PATTERNS; pt++) {
-                epk_init(SR);
+                start(SR);
                 epk_pattern_select(bank, pt);
                 epk_play(1);
                 float pk = 0.0f;
@@ -1706,13 +1717,15 @@ int main() {
             }
             CHECK(bad == 0 && quiet == 0 && worst < 1.0f, "bank %c: %d bad samples, %d silent patterns, peak %.3f", 'A' + bank,
                   bad, quiet, worst);
-            CHECK(bank == 1 ? kicks >= 10 : kicks <= 4, "bank %c: %d patterns with a kick", 'A' + bank, kicks);
+            // A ambient without a kick; B all but its first; C all (A sin bombo; B todos menos el primero; C todos)
+            CHECK(bank == 0 ? kicks == 0 : bank == 1 ? kicks == 15 : kicks == 16, "bank %c: %d patterns with a kick",
+                  'A' + bank, kicks);
         }
         // the mix (ORBITA): the chord and the bass within 6 dB of the drone or above it
         double lvl[EPK_TRACKS];
         for (int t = 0; t < EPK_TRACKS; t++) {
-            epk_init(SR);
-            epk_pattern_select(0, 3);
+            start(SR);
+            epk_pattern_select(2, 4);
             for (int k = 0; k < EPK_TRACKS; k++) epk_solo(k, k == t);
             epk_play(1);
             double e = 0.0;
@@ -1740,7 +1753,7 @@ int main() {
         };
         static float before[EPK_TRACKS][EPK_P_PATTERN_COUNT], after[EPK_TRACKS][EPK_P_PATTERN_COUNT];
         for (int scope = 1; scope <= 2; scope++) {
-            epk_init(SR);
+            start(SR);
             epk_random_key_lock(0);
             epk_random_scope(scope);
             epk_render(l, r, 256);
@@ -1767,15 +1780,15 @@ int main() {
         epk_random_scope(EPK_RSCOPE_ALL);
         int drones = 0, acids = 0;
         for (int pt = 0; pt < EPK_PATTERNS; pt++) {
-            epk_init(SR);
+            start(SR);
             epk_pattern_select(1, pt);
             epk_render(l, r, 256);
-            if (epk_engine(4) == EPK_ENG_DRONE) drones++;
+            if (epk_engine(4) == EPK_ENG_DRONE && epk_param_get(4, EPK_P_HITS) > 0.0f) drones++;
             if (epk_engine(4) == EPK_ENG_MACRO && epk_param_get(4, EPK_P_EXTRA1) > 0.99f) acids++;
         }
-        CHECK(drones == 8 && acids == 8, "bank B: %d patterns with the drone, %d with the acid line", drones, acids);
-        epk_init(SR);
-        epk_pattern_select(0, 4);                                    // PULSAR: the acid line on track 5
+        CHECK(drones == 4 && acids == 2, "bank B: %d patterns with the drone, %d with the acid line", drones, acids);
+        start(SR);
+        epk_pattern_select(2, 9);                                    // PULSAR: the acid line on track 5
         epk_render(l, r, 256);
         CHECK(epk_engine(4) == EPK_ENG_MACRO && epk_param_get(4, EPK_P_LFO_AMT) > 0.8f && epk_param_get(4, EPK_P_ABSENCE) > 0.1f,
               "PULSAR: track 5 engine %d, LFO %.2f, absence %.2f", epk_engine(4), epk_param_get(4, EPK_P_LFO_AMT),
@@ -1804,7 +1817,7 @@ int main() {
         static const char *const kName[EPK_ENG_COUNT] = {"TEST", "GRAVE", "METAL", "GOLPE", "TAMBOR", "ACORDE", "DRONE", "MACRO"};
         double base = 0.0;
         for (int e = 0; e < EPK_ENG_COUNT; e++) {
-            epk_init(SR);
+            start(SR);
             for (int t = 0; t < EPK_TRACKS; t++) {
                 epk_param_set(t, EPK_P_ENGINE, (float)e / (float)(EPK_ENG_COUNT - 1));
                 epk_param_set(t, EPK_P_HITS, 0.5f);

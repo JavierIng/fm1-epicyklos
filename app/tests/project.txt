@@ -1,7 +1,7 @@
 # The project is saved with HOME + SAVE twice and comes back at power-on; ARP + SAVE twice brings the factory one back
 wait 3500
 expect tempo 124
-expect level1 74
+expect level1 84
 expect mute2 0
 expect fx7 72
 press HOME
@@ -12,7 +12,7 @@ turn PRESET -4
 wait 60
 expect tempo 130
 expect mute2 1
-expect level1 64
+expect level1 74
 # once is not enough (una vez no basta)
 press HOME
 tap SAVE
@@ -33,7 +33,7 @@ reboot
 wait 3500
 expect tempo 130
 expect mute2 1
-expect level1 64
+expect level1 74
 expect fx7 72
 # back to the factory project (de vuelta al de fábrica)
 press ARP
@@ -47,7 +47,7 @@ reboot
 wait 3500
 expect tempo 124
 expect mute2 0
-expect level1 74
+expect level1 84
 # a saved pattern erased with ARP + its white key twice: A02 saved, then back to the factory one
 tap SAVE
 wait 60

@@ -287,31 +287,32 @@ void acid_moves(int pt, int i) {
     b[EPK_P_ABSENCE] = 0.2f;
 }
 
-void fill_factory(int pt) {
+// One of the hand-made patterns (a mano), number `src` of the table, into slot `pt` of the bank in memory
+void fill_factory(int pt, int src) {
     for (int i = 0; i < EPK_TRACKS; i++) {
-        const TrackSpec &k = kFactory[pt][i];
+        const TrackSpec &k = kFactory[src][i];
         const float e1 = kEngine[i] == EPK_ENG_GRAVE ? 0.45f : kEngine[i] == EPK_ENG_METAL ? 0.40f : 0.0f;
         float e2 = kEngine[i] == EPK_ENG_GRAVE ? 0.40f : kEngine[i] == EPK_ENG_METAL ? 0.30f : 0.0f;
-        if (i == 0 && pt == 8) e2 = 0.75f;                           // ECLIPSE: more rumble (más rumble)
-        if (i == 0 && pt == 13) e2 = 0.85f;                          // NADIR
+        if (i == 0 && src == 8) e2 = 0.75f;                           // ECLIPSE: more rumble (más rumble)
+        if (i == 0 && src == 13) e2 = 0.85f;                          // NADIR
         if (kEngine[i] == EPK_ENG_ACORDE) {                          // dub chords: minor colours, the filter opening
             static const uint8_t kChord[EPK_PATTERNS] = {5, 4, 6, 4, 5, 2, 4, 6, 4, 5, 3, 4, 7, 5, 6, 4};   // Original
-            set_spec(pt, i, k.note, (float)kChord[pt] / 10.0f, 0.10f + k.tone * 0.9f, k.decay * 0.85f, 0.0f, 0.40f + 0.3f * k.tone,
+            set_spec(pt, i, k.note, (float)kChord[src] / 10.0f, 0.10f + k.tone * 0.9f, k.decay * 0.85f, 0.0f, 0.40f + 0.3f * k.tone,
                      k.length, k.hits, k.rotate, k.division);
             continue;
         }
-        if (kEngine[i] == EPK_ENG_DRONE && (pt == 4 || pt == 8 || pt == 10 || pt == 14)) {
+        if (kEngine[i] == EPK_ENG_DRONE && (src == 4 || src == 8 || src == 10 || src == 14)) {
             // PULSAR, ECLIPSE, FOSFORO, ZENIT: no drone; an acid line that the filter brings in and takes away over
             // 16 bars (sin dron: una línea ácida que el filtro trae y se lleva)
             static const uint8_t kHits[4] = {7, 9, 5, 11};
             static const uint8_t kLen[4] = {16, 14, 12, 16};
-            const int q = pt == 4 ? 0 : pt == 8 ? 1 : pt == 10 ? 2 : 3;
+            const int q = src == 4 ? 0 : src == 8 ? 1 : src == 10 ? 2 : 3;
             set_spec(pt, i, (q & 1) ? 38 : 50, 0.2f + 0.2f * (float)q, 0.34f, 0.26f, 1.0f, 0.62f + 0.08f * (float)q,
                      kLen[q], kHits[q], q, EPK_DIV_1_16);
             set_engine(pt, i, EPK_ENG_MACRO);
             g.bank[pt][i][EPK_P_ATTACK] = 0.35f + 0.1f * (float)q;   // SALTOS
             acid_moves(pt, i);
-            make_turing(pt, i, 0xA51Du + (uint32_t)pt, 3 + q);       // a line of notes, not one (una línea de notas)
+            make_turing(pt, i, 0xA51Du + (uint32_t)src, 3 + q);       // a line of notes, not one (una línea de notas)
             continue;
         }
         if (kEngine[i] == EPK_ENG_DRONE) {                           // a fifth that drifts (una quinta que deriva)
@@ -325,19 +326,19 @@ void fill_factory(int pt) {
             static const uint8_t kModel[EPK_PATTERNS] = {0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 2, 0, 4, 0, 0, 0};
             static const float kTimbre[MACRO_MODELS] = {0.25f, 0.35f, 0.55f, 0.4f, 0.45f, 0.5f, 0.3f};
             static const float kHarm[MACRO_MODELS] = {0.55f, 0.20f, 0.125f, 0.3f, 0.5f, 0.2f, 0.7f};
-            const int m = kModel[pt];
+            const int m = kModel[src];
             set_spec(pt, i, k.note, kTimbre[m], k.tone + 0.12f, k.decay - 0.04f, (float)m / (float)(MACRO_MODELS - 1), kHarm[m],
                      k.length, k.hits, k.rotate, k.division);
             continue;
         }
         if (kEngine[i] == EPK_ENG_GOLPE) {                           // rim at the start, clap, snare at the peak
-            if (pt == 4 || pt == 6 || pt == 10 || pt == 11) {        // PULSAR, PERIGEO, FOSFORO, CUASAR: a tom / conga
-                set_spec(pt, i, pt == 10 ? 57 : 50, pt == 11 ? 0.55f : 0.15f, 0.35f, 0.40f, 0.35f, 0.30f, k.length, k.hits,
+            if (src == 4 || src == 6 || src == 10 || src == 11) {        // PULSAR, PERIGEO, FOSFORO, CUASAR: a tom / conga
+                set_spec(pt, i, src == 10 ? 57 : 50, src == 11 ? 0.55f : 0.15f, 0.35f, 0.40f, 0.35f, 0.30f, k.length, k.hits,
                          k.rotate, k.division);
                 set_engine(pt, i, EPK_ENG_TAMBOR);
                 continue;
             }
-            const float type = pt < 3 ? 0.95f : pt >= 8 && pt < 12 ? 0.50f : 0.05f;
+            const float type = src < 3 ? 0.95f : src >= 8 && src < 12 ? 0.50f : 0.05f;
             set_spec(pt, i, 52, type, k.tone, k.decay, 0.5f, 0.4f, k.length, k.hits, k.rotate, k.division);
             continue;
         }
@@ -349,7 +350,7 @@ void fill_factory(int pt) {
                                               {0.30f, 0.5f, 0.25f, 0.0f}, {0.20f, 0.5f, 0.30f, 0.0f},
                                               {0.25f, 0.75f, 0.20f, 0.0f}, {0.0f, 0.25f, 0.30f, 0.0f}};
     for (int i = 0; i < EPK_TRACKS; i++) {
-        if (i == 4 && (pt == 4 || pt == 8 || pt == 10 || pt == 14)) continue;   // the acid line has its own (las suyas)
+        if (i == 4 && (src == 4 || src == 8 || src == 10 || src == 14)) continue;   // the acid line has its own (las suyas)
         for (int q = 0; q < 4; q++) g.bank[pt][i][EPK_P_MUTATE + q] = kEvo[i][q];
     }
     // and the track LFOs: the chord breathes into the delay over 4 bars, the bass's tone drifts (deriva)
@@ -509,11 +510,8 @@ void generate(int pt, uint32_t seed, int key) {
     if (r.unipolar() < 0.2f && g.bank[pt][5][EPK_P_HITS] > 0.0f) make_turing(pt, 5, seed + 6u, 0);
 }
 
-// Banks B and C: generated too, but each to a style and along an arc, like bank A (bancos B y C: con estilo y con
-// recorrido): B hypnotic techno (HIPNOTICO), C ambient and drone (AMBIENTE). kArc: how full each pattern is, from the
-// way in, through a break at 8, to the peak at 15 and the way out.
-static const float kArc[EPK_PATTERNS] = {0.15f, 0.25f, 0.40f, 0.55f, 0.65f, 0.60f, 0.72f, 0.20f,
-                                         0.75f, 0.50f, 0.82f, 0.70f, 0.62f, 0.45f, 1.00f, 0.30f};
+// The style banks (bancos por estilo), each from less to more (de menos a más): A ambient, B deep then breaks, C deep
+// techno then techno. `arc`: how full a pattern is, 0 .. 1.
 inline void evolve(int pt, int i, float mutate, int every, float ret, int scope) {
     float *b = g.bank[pt][i];
     b[EPK_P_MUTATE] = mutate;
@@ -533,11 +531,10 @@ inline void chance_steps(Rng &r, int pt, int i, float often) {
         if (r.unipolar() < often) m = r.unipolar() < 0.5f ? EPK_PROB_50 : EPK_PROB_75;
 }
 
-void generate_hypnotic(int pt, uint32_t seed, int key) {
+void generate_hypnotic(int pt, uint32_t seed, int key, float arc) {
     Rng r;
     r.init(seed * 2654435761u + 0x51ED270Bu);
     for (int i = 0; i < 4; i++) r.bipolar();
-    const float arc = kArc[pt];
     // 1 the kick: on the floor once the pattern is under way, one sound for the whole bank (un bombo para el banco)
     set_spec(pt, 0, 31 + key / 2, 0.22f + 0.2f * arc, 0.35f + 0.2f * arc, 0.46f, 0.42f, 0.25f + 0.45f * arc, 16, arc >= 0.35f ? 4 : 0,
              0, EPK_DIV_1_16);
@@ -592,11 +589,10 @@ void generate_hypnotic(int pt, uint32_t seed, int key) {
     chance_steps(r, pt, 1, 0.1f);
 }
 
-void generate_ambient(int pt, uint32_t seed, int key) {
+void generate_ambient(int pt, uint32_t seed, int key, float arc) {
     Rng r;
     r.init(seed * 2654435761u + 0x0A3B1E57u);
     for (int i = 0; i < 4; i++) r.bipolar();
-    const float arc = kArc[pt];
     // 1 no kick; near the peak, a soft one at half time (sin bombo; cerca del pico, uno suave a medio tiempo)
     set_spec(pt, 0, 31 + key / 2, 0.10f, 0.15f, 0.62f, 0.35f, 0.55f, 16, arc > 0.72f ? 2 : 0, 0, EPK_DIV_1_16);
     {   // 2 a few ticks, each of a different length, by chance
@@ -638,6 +634,160 @@ void generate_ambient(int pt, uint32_t seed, int key) {
                  arc < 0.3f ? 1 : 2, ri(r, len), EPK_DIV_1_8);
         set_engine(pt, 5, EPK_ENG_TAMBOR);
         chance_steps(r, pt, 5, 0.5f);
+    }
+}
+
+// A track's steps by hand (pasos a mano): these, and those at 50 % (fantasmas)
+void hand_steps(int pt, int i, uint32_t hits, uint32_t ghosts) {
+    Steps &s = g.bank_steps[pt][i];
+    s.manual = 1;
+    s.mask = hits | ghosts;
+    for (int k = 0; k < 32; k++) s.meta[k] = (ghosts >> k & 1u) ? EPK_PROB_50 : 0;
+}
+
+// Bank B (BREAKS Y DEEP): patterns 1-8 deep (a soft kick on four, swung hats, a pad or dub stabs, a warm low bass,
+// a clap on 2 and 4), 9-16 breaks (the kick broken, a snare on 2 and 4 with ghost notes, busier swung hats, a bass
+// that answers the kick). Each half from sparse to full.
+void generate_deep_breaks(int pt, uint32_t seed, int key, float arc) {
+    Rng r;
+    r.init(seed * 2654435761u + 0x0B2EA4C5u);
+    for (int i = 0; i < 4; i++) r.bipolar();
+    const int breaks = pt >= 8;
+    {   // 1 the kick: deep on four (a negras); breaks by hand, busier as it fills (roto, a mano)
+        const float drive = rr(r, 0.05f, 0.25f), click = rr(r, 0.40f, 0.65f), dec = rr(r, 0.36f, 0.48f);
+        const int note = 31 + key / 2 + ri(r, 3);
+        if (!breaks) {
+            set_spec(pt, 0, note, drive, click, dec, 0.35f, rr(r, 0.1f, 0.4f), 16, arc < 0.12f ? 0 : 4, 0, EPK_DIV_1_16);
+        } else {
+            static const uint32_t kBreak[6] = {1u << 0 | 1u << 10,                       // 2-step
+                                               1u << 0 | 1u << 6 | 1u << 10,
+                                               1u << 0 | 1u << 3 | 1u << 10,
+                                               1u << 0 | 1u << 7 | 1u << 10 | 1u << 13,
+                                               1u << 0 | 1u << 6 | 1u << 8 | 1u << 11,
+                                               1u << 0 | 1u << 3 | 1u << 6 | 1u << 10 | 1u << 13};
+            const int k = clampi((int)(arc * 5.0f + 0.5f) + ri(r, 2) - 1, 0, 5);
+            set_spec(pt, 0, note, drive + 0.1f, click, dec - 0.04f, 0.4f, rr(r, 0.0f, 0.3f), 16, 4, 0, EPK_DIV_1_16);
+            hand_steps(pt, 0, kBreak[k], r.unipolar() < 0.6f ? 1u << 15 : 0u);
+        }
+    }
+    {   // 2 hats: deep, off the beat and a little open; breaks, sixteenths with chances. Swung (con swing)
+        if (!breaks) {
+            const int hits = arc < 0.4f ? 4 : 8;
+            set_spec(pt, 1, 82 + ri(r, 6), rr(r, 0.55f, 0.9f), rr(r, 0.75f, 0.92f), rr(r, 0.10f, 0.22f), rr(r, 0.2f, 0.5f),
+                     rr(r, 0.2f, 0.5f), 16, hits, 2, EPK_DIV_1_16);
+            g.bank[pt][1][EPK_P_SWING] = rr(r, 0.25f, 0.5f);
+        } else {
+            set_spec(pt, 1, 84 + ri(r, 6), rr(r, 0.6f, 1.0f), rr(r, 0.82f, 0.98f), rr(r, 0.03f, 0.08f), rr(r, 0.1f, 0.4f),
+                     rr(r, 0.3f, 0.6f), 16, 8 + (int)(8.0f * arc), 0, EPK_DIV_1_16);
+            g.bank[pt][1][EPK_P_SWING] = rr(r, 0.35f, 0.65f);
+            chance_steps(r, pt, 1, 0.3f);
+        }
+    }
+    {   // 3 the chord: a pad (held) or dub stabs; deep leans to pads, breaks to stabs (pad o stabs)
+        const int pad = r.unipolar() < (breaks ? 0.35f : 0.65f);
+        if (pad) {
+            const int len = r.unipolar() < 0.5f ? 16 : 32;
+            set_spec(pt, 2, scale_note(r, 50 + key, 5), r.unipolar(), rr(r, 0.30f, 0.50f), rr(r, 0.84f, 0.96f), (float)ri(r, 4) / 3.0f,
+                     rr(r, 0.10f, 0.35f), len, 1 + ri(r, 2), ri(r, 4), EPK_DIV_1_16);
+            g.bank[pt][2][EPK_P_ATTACK] = rr(r, 0.35f, 0.6f);
+            evolve(pt, 2, 0.30f, 3, 0.25f, EPK_SCOPE_SOUND);
+            track_lfo(pt, 2, EPK_TLFO_SHAPE_COUNT - 1, 8, EPK_TLFO_TONE, 0.35f);   // DRIFT on the tone
+        } else {
+            static const uint8_t kL[4] = {12, 16, 16, 24};
+            const int len = kL[ri(r, 4)];
+            set_spec(pt, 2, scale_note(r, 50 + key, 5), r.unipolar(), rr(r, 0.35f, 0.55f), rr(r, 0.30f, 0.55f), (float)ri(r, 4) / 3.0f,
+                     rr(r, 0.35f, 0.65f), len, 2 + (int)(3.0f * arc), ri(r, len), EPK_DIV_1_16);
+            evolve(pt, 2, 0.25f, 2, 0.30f, EPK_SCOPE_SOUND);
+            track_lfo(pt, 2, 0, 6, EPK_TLFO_SEND_A, 0.35f);                         // breathes into the delay
+        }
+    }
+    {   // 4 the bass: warm and low in deep; in breaks a line that answers the kick (responde al bombo)
+        if (!breaks) {
+            const int len = r.unipolar() < 0.5f ? 16 : 32;
+            set_spec(pt, 3, scale_note(r, 38 + key, 3), rr(r, 0.15f, 0.35f), rr(r, 0.28f, 0.42f), rr(r, 0.30f, 0.42f), 0.0f,
+                     rr(r, 0.4f, 0.6f), len, arc < 0.2f ? 0 : 3 + (int)((float)len * 0.2f * arc), 2 + ri(r, 3), EPK_DIV_1_16);
+        } else {
+            static const uint8_t kM[3] = {MACRO_ANALOG, MACRO_FM, MACRO_ANALOG};
+            const int m = kM[ri(r, 3)];
+            set_spec(pt, 3, scale_note(r, 38 + key, 4), rr(r, 0.2f, 0.5f), rr(r, 0.32f, 0.5f), rr(r, 0.22f, 0.34f),
+                     (float)m / (float)(MACRO_MODELS - 1), m == MACRO_FM ? (float)(1 + ri(r, 3)) / 8.0f : rr(r, 0.4f, 0.6f), 16,
+                     4 + (int)(4.0f * arc), 0, EPK_DIV_1_16);
+            make_turing(pt, 3, seed + 33u, 2 + ri(r, 4));
+        }
+        evolve(pt, 3, 0.15f, 3, 0.35f, EPK_SCOPE_SOUND);
+    }
+    {   // 5 deep: a soft drone in half of them; breaks: an acid line in two, otherwise resting (descansa)
+        if (!breaks && (pt & 1)) {
+            set_spec(pt, 4, scale_note(r, 50 + key, 3), rr(r, 0.1f, 0.4f), rr(r, 0.25f, 0.38f), 0.9f, rr(r, 0.4f, 0.8f), 0.6f, 7, 1, 0,
+                     EPK_DIV_1_4);
+            g.bank[pt][4][EPK_P_ATTACK] = 0.5f;
+            evolve(pt, 4, 0.2f, 4, 0.2f, EPK_SCOPE_SOUND);
+        } else if (breaks && (pt == 11 || pt == 14)) {
+            set_spec(pt, 4, scale_note(r, 38 + key, 3) + 12, r.unipolar(), rr(r, 0.30f, 0.40f), rr(r, 0.22f, 0.30f), 1.0f,
+                     rr(r, 0.6f, 0.85f), 16, 5 + ri(r, 4), ri(r, 16), EPK_DIV_1_16);
+            set_engine(pt, 4, EPK_ENG_MACRO);
+            g.bank[pt][4][EPK_P_ATTACK] = rr(r, 0.25f, 0.6f);
+            acid_moves(pt, 4);
+            make_turing(pt, 4, seed + 55u, 3 + ri(r, 4));
+        } else
+            set_spec(pt, 4, 50 + key, 0.3f, 0.3f, 0.9f, 0.5f, 0.6f, 7, 0, 0, EPK_DIV_1_4);
+    }
+    {   // 6 deep: a clap on 2 and 4 once it is under way; breaks: a snare on 2 and 4 with ghosts (fantasmas)
+        if (!breaks) {
+            set_spec(pt, 5, 50 + ri(r, 6), 0.05f, rr(r, 0.45f, 0.7f), rr(r, 0.25f, 0.45f), rr(r, 0.4f, 0.7f), rr(r, 0.3f, 0.6f), 16,
+                     arc < 0.3f ? 0 : 2, 4, EPK_DIV_1_16);
+        } else {
+            static const uint32_t kGhost[4] = {1u << 7, 1u << 14, 1u << 7 | 1u << 15, 1u << 3 | 1u << 9 | 1u << 14};
+            set_spec(pt, 5, 50 + ri(r, 5), rr(r, 0.45f, 0.6f), rr(r, 0.5f, 0.75f), rr(r, 0.25f, 0.45f), rr(r, 0.5f, 0.8f),
+                     rr(r, 0.3f, 0.6f), 16, 2, 4, EPK_DIV_1_16);
+            hand_steps(pt, 5, 1u << 4 | 1u << 12, kGhost[clampi((int)(arc * 4.0f), 0, 3)]);
+        }
+    }
+}
+
+// Bank C's techno patterns (los de techno del banco C): the hypnotic recipe, driven harder
+void generate_techno(int pt, uint32_t seed, int key, float arc) {
+    generate_hypnotic(pt, seed, key, arc);
+    float *k = g.bank[pt][0];
+    k[EPK_P_CHARACTER] = 0.45f + 0.2f * arc;                         // more drive (más carácter)
+    k[EPK_P_TONE] = 0.6f;
+    g.bank[pt][1][EPK_P_HITS] = 1.0f;                                // sixteenths (semicorcheas)
+    g.bank[pt][1][EPK_P_SWING] = 0.0f;
+    set_spec(pt, 5, 52, 0.05f, 0.6f, 0.30f, 0.5f, 0.4f, 16, 2, 4, EPK_DIV_1_16);   // a clap on 2 and 4 (palmas)
+}
+
+// Which pattern goes in each slot of A, B and C (qué patrón va en cada hueco): hand-made ones by their number in the
+// table, generated ones by how full they are
+enum : uint8_t { SRC_HAND, SRC_AMBIENT, SRC_DEEP_BREAKS, SRC_TECHNO };
+struct Slot { uint8_t src, n; const char *name; };
+static const Slot kBanks[3][EPK_PATTERNS] = {
+    {   // A AMBIENTE: from almost nothing up; the three hand-made ones without a kick in their place by how full
+        {SRC_AMBIENT, 2, "ALBA"}, {SRC_HAND, 0, "NEBULA"}, {SRC_AMBIENT, 6, "NIEBLA"}, {SRC_AMBIENT, 10, "ROCIO"},
+        {SRC_HAND, 1, "BRUMA"}, {SRC_AMBIENT, 14, "LAGUNA"}, {SRC_AMBIENT, 18, "MUSGO"}, {SRC_HAND, 7, "APOGEO"},
+        {SRC_AMBIENT, 23, "SILENCIO"}, {SRC_AMBIENT, 28, "AURORA"}, {SRC_AMBIENT, 33, "GLACIAR"}, {SRC_AMBIENT, 38, "CORAL"},
+        {SRC_AMBIENT, 43, "POLEN"}, {SRC_AMBIENT, 48, "BOREAL"}, {SRC_AMBIENT, 54, "DUNAS"}, {SRC_AMBIENT, 62, "ESTELA"}},
+    {   // B BREAKS Y DEEP
+        {SRC_DEEP_BREAKS, 5, "SOTANO"}, {SRC_DEEP_BREAKS, 18, "HUMO"}, {SRC_DEEP_BREAKS, 30, "SEDA"},
+        {SRC_DEEP_BREAKS, 42, "AMBAR"}, {SRC_DEEP_BREAKS, 55, "NOCTURNO"}, {SRC_DEEP_BREAKS, 67, "CALIDO"},
+        {SRC_DEEP_BREAKS, 80, "MAREJADA"}, {SRC_DEEP_BREAKS, 95, "VELADA"}, {SRC_DEEP_BREAKS, 10, "QUIEBRO"},
+        {SRC_DEEP_BREAKS, 22, "ASFALTO"}, {SRC_DEEP_BREAKS, 35, "GRIETA"}, {SRC_DEEP_BREAKS, 48, "SINCOPA"},
+        {SRC_DEEP_BREAKS, 60, "RAFAGA"}, {SRC_DEEP_BREAKS, 72, "ZIGZAG"}, {SRC_DEEP_BREAKS, 86, "TORMENTA"},
+        {SRC_DEEP_BREAKS, 100, "ESTAMPIDA"}},
+    {   // C DEEP TECHNO Y TECHNO: the hand-made dub / deep ones from the sparsest, then techno to the peak
+        {SRC_HAND, 9, "SILICE"}, {SRC_HAND, 2, "DERIVA"}, {SRC_HAND, 15, "CYKLOS"}, {SRC_HAND, 5, "MAREA"},
+        {SRC_HAND, 3, "ORBITA"}, {SRC_HAND, 12, "HORIZONTE"}, {SRC_HAND, 13, "NADIR"}, {SRC_HAND, 6, "PERIGEO"},
+        {SRC_HAND, 11, "CUASAR"}, {SRC_HAND, 4, "PULSAR"}, {SRC_HAND, 10, "FOSFORO"}, {SRC_HAND, 8, "ECLIPSE"},
+        {SRC_TECHNO, 75, "VORTICE"}, {SRC_TECHNO, 85, "CICLON"}, {SRC_HAND, 14, "ZENIT"}, {SRC_TECHNO, 100, "FRENESI"}}};
+
+void fill_slot(int bank, int pt, int key) {
+    const Slot &s = kBanks[bank][pt];
+    const float arc = (float)s.n / 100.0f;
+    const uint32_t seed = (uint32_t)(bank * 64 + pt);
+    switch (s.src) {
+    case SRC_HAND: fill_factory(pt, s.n); break;
+    case SRC_AMBIENT: generate_ambient(pt, seed, key, arc); break;
+    case SRC_DEEP_BREAKS: generate_deep_breaks(pt, seed, key, arc); break;
+    default: generate_techno(pt, seed, key, arc); break;
     }
 }
 
@@ -705,10 +855,10 @@ void bake_track(int i, float *out, Steps &st) {
     }
 }
 
-// Bank A is the first project (dub techno); B hypnotic techno and C ambient, generated to a style; D..K generated
-// freely. The same every time (banco A de fábrica; B y C con estilo; D..K libres)
-// Each bank in one key, so its patterns follow each other (cada banco en una tonalidad): A in D, the rest spread
-inline int bank_key(int bank) { return bank == 0 ? 0 : (bank * 5) % 12 - 5; }
+// Banks A, B and C by style (kBanks); D..K generated freely. The same every time (siempre los mismos)
+// Each bank in one key, so its patterns follow each other (cada banco en una tonalidad): A and C in D, where the
+// hand-made patterns are; B in A; the rest spread
+inline int bank_key(int bank) { return bank == 0 || bank == 2 ? 0 : bank == 1 ? -5 : (bank * 5) % 12 - 5; }
 
 // A saved pattern's own name (nombre propio): a number drawn from its bytes, so the same pattern has the same name
 // after a power-off and nothing more is stored. Spelled as three syllables: 16 x 4 x 15 x 4 x 16 x 4 names
@@ -734,9 +884,7 @@ void load_bank(int bank) {
             unpack_pattern(g.stage[pt], pt);
             g.user_mask |= (uint16_t)(1u << pt);
             g.name_id[pt] = record_name(g.stage[pt]);
-        } else if (bank == 0) fill_factory(pt);
-        else if (bank == 1) generate_hypnotic(pt, (uint32_t)(64 + pt), bank_key(bank));
-        else if (bank == 2) generate_ambient(pt, (uint32_t)(128 + pt), bank_key(bank));
+        } else if (bank < 3) fill_slot(bank, pt, bank_key(bank));
         else generate(pt, (uint32_t)(bank * 64 + pt), bank_key(bank));
     }
     g.bank_id = bank;
@@ -1203,7 +1351,7 @@ void scenes_factory();                     // with the scenes, below (más abajo
 
 void epk_init(float sample_rate) {
     // the project's mix (mezcla del proyecto): level, pan per track
-    static const float kMix[EPK_TRACKS][4] = {{0.74f, 0.50f, 0.00f, 0.00f}, {0.62f, 0.58f, 0.30f, 0.30f},
+    static const float kMix[EPK_TRACKS][4] = {{0.84f, 0.50f, 0.00f, 0.00f}, {0.62f, 0.58f, 0.30f, 0.30f},
                                               {0.72f, 0.40f, 0.65f, 0.55f}, {0.70f, 0.56f, 0.00f, 0.20f},
                                               {0.45f, 0.36f, 0.40f, 0.70f}, {0.60f, 0.57f, 0.40f, 0.50f}};
     // the send effects (efectos): a dotted-eighth tape echo into a long, dark plate
@@ -1679,7 +1827,7 @@ const char *epk_pattern_name(int bank, int pattern) {
         return name;
     }
     if (bank <= 2)
-        for (const char *c = (bank == 0 ? kFactoryNames : bank == 1 ? kHypnoticNames : kAmbientNames)[pattern]; *c && n < 12; c++)
+        for (const char *c = kBanks[bank][pattern].name; *c && n < 12; c++)
             name[n++] = *c;
     else {
         name[0] = 'G'; name[1] = 'E'; name[2] = 'N'; name[3] = ' ';

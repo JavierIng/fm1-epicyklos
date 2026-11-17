@@ -107,7 +107,8 @@ struct Grave {
         return y;
     }
     void render(float *out, uint32_t n, const float *p, float sr) {
-        const float drive = 1.0f + p[EPK_P_CHARACTER] * 9.0f;
+        // DRIVE on a square law: the lower half stays nearly clean (casi limpio), the top still goes industrial
+        const float drive = 1.0f + p[EPK_P_CHARACTER] * p[EPK_P_CHARACTER] * 9.0f;
         const float drive_norm = 1.0f / fm_tanhf(drive);
         const float click = p[EPK_P_TONE] * 0.7f;
         const float decay_s = 0.06f * fm_exp2f(p[EPK_P_DECAY] * 4.6f);            // 60 ms .. ~1.5 s
@@ -117,7 +118,7 @@ struct Grave {
         const float sweep = p[EPK_P_EXTRA1] * 4.0f;                               // octaves (octavas)
         const float rumble = p[EPK_P_EXTRA2];
         const float fb = 0.45f + 0.35f * rumble;
-        const float wet_gain = rumble * rumble * 3.0f;
+        const float wet_gain = rumble * rumble * 1.8f;                            // its tail clean below the top
         for (uint32_t i = 0; i < n; i++) {
             phase += freq * fm_exp2f(sweep * pitch_env) / sr;
             if (phase >= 1.0f) phase -= 1.0f;
@@ -349,16 +350,26 @@ inline float blep_saw(float phase, float inc) {
 // see CREDITS.md), each two saws a few cents apart, through one resonant low-pass with its own envelope: the dub
 // stab. NOTE the root, CHARACTER the chord, TONE the cutoff, DECAY, EXTRA1 the table, EXTRA2 how far the filter
 // envelope opens, ATTACK.
+// DECAY up to 0.8 is a pluck that dies away (40 ms .. 1.6 s); above it a PAD: the chord falls to a level it holds
+// (sostiene) until the next hit, 50 % .. 100 % as DECAY goes up, and fades over 1.5 s when the sequencer stops.
+// A hit while it still sounds starts from where it is (sin hueco). The output is clean up to 0.75, then rounds off.
+constexpr float kPadFrom = 0.8f;
 struct Acorde {
     float ph[8], hz[8], amp, fenv, attack, ic1, ic2, root;
-    int chord_on, table_on;
+    int chord_on, table_on, held;
+    float vel;                                 // the last hit's strength (fuerza del golpe)
 
     void init(uint32_t seed) {
         for (int i = 0; i < 8; i++) { ph[i] = (float)((seed >> i) & 7u) * 0.125f; hz[i] = 110.0f; }
-        amp = fenv = 0.0f; attack = 1.0f; ic1 = ic2 = 0.0f; root = 110.0f; chord_on = table_on = -1;
+        amp = fenv = 0.0f; attack = 1.0f; ic1 = ic2 = 0.0f; root = 110.0f; chord_on = table_on = -1; held = 0; vel = 0.0f;
         a1 = a2 = a3 = 0.0f;
     }
-    void trigger(float h, float velocity) { root = h; amp = velocity; fenv = 1.0f; attack = 0.0f; chord_on = -1; }
+    void trigger(float h, float velocity) {
+        const float now = amp * attack;                              // where it is (dónde está)
+        root = h; amp = velocity; fenv = 1.0f; chord_on = -1; held = 1; vel = velocity;
+        attack = velocity > 0.0f ? fm_minf(now / velocity, 1.0f) : 0.0f;   // from there, not from zero (sin hueco)
+    }
+    void release() { held = 0; }
     void render(float *out, uint32_t n, const float *p, float sr) {
         const int table = clampi((int)(p[EPK_P_EXTRA1] * (float)(kChordTables - 1) + 0.5f), 0, kChordTables - 1);
         const int chord = clampi((int)(p[EPK_P_CHARACTER] * (float)(kChordCount[table] - 1) + 0.5f), 0, kChordCount[table] - 1);
@@ -375,8 +386,13 @@ struct Acorde {
         }
         const float base = 60.0f * fm_exp2f(p[EPK_P_TONE] * 7.5f);                 // 60 Hz .. ~11 kHz
         const float env_oct = p[EPK_P_EXTRA2] * 5.0f;
-        const float decay_s = 0.04f * fm_exp2f(p[EPK_P_DECAY] * 6.6f);              // 40 ms .. ~4 s
+        const float dec = p[EPK_P_DECAY];
+        const int pad = dec > kPadFrom;
+        // pluck: 40 ms .. 1.6 s; pad: down to its level in ~1.5 s, then held; released, out in 1.5 s
+        const float decay_s = pad ? 1.5f : 0.04f * fm_exp2f(dec * 6.6f);
+        const float sustain = pad && held ? vel * (0.5f + 0.5f * (dec - kPadFrom) / (1.0f - kPadFrom)) : 0.0f;
         const float amp_mul = fm_expf(-6.9f / (decay_s * sr)), fenv_mul = fm_expf(-6.9f / (decay_s * 0.45f * sr));
+        const float f_hold = pad && held ? 0.5f : 0.0f;              // a pad keeps its filter half open (medio abierto)
         const float attack_inc = 1.0f / (0.001f * fm_exp2f(p[EPK_P_ATTACK] * 10.5f) * sr);
         const float k = 1.25f;                                                      // some resonance (resonancia)
         for (uint32_t i = 0; i < n; i++) {
@@ -396,9 +412,14 @@ struct Acorde {
             const float v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
             ic1 = fm_flush(2.0f * v1 - ic1);
             ic2 = fm_flush(2.0f * v2 - ic2);
-            out[i] = fm_tanhf(v2 * amp * attack * 4.2f);
+            float y = v2 * amp * attack * 3.4f, ay = fm_fabsf(y);
+            if (ay > 0.75f) y = (y > 0.0f ? 1.0f : -1.0f) * (0.75f + 0.25f * fm_tanhf((ay - 0.75f) * 4.0f));   // round off
+            out[i] = y;
             if (attack < 1.0f) attack = fm_minf(attack + attack_inc, 1.0f);
-            else { amp = fm_flush(amp * amp_mul); fenv = fm_flush(fenv * fenv_mul); }
+            else {
+                amp = fm_flush(sustain + (amp - sustain) * amp_mul);
+                fenv = fm_flush(f_hold + (fenv - f_hold) * fenv_mul);
+            }
         }
     }
     float a1, a2, a3;                          // the filter's coefficients (coeficientes)
@@ -764,7 +785,10 @@ struct Voice {
         default: u.test.trigger(hz, velocity); break;
         }
     }
-    void release() { if (engine == EPK_ENG_DRONE) u.drone.gate = 0; }   // the sequencer stopped: let it fade
+    void release() {                                                 // the sequencer stopped: let it fade (se apaga)
+        if (engine == EPK_ENG_DRONE) u.drone.gate = 0;
+        else if (engine == EPK_ENG_ACORDE) u.acorde.release();
+    }
     void render(float *out, uint32_t n, const float *p, float sr) {
         if (quiet >= kQuietAfter) {                                  // asleep: silence, nothing computed (dormida)
             for (uint32_t i = 0; i < n; i++) out[i] = 0.0f;

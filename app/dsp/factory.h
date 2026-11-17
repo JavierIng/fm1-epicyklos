@@ -12,8 +12,6 @@ struct TrackSpec {          // one track of a pattern (una pista de un patrón)
     uint8_t length, hits, rotate, division;   // division: EPK_DIV_*
 };
 
-extern const char *const kFactoryNames[EPK_PATTERNS];
-extern const char *const kHypnoticNames[EPK_PATTERNS], *const kAmbientNames[EPK_PATTERNS];   // banks B and C
 extern const TrackSpec kFactory[EPK_PATTERNS][EPK_TRACKS];
 
 }  // namespace epk

@@ -39,6 +39,7 @@ Al mantener HOME, la parte baja de la pantalla muestra esta chuleta.
 ## 4. Pistas y motores
 Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
 - **GRAVE** (pista 1): bombo. NOTA, DRIVE (de limpio a industrial), CLICK, CAÍDA, BARRIDO, RUMBLE (cola grave).
+  Desde la 0.1.12 la mitad baja de DRIVE es casi limpia; la saturación fuerte queda en la parte alta.
 - **METAL** (pista 2): platos tipo 808/909. AFINA, METAL (de ruido a metálico), BRILLO, CAÍDA, ANILLO, VARÍA.
 - **GOLPE** (pista 6): palma, caja o aro. AFINA, TIPO (PALMA → CAJA → ARO), BRILLO, CAÍDA, CUERPO, COLA.
 - **TAMBOR** (se elige en MOTOR; por defecto en la pista 6 de algunos patrones): toms, congas y percusión
@@ -47,6 +48,10 @@ Cada pista tiene un motor de sonido (página MOTOR, K1). Por ahora:
   desafinadas, por un filtro paso bajo resonante con su propia envolvente.
   - NOTA (la nota base), ACORDE (qué acorde de la tabla; en pantalla sale su nombre: MIN7, MIN9, SUS4…), TONO (dónde
     se cierra el filtro) y CAÍDA.
+  - **CAÍDA hasta 80: pluck** (el acorde se apaga solo, de 40 ms a 1,6 s). **Por encima de 80: PAD**: baja a un nivel
+    y lo **sostiene** hasta el siguiente golpe (de la mitad a todo, según lo alto que esté), con el filtro medio
+    abierto. Al parar el secuenciador se apaga en 1,5 s. Para un pad que entre despacio, sube también ATAQUE.
+  - Un golpe nuevo mientras suena empieza desde donde está, sin hueco.
   - En la página MOTOR: TABLA (Original, Colour Chords, Disastrous Peace o Tonnetz Walk, las tablas de Plaits
     Palette), ENVOLV (cuánto abre el filtro al golpear) y ATAQUE.
   - En Tonnetz Walk los nombres (C, AM, F…) son relativos: con NOTA en re, "C" suena como un re mayor.
@@ -107,7 +112,7 @@ que cambia es un desvío sobre él, y al cambiar de patrón o pulsar PLAY se vue
   suelta.
 - En la página EVOLUCIÓN, arriba a la derecha, seis cuadrados: color vivo = la pista evoluciona; apagado = tiene
   MUTAR y AUSENCIA a 0; gris = apagada con ARP. La raya marca la pista elegida.
-- De fábrica, en el banco A **solo evolucionan los sintes** (acorde y bajo cada 4 compases, dron cada 8). Bombo,
+- De fábrica, en los patrones hechos a mano **solo evolucionan los sintes** (acorde y bajo cada 4 compases, dron cada 8). Bombo,
   platos y percusión vienen quietos. En los bancos generados pasa lo mismo, en dosis distintas.
 - ARP en estas páginas cambia MUTAR, CADA, VUELTA y AUSENCIA al azar (AUSENCIA como mucho 25 %); QUÉ no lo toca.
 
@@ -122,7 +127,7 @@ Cada pista tiene su propio LFO, que se guarda con el patrón. Con el secuenciado
 - **CANT:** cuánto, de −100 a +100. A +100 recorre medio knob arriba y abajo; en negativo, al revés. 0 = apagado.
 - No mueve el knob: se suma a lo que marque. Al guardar el patrón, el LFO se guarda con sus ajustes y sigue
   moviéndose al cargarlo.
-- De fábrica, en el banco A, el acorde respira hacia el eco (ENVÍO A, 4 compases) y el tono del bajo hace DERIVA.
+- De fábrica, en los patrones hechos a mano, el acorde respira hacia el eco (ENVÍO A, 4 compases) y el tono del bajo hace DERIVA.
 
 ### FUENTE: de dónde salen los pasos (página GROOVE, K4)
 Cada pista elige una de tres fuentes. Se cambia con **K4 en la página GROOVE**.
@@ -144,7 +149,7 @@ Cada pista elige una de tres fuentes. Se cambia con **K4 en la página GROOVE**.
   - Guardar el patrón guarda el bucle que suena y su rango.
 - **El aleatorio de patrón** (ARP en PATRONES) también reparte fuentes: el bajo sale en TURING una de cada tres
   veces, la percusión una de cada cinco, y las líneas ácidas siempre.
-- En los bancos de fábrica, las líneas ácidas (PULSAR, ECLIPSE, FOSFORO, ZENIT y los pares del banco B) son ahora
+- En los bancos de fábrica, las líneas ácidas (ver sección 6) son ahora
   bucles TURING: tienen varias notas, no una.
 - Límite: no hay nota por paso escrita a mano. Las notas de un bucle TURING salen del propio bucle.
 - Idea tomada del módulo Turing Machine (Music Thing Modular) y de su uso en el firmware EXS/MT6. Código propio.
@@ -155,20 +160,27 @@ Cada pista elige una de tres fuentes. Se cambia con **K4 en la página GROOVE**.
 - Mantener SAVE + tecla hace lo mismo desde cualquier vista.
 - Un patrón guarda la secuencia y el sonido de cada pista. Mezcla, tempo, **mute y solo son del proyecto**:
   no cambian al cambiar de patrón.
-- **Banco A, dub techno** (en re): 16 patrones hechos a mano, de NEBULA a CYKLOS.
-- **Banco B, techno hipnótico**: de UMBRAL a RETORNO. Bombo a negras, bajo MACRO en un ciclo impar (7, 9, 11, 13
-  o 15 pasos) que gira contra el bombo, acorde oscuro y escaso, percusión en ciclo corto.
-- **Banco C, ambient y drone**: de ALBA a OCASO. Sin bombo (solo uno suave a medio tiempo en 9, 11 y 15), dron
-  siempre presente, acordes lentos, una melodía de cuerda, armónicos o grano que va cambiando de notas, una campana
-  lejana.
-- Los tres siguen el mismo recorrido: entrada (1-3), subida (4-7), pausa (8), segunda subida (9-14), pico (15) y
-  salida (16). B y C están generados con reglas, no compuestos a mano: son siempre los mismos.
+- Los bancos A, B y C van por estilo y **de menos a más** (el 1 es el más vacío, el 16 el más lleno):
+  - **Banco A, ambient** (en re): de ALBA a ESTELA. Sin bombo. Pads y dron, una melodía de cuerda, armónicos o
+    grano que va cambiando de notas, una campana lejana. Entre ellos, tres de los hechos a mano sin bombo: NEBULA
+    (A02), BRUMA (A05) y APOGEO (A08).
+  - **Banco B, deep y breaks** (en la): del 1 al 8 **deep** (SOTANO a VELADA): bombo suave a negras, platos con
+    swing, pad o stabs de dub, bajo cálido, palmas en 2 y 4. Del 9 al 16 **breaks** (QUIEBRO a ESTAMPIDA): bombo
+    roto, caja en 2 y 4 con golpes fantasma, platos a semicorcheas con swing, un bajo que responde al bombo; dos
+    llevan línea ácida (SINCOPA y TORMENTA).
+  - **Banco C, deep techno y techno** (en re): los patrones hechos a mano, del más escaso al más lleno (SILICE,
+    DERIVA, CYKLOS, MAREA, ORBITA, HORIZONTE, NADIR, PERIGEO, CUASAR, PULSAR, FOSFORO, ECLIPSE), y al final techno:
+    VORTICE, CICLON, ZENIT y FRENESI.
+- A y B, y los cuatro de techno de C, están generados con reglas, no compuestos a mano: son siempre los mismos.
+- **Los patrones guardados no se mueven:** siguen en su hueco (banco y número), aunque ahora haya otro de fábrica
+  debajo.
 - Bancos D-K: patrones generados libres (GEN D01…), con el bajo en MACRO.
-- **Líneas ácidas en lugar del dron** (desde la 0.1.8 son bucles TURING, con varias notas) (pista 5 con MACRO ACIDO): en el banco A, en PULSAR, ECLIPSE, FOSFORO y
-  ZENIT; en el banco B, en los patrones pares (los impares llevan dron); en los generados, uno de cada tres.
-  Vienen con el filtro subiendo y bajando en 16 compases (página MOVIMIENTO: TRIANG a TONO) hasta cerrarse del
-  todo, y con AUSENCIA 20 (descansan algún tramo entero). Para que entre y salga a mano: TONO de la pista 5, o
-  una escena.
+- **Líneas ácidas en lugar del dron** (bucles TURING, con varias notas; pista 5 con MACRO ACIDO): en PULSAR,
+  ECLIPSE, FOSFORO, ZENIT, CICLON y FRENESI (banco C), en SINCOPA y TORMENTA (banco B), y en uno de cada
+  tres de los generados. Vienen con el filtro subiendo y bajando en 16 compases (página MOVIMIENTO: TRIANG a TONO)
+  hasta cerrarse del todo, y con AUSENCIA 20 (descansan algún tramo entero). Para que entre y salga a mano: TONO de
+  la pista 5, o una escena.
+- El tempo no se guarda con el patrón: es del proyecto (con reloj MIDI manda el que envía el reloj).
 
 ### Guardar un patrón (HOME + tecla blanca)
 1. Pulsa SAVE para ir a la vista PATRONES y elige el banco de destino con una tecla negra.
@@ -230,7 +242,7 @@ qué banco y patrón estabas.
     la vista PATRONES se ve la actual.
   - **ARP mantenido + K1** (en la vista PATRONES): **tonalidad fija**. Los aleatorios siguientes se quedan en la
     tonalidad actual (pone FIJA). Útil para que los patrones encajen entre sí. Otra vez, libre.
-  - Cada banco tiene su tonalidad: el A en re menor, los generados repartidos.
+  - Cada banco tiene su tonalidad: A y C en re menor, B en la menor, los generados repartidos.
   - **ARP mantenido + K2** (en la vista PATRONES): **qué parte renueva**. TODO, **GROOVE** (pistas 1, 2 y 6: bombo,
     platos y percusión) o **SINTES** (pistas 3, 4 y 5). La parte elegida se ve en amarillo bajo la tonalidad.
     - GROOVE deja los sintes y la tonalidad como están.

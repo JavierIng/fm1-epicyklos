@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Javier Sánchez
-// The first project (primer proyecto): 16 patterns in D minor (re menor), from ambient to the peak and out again.
+// The hand-made patterns (a mano): 16 in D minor (re menor), dub and deep techno, in the order they were written.
 // Tracks (pistas): 1 kick (bombo), 2 hats (ruido), 3 stab (acorde), 4 bass (bajo), 5 drone, 6 perc (percusión).
 // Track 1 plays GRAVE (character = drive, tone = click) and track 2 METAL (character = metal, tone = brightness);
 // track 4 MACRO (the bass; its model and knobs are set in engine.cpp from tone and decay here). Hits 0 = the track rests.
@@ -11,17 +11,7 @@ namespace epk {
 enum : uint8_t { D32 = EPK_DIV_1_32, D16T = EPK_DIV_1_16T, D16 = EPK_DIV_1_16, D8T = EPK_DIV_1_8T, D8 = EPK_DIV_1_8,
                  D4 = EPK_DIV_1_4 };
 
-const char *const kFactoryNames[EPK_PATTERNS] = {
-    "NEBULA", "BRUMA", "DERIVA", "ORBITA", "PULSAR", "MAREA", "PERIGEO", "APOGEO",
-    "ECLIPSE", "SILICE", "FOSFORO", "CUASAR", "HORIZONTE", "NADIR", "ZENIT", "CYKLOS"};
-
-const char *const kHypnoticNames[EPK_PATTERNS] = {
-    "UMBRAL", "TUNEL", "ESPIRAL", "VORTICE", "TRANCE", "NODO", "FLUJO", "VACIO",
-    "HELICE", "PENDULO", "CICLON", "IMAN", "ABISMO", "LATIDO", "FRENESI", "RETORNO"};
-const char *const kAmbientNames[EPK_PATTERNS] = {
-    "ALBA", "NIEBLA", "ROCIO", "LAGUNA", "MUSGO", "AURORA", "GLACIAR", "SILENCIO",
-    "CORAL", "POLEN", "BOREAL", "DUNAS", "ESTELA", "PENUMBRA", "CUMBRE", "OCASO"};
-
+// Their names and where they go are in engine.cpp (kBanks): A, B and C by style (sus nombres y huecos)
 //  note  char   tone   decay  len hits rot div
 const TrackSpec kFactory[EPK_PATTERNS][EPK_TRACKS] = {
     {   // 1 NEBULA: the beginning, no kick: ticks, a far chord, the drone (el comienzo)
@@ -120,7 +110,7 @@ const TrackSpec kFactory[EPK_PATTERNS][EPK_TRACKS] = {
         {86, 1.00f, 0.85f, 0.06f, 16, 6, 1, D16},
         {50, 0.45f, 0.30f, 0.60f, 12, 2, 3, D16},
         {38, 0.60f, 0.30f, 0.35f, 13, 0, 0, D16},
-        {26, 0.50f, 0.20f, 1.00f, 7, 2, 0, D4},
+        {38, 0.50f, 0.20f, 1.00f, 7, 2, 0, D4},
         {57, 0.20f, 0.45f, 0.40f, 10, 2, 4, D16}},
     {   // 15 ZENIT: the peak, everything busy (el pico)
         {33, 0.35f, 0.60f, 0.42f, 16, 4, 0, D16},

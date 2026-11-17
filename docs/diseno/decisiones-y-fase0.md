@@ -390,3 +390,17 @@
 - Nota por paso escrita a mano: sigue sin hacerse. No cabe en los objetos de flash actuales (quedan 41 bytes libres por patrón; harían falta 96 o más).
 - Probado en el ordenador: número de golpes = GOLPES, notas dentro del rango y más de una, bucle quieto con MUTAR 0, se mueve con MUTAR 90 sin cambiar de densidad, PLAY lo devuelve, se guarda y se recupera igual, TURING → SEQ conserva los pasos. No escuchado.
 - Pendiente de esa comparación: CONTROL ALL (mover un mando en todas las pistas a la vez), salida de reloj, FUENTE en la ventana del VST.
+
+## Primera prueba en el FM-1 y CPU (2026-11-16/17)
+- Javier instaló la 0.1.7 él mismo: el firmware carga y arranca (pantalla de la base y luego la galaxia), pero suena distorsionado. Medido en el aparato con el perfil nuevo (FLOW + HOME, 0.1.10): **CPU 124 %, 12.893 cortes** en A01. No era la mezcla: el audio no llegaba a tiempo.
+- 0.1.11: voces en silencio que no se calculan, MAREA a media frecuencia (14 bandas; las dos de arriba a frecuencia completa), filtro DJ en el centro sin calcular, compresor cada 8 muestras, eco y placa con lo lento cada 16 muestras, dron más barato, mezcla directa. **En el aparato: A14 (NADIR) TOT 72 %, CPU 78 %, sin cortes nuevos.**
+- Calibración para estimar sin el aparato: instrucciones contadas con callgrind en el ordenador, escaladas a NADIR = 72 %. Es una estimación (no son ciclos del pi32v2).
+
+## Mezcla, pads y bancos por estilo (2026-11-17)
+- Javier en el aparato: "mucho mejor, pero el kick ha perdido presencia; en los patrones más deep parece que distorsiona; los patrones suenan casi todos parecidos; los acordes más pads, no solo plucks"; "el mejor con diferencia A16 CYKLOS"; ordenar de menos a más: A ambient, B breaks y deep, C deep techno y techno.
+- Medido: el ACORDE salía por un tanh con ganancia 4,2 (de la subida de mezcla del 13 nov): 27–31 % de no linealidad. Ahora limpio hasta 0,75 y redondeado encima (10–18 %, lo que queda es del filtro). El DRIVE del bombo de fábrica (0,25 → ganancia 3,25) era una sinusoide recortada: la curva de DRIVE pasa a cuadrática (1 + 9·c²). El RUMBLE satura menos (×1,8 en vez de ×3). NADIR: el dron sube de re1 (37 Hz) a re2.
+- Bombo de fábrica a nivel 84 (antes 74).
+- **PAD:** en ACORDE, CAÍDA por encima de 80 sostiene hasta el siguiente golpe (50–100 % según el knob, filtro medio abierto), se suelta al parar. Un golpe nuevo arranca desde donde está. Lo guardado con CAÍDA > 80 pasa de caída larga a pad.
+- **Bancos:** A ambient (generado de menos a más + NEBULA, BRUMA, APOGEO), B deep (1-8) y breaks (9-16) con un generador nuevo, C los patrones a mano reordenados (SILICE → ECLIPSE) y techno al final (VORTICE, CICLON, ZENIT, FRENESI). A y C en re, B en la. Los patrones guardados se quedan en su hueco.
+- Tempo por patrón: no se hace por ahora (Javier usa reloj MIDI; podría servir a otros). Hay 41 bytes libres por patrón si se decide.
+- CPU estimada de los 48 patrones nuevos: 55–77 % (más alto: C08 PERIGEO). Sin probar en el aparato. Nadie lo ha escuchado todavía.

@@ -2,6 +2,15 @@
 // The computer build's extras (EPK_DESKTOP): the notes the sequencer fires come out as events on the right sample,
 // a track's voice can be silenced while its notes go on, and an outside sound goes through a track.
 #include "epk.h"
+
+// The hand-made patterns moved to banks A and C on 2026-11-17 (A ambient, B deep and breaks, C deep techno and
+// techno): the tests start where the engine used to start, on NEBULA (now A02), and name the others by their slot
+static void start(float sr) {
+    epk_init(sr);
+    epk_pattern_select(0, 1);
+    float l, r;
+    epk_render(&l, &r, 1);                                       // stopped: only applies the selection (solo aplica)
+}
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -13,8 +22,8 @@ static float l[256], r[256], ext[256];
 int main() {
     const float SR = 44100.0f;
     // 1. ORBITA: the kick is four on the floor: its events fall 21339 samples apart (a quarter note at 124 BPM)
-    epk_init(SR);
-    epk_pattern_select(0, 3);
+    start(SR);
+    epk_pattern_select(2, 4);
     epk_play(1);
     long at = 0, last[EPK_TRACKS], gaps_bad = 0;
     int count[EPK_TRACKS] = {}, notes_ok = 1;
@@ -40,8 +49,8 @@ int main() {
     CHECK((uint32_t)count[0] == epk_triggers(0) && (uint32_t)count[3] == epk_triggers(3), "events match the triggers: %d/%u %d/%u",
           count[0], epk_triggers(0), count[3], epk_triggers(3));
     // 2. voice off: the kick alone makes no sound but keeps firing
-    epk_init(SR);
-    epk_pattern_select(0, 3);
+    start(SR);
+    epk_pattern_select(2, 4);
     for (int t = 0; t < EPK_TRACKS; t++) epk_solo(t, t == 0);
     for (int f = 0; f < EPK_FX_COUNT; f++) if (f == EPK_FX_DLY_LEVEL || f == EPK_FX_REV_LEVEL) epk_fx_set(f, 0.0f);
     epk_voice_off(0, 1);
@@ -72,8 +81,8 @@ int main() {
     //    move but stay as many; PLAY brings the loop back; RANGE 0 is one note; saved and loaded it is the same loop
     {
         auto setup = [&](float mutate) {
-            epk_init(SR);
-            epk_pattern_select(0, 3);
+            start(SR);
+            epk_pattern_select(2, 4);
             epk_render(l, r, 256);                                   // the pattern is in (ya está el patrón)
             epk_events_take(ev, 64);
             epk_param_set(3, EPK_P_LENGTH, 15.0f / 31.0f);           // 16 steps
@@ -113,7 +122,7 @@ int main() {
         epk_turing_range(3, 11);
         epk_render(l, r, 256);
         epk_pattern_pack_live(obj + EPK_BANK_HEAD);
-        epk_init(SR);
+        start(SR);
         epk_bank_stage_begin(5);
         epk_bank_stage_half(5, 0, obj, (int)sizeof obj);
         epk_pattern_select(5, 0);

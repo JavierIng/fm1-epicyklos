@@ -8,15 +8,20 @@ expect playing 0
 expect pattern 1
 # track 4 plays MACRO (engine 7)
 expect engine4 7
-# SAVE: the PATTERNS view (patrones); stopped, a white key changes at once (pattern 4 ORBITA = key 6)
+# SAVE: the PATTERNS view (patrones); a black key picks the bank (C = key 5), and stopped a white key changes at
+# once (ORBITA, C05 = key 7)
 tap SAVE
 wait 30
 expect view 5
-key 6 down
+key 5 down
 wait 30
-key 6 up
+key 5 up
 wait 30
-expect pattern 4
+key 7 down
+wait 30
+key 7 up
+wait 30
+expect pattern 5
 shot patterns.png
 tap SAVE
 wait 30
@@ -225,23 +230,23 @@ turn K1 -3
 wait 50
 shot popup.png
 wait 1200
-# a queued pattern (en cola): SAVE held + white key 12 = pattern 8 APOGEO; track 1 muted first
+# a queued pattern (en cola): SAVE held + white key 4 = pattern 3 CYKLOS; track 1 muted first
 press HOME
 tap FX
 release HOME
 wait 30
 expect mute1 1
 press SAVE
-key 12 down
+key 4 down
 wait 30
-key 12 up
+key 4 up
 release SAVE
 wait 30
 expect view 0
-expect queued 8
-expect pattern 4
+expect queued 3
+expect pattern 5
 wait 2200
-expect pattern 8
+expect pattern 3
 expect queued 0
 expect mute1 1
 press HOME
@@ -325,7 +330,7 @@ key b2 down
 wait 30
 key b2 up
 wait 30
-expect bank 0
+expect bank 2
 key w4 down
 wait 30
 key w4 up

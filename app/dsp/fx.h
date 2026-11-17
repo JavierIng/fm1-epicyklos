@@ -37,6 +37,7 @@ struct Delay {
     float cur;                                         // the delay now, in half-rate samples (suavizado)
     float lp, hp, wow, flutter;
     float a_c, target_c;                               // the loop's low-pass and the time aimed at, every 16 samples
+    float wf, dwf;                                     // TAPE's wow and flutter, a line between every 8 samples
     int sub;
     Rng rng;
 
@@ -45,7 +46,7 @@ struct Delay {
         lp = hp = 0.0f;
     }
     void init() {
-        w = 0; type = -1; cur = 0.0f; wow = flutter = 0.0f; a_c = 0.5f; target_c = 0.0f; sub = 0;
+        w = 0; type = -1; cur = 0.0f; wow = flutter = 0.0f; a_c = 0.5f; target_c = 0.0f; sub = 0; wf = dwf = 0.0f;
         rng.init(0x51ED270Bu); clear();
     }
 
@@ -87,11 +88,15 @@ struct Delay {
         cur += (target - cur) * (type == EPK_DLY_TAPE ? 0.0004f : type == EPK_DLY_BBD ? 0.001f : 0.002f);
         float delay = cur;
         if (type == EPK_DLY_TAPE) {
-            wow += 0.7f / hsr;
-            if (wow >= 1.0f) wow -= 1.0f;
-            flutter += 6.3f / hsr;
-            if (flutter >= 1.0f) flutter -= 1.0f;
-            delay *= 1.0f + wear * (0.004f * fm_sin_turns(wow) + 0.0008f * fm_sin_turns(flutter));
+            if ((sub & 7) == 1) {                                       // every 8 samples, after the slow block
+                wow += 8.0f * 0.7f / hsr;
+                if (wow >= 1.0f) wow -= 1.0f;
+                flutter += 8.0f * 6.3f / hsr;
+                if (flutter >= 1.0f) flutter -= 1.0f;
+                dwf = (0.004f * fm_sin_turns(wow) + 0.0008f * fm_sin_turns(flutter) - wf) * 0.125f;
+            }
+            wf += dwf;
+            delay *= 1.0f + wear * wf;
         }
         if (delay < 2.0f) delay = 2.0f;
         if (delay > (float)(len - 4)) delay = (float)(len - 4);
@@ -158,6 +163,8 @@ struct Plate {
     enum { IN1, IN2, IN3, IN4, L_MOD, L_DL1, L_AP, L_DL2, R_MOD, R_DL1, R_AP, R_DL2, PRE };
     int off[kVerbLines], w[kVerbLines], len[kVerbLines];
     float l_fb, r_fb, l_damp, r_damp, lfo, scale;
+    float mod_l, mod_r, dmod_l, dmod_r;       // the two moving lengths' sines, a line between every 8 ticks
+    int mod_sub;
     // the shimmer's pitch shifter (desplazador de tono): two taps crossfading over a short window
     int16_t *buf, *shim_buf;                  // its lines, and the shimmer's window (null: no shimmer)
     const int *maxlen;
@@ -168,6 +175,7 @@ struct Plate {
     void clear() {
         for (int i = 0; i < buf_len; i++) buf[i] = 0;
         l_fb = r_fb = l_damp = r_damp = shim_lp = 0.0f;
+        mod_l = mod_r = dmod_l = dmod_r = 0.0f; mod_sub = 0;
         if (shim_buf)
             for (int i = 0; i < 2048; i++) shim_buf[i] = 0;
     }
@@ -268,8 +276,16 @@ struct Plate {
         const float open = freeze ? 1.0f : 0.12f + 0.88f * fx[EPK_FX_REV_TONE];   // the tank's low-pass
         const float depth = (1.0f + 10.0f * fx[EPK_FX_REV_MOD]) * (scale > 1.0f ? scale : 1.0f);
         const float diff = fx[EPK_FX_REV_DIFFUSION];
-        lfo += (0.4f + 1.1f * fx[EPK_FX_REV_MOD]) / hsr;
-        if (lfo >= 1.0f) lfo -= 1.0f;
+        // the tank's slow LFO: its sines every 8 ticks and a straight line between (cada 8: ahorra 2 senos de 2)
+        if (mod_sub == 0) {
+            lfo += 8.0f * (0.4f + 1.1f * fx[EPK_FX_REV_MOD]) / hsr;
+            if (lfo >= 1.0f) lfo -= 1.0f;
+            dmod_l = (fm_sin_turns(lfo) - mod_l) * 0.125f;
+            dmod_r = (fm_sin_turns(lfo + 0.25f) - mod_r) * 0.125f;
+        }
+        mod_sub = (mod_sub + 1) & 7;
+        mod_l += dmod_l;
+        mod_r += dmod_r;
         // the pre-delay (predelay): 0 .. ~240 ms; frozen, nothing new comes in (congelada, no entra nada)
         float x = freeze ? 0.0f : in * 0.5f;
         const int pre = (int)(fx[EPK_FX_REV_PREDELAY] * (float)(maxlen[PRE] - 1));
@@ -291,12 +307,12 @@ struct Plate {
         x = allpass(IN3, 281, x, 0.625f * diff);
         x = allpass(IN4, 205, x, 0.625f * diff);
         // the tank (el tanque): each half feeds the other
-        float l = allpass_mod(L_MOD, 498.0f * scale + depth * fm_sin_turns(lfo), x + decay * r_fb, -0.7f);
+        float l = allpass_mod(L_MOD, 498.0f * scale + depth * mod_l, x + decay * r_fb, -0.7f);
         l = delay(L_DL1, l);
         l_damp = fm_flush(l_damp + (l - l_damp) * open);
         l = allpass(L_AP, len[L_AP], l_damp * decay, 0.5f);
         const float l_out = delay(L_DL2, l);
-        float r = allpass_mod(R_MOD, 673.0f * scale + depth * fm_sin_turns(lfo + 0.25f), x + decay * l_fb, -0.7f);
+        float r = allpass_mod(R_MOD, 673.0f * scale + depth * mod_r, x + decay * l_fb, -0.7f);
         r = delay(R_DL1, r);
         r_damp = fm_flush(r_damp + (r - r_damp) * open);
         r = allpass(R_AP, len[R_AP], r_damp * decay, 0.5f);
