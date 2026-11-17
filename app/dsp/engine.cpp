@@ -405,6 +405,40 @@ void kick_steps(int pt, uint32_t hits, int ghost) {
 // A whole pattern from a seed (un patrón entero a partir de una semilla): each track keeps its role, inside
 // ranges that work: a kick on four less than half the time, odd cycle lengths for the polymetry, notes in a minor
 // key: `key` semitones from D (-5..6).
+// The chords' mood (el carácter de los acordes): dark ones are the minor colours, fifths and sus4; bright ones the
+// major, major 7/9, 6/9, sixths and dominants. Only ORIGINAL and COLOUR CHORD: the other two tables name their chords
+// by degree or by absolute root and are left as they are.
+inline int chord_dark(int table, int idx) {
+    if (table == 0) return idx <= 6;                                        // octave .. min11 / 6/9 .. major
+    if (table == 1) return idx <= 5 || idx == 9 || idx == 15 || idx == 16;  // .. min11, sus4, half-dim, dim
+    return -1;
+}
+// The nearest chord of the same mood (el más cercano del mismo carácter)
+inline int chord_same_mood(int table, int want, int written) {
+    const int mood = chord_dark(table, written), n = kChordCount[table];
+    if (mood < 0 || chord_dark(table, want) == mood) return want;
+    for (int d = 1; d < n; d++) {
+        if (want - d >= 0 && chord_dark(table, want - d) == mood) return want - d;
+        if (want + d < n && chord_dark(table, want + d) == mood) return want + d;
+    }
+    return written;
+}
+// A generated pattern's chord, darkened (oscurecido): the table becomes ORIGINAL or COLOUR CHORD, the chord one of
+// their dark ones, mostly minor 7 / 9 / 11, picked by the value it had (no new random draws: the rest stays the same)
+void darken_chord(int pt) {
+    float *b = g.bank[pt][2];
+    static const uint8_t kOrig[] = {4, 5, 6, 5, 4, 3, 2, 6, 5, 1};          // min7 min9 min11 .. sus4, fifth
+    static const uint8_t kColour[] = {3, 4, 5, 4, 3, 2, 9, 5, 4, 15};       // min7 min9 min11 .. sus4, half-dim
+    const int table = (int)(b[EPK_P_EXTRA1] * 3.0f + 0.5f) & 1;
+    const int k = clampi((int)(b[EPK_P_CHARACTER] * 10.0f), 0, 9);
+    const int idx = table ? kColour[k] : kOrig[k];
+    b[EPK_P_EXTRA1] = (float)table / (float)(kChordTables - 1);
+    b[EPK_P_CHARACTER] = (float)idx / (float)(kChordCount[table] - 1);
+}
+// A generated pattern's percussion, a little darker (un poco más oscura): its clap or snare stood out at 1-4 kHz,
+// where nothing else plays (measured on B05: 4 dB over the whole mix in that band)
+void soften_perc(int pt) { g.bank[pt][5][EPK_P_TONE] *= 0.72f; }
+
 void generate(int pt, uint32_t seed, int key) {
     static const uint8_t kLen[12] = {7, 9, 10, 11, 12, 13, 15, 16, 16, 20, 24, 32};
     Rng r;
@@ -820,6 +854,7 @@ void fill_slot(int bank, int pt, int key) {
     case SRC_DEEP_BREAKS: generate_deep_breaks(pt, seed, key, arc); break;
     default: generate_techno(pt, seed, key, arc); break;
     }
+    if (s.src != SRC_HAND) { darken_chord(pt); soften_perc(pt); }
 }
 
 // ------------------------------------------------------------------ saved patterns (patrones guardados)
@@ -916,7 +951,11 @@ void load_bank(int bank) {
             g.user_mask |= (uint16_t)(1u << pt);
             g.name_id[pt] = record_name(g.stage[pt]);
         } else if (bank < kStyledBanks) fill_slot(bank, pt, bank_key(bank));
-        else generate(pt, (uint32_t)(bank * 64 + pt), bank_key(bank));
+        else {
+            generate(pt, (uint32_t)(bank * 64 + pt), bank_key(bank));
+            darken_chord(pt);
+            soften_perc(pt);
+        }
     }
     g.bank_id = bank;
     g.key = bank_key(bank);
@@ -987,6 +1026,14 @@ void evolve(Track &t) {
             t.m_tone = clamp_off(t.p[EPK_P_TONE], t.m_tone + a * 0.30f * t.evo.bipolar());
             t.m_decay = clamp_off(t.p[EPK_P_DECAY], t.m_decay + a * 0.25f * t.evo.bipolar());
             t.m_char = clamp_off(t.p[EPK_P_CHARACTER], t.m_char + a * 0.20f * t.evo.bipolar());
+            if (param_int(t, EPK_P_ENGINE) == EPK_ENG_ACORDE) {        // the chord keeps its mood (su carácter)
+                const int table = clampi((int)(t.p[EPK_P_EXTRA1] * (float)(kChordTables - 1) + 0.5f), 0, kChordTables - 1);
+                const float top = (float)(kChordCount[table] - 1);
+                const int written = clampi((int)(t.p[EPK_P_CHARACTER] * top + 0.5f), 0, kChordCount[table] - 1);
+                const int want = clampi((int)((t.p[EPK_P_CHARACTER] + t.m_char) * top + 0.5f), 0, kChordCount[table] - 1);
+                const int got = chord_same_mood(table, want, written);
+                if (got != want) t.m_char = (float)got / top - t.p[EPK_P_CHARACTER];
+            }
         }
         if (rhythm && t.evo.unipolar() < a * 0.7f)
             t.m_hits = clampi(t.m_hits + (t.evo.bipolar() < 0.0f ? -1 : 1), -span, span);

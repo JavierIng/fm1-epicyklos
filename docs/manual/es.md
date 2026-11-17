@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **versión de prueba 0.1.17.** Desde la 0.1.7 se ha instalado en un FM-1 real: arranca y suena; lo que
+> Estado: **versión de prueba 0.1.18.** Desde la 0.1.7 se ha instalado en un FM-1 real: arranca y suena; lo que
 > no se ha comprobado en el aparato va marcado como *pendiente en el dispositivo*.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
@@ -178,6 +178,11 @@ Cada pista elige una de tres fuentes. Se cambia con **K4 en la página GROOVE**.
 - A y B, y los cuatro de techno de C, están generados con reglas, no compuestos a mano: son siempre los mismos.
 - **Los patrones guardados no se mueven:** siguen en su hueco (banco y número), aunque ahora haya otro de fábrica
   debajo.
+- **Acordes oscuros (desde la 0.1.18):** los patrones generados (A, B, los de techno de C y E-K) solo usan acordes
+  oscuros: menor 7, 9 y 11, sus4, quinta y semidisminuido, de las tablas ORIGINAL y COLOUR CHORD. Antes un tercio
+  eran mayores (MAJ7, MAJ9, 6/9, dominantes) o de las tablas por grados, que sonaban alegres o fuera de tono. La
+  evolución tampoco convierte un acorde menor en mayor (ni al revés). Los hechos a mano no cambian (HORIZONTE sigue
+  en 6/9). La percusión de los generados, algo más oscura.
 - **Banco D, ORIGEN** (en re, desde la 0.1.16): los 16 patrones hechos a mano en su orden del principio (NEBULA,
   BRUMA, DERIVA, ORBITA, PULSAR, MAREA, PERIGEO, APOGEO, ECLIPSE, SILICE, FOSFORO, CUASAR, HORIZONTE, NADIR, ZENIT,
   CYKLOS), como estaba el banco A al empezar.
