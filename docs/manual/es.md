@@ -1,6 +1,7 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **Fase 4b, solo emulador de navegador.** Nada de esto se ha probado todavía en un FM-1 real.
+> Estado: **versión de prueba 0.1.12.** Desde la 0.1.7 se ha instalado en un FM-1 real: arranca y suena; lo que
+> no se ha comprobado en el aparato va marcado como *pendiente en el dispositivo*.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
 ## 1. Qué es
@@ -358,6 +359,10 @@ master (filtro, compresor, cinta y limitador). Cada bloque tiene un número.
   ECO 2; en FLOW vale para los dos sentidos.
 - El limitador del final no se puede quitar. FLOW es del proyecto, como los efectos.
 - No hay orden libre: solo estas opciones fijas, para que no haya combinaciones que rompan el sonido.
+- **HOME mantenido en FLOW: el gasto de CPU** medido en el aparato, en % del tiempo real: P1-P6 (la voz de cada
+  pista), MAR (MAREA), ENV (eco y reverb), MST (master) y TOT (el total). Arriba, CPU (con la pantalla y el resto) y
+  CORTES: si CORTES sube mientras suena, el aparato no llega y se oyen chasquidos o distorsión. Quitar bloques
+  aquí mismo (MAREA, ECO, REVERB) libera CPU.
 
 ### Gestos de dub (REC)
 - **Mantener REC:** throw. La pista elegida va al eco a tope mientras lo mantienes, aunque su envío esté a 0.

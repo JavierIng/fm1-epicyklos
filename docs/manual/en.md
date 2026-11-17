@@ -1,6 +1,7 @@
 # EPICYKLOS · User manual (draft)
 
-> Status: **Phase 4b, browser emulator only.** None of this has been tested on a real FM-1 yet.
+> Status: **test version 0.1.12.** Since 0.1.7 it has been installed on a real FM-1: it starts and plays; what has
+> not been checked on the device is marked *pending on the device*.
 > The manual grows with each phase and only describes what already works. Español: [es.md](es.md).
 > On-screen text is in Spanish for now; the Spanish label is given in brackets.
 
@@ -358,6 +359,10 @@ master (filter, compressor, tape and limiter). Each block has a number.
   ECO 2 page; in FLOW it works either way.
 - The final limiter cannot be removed. FLOW belongs to the project, like the effects.
 - There is no free reordering: only these fixed options, so no combination breaks the sound.
+- **HOME held in FLOW: the CPU cost** measured on the device, as a % of real time: P1-P6 (each track's voice), MAR
+  (MAREA), ENV (delay and reverb), MST (master) and TOT (the total). At the top, CPU (with the screen and the rest)
+  and CORTES (cuts): if CORTES climbs while it plays, the device is not keeping up and you hear clicks or
+  distortion. Turning blocks off right here (MAREA, ECO, REVERB) frees CPU.
 
 ### Dub gestures (REC)
 - **Hold REC:** throw. The selected track goes to the delay at full while you hold it, even with its send at 0.
