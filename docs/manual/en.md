@@ -24,7 +24,7 @@ skips it.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | select track 1-6 | mute the track |
 | (in the MIX view) | mute the track | solo the track |
-| HOME | tap: ORBIT → MIX → EFFECTS → FLOW → MOD [ÓRBITA / MEZCLA / EFECTOS / FLOW / MOD] | the shift key |
+| HOME | tap: ORBIT → MIX → EFFECTS → FLOW → MOD → GLOBAL [ÓRBITA / MEZCLA / EFECTOS / FLOW / MOD / GLOBAL] | the shift key |
 | PLAY | start / stop | **freeze the evolution** of every track |
 | SELECT | change page | **tempo** (1 BPM per click) |
 | PRESETS | track level | the track's send to the delay |
@@ -412,11 +412,29 @@ It comes in over USB, the TRS jack and Bluetooth, with nothing to choose.
   stops changing it meanwhile. If the clock goes quiet for a second, EPICYKLOS carries on at the last tempo.
 - **Start / Stop:** Start plays from the top at the next clock; Stop stops. Continue is taken as Start (from the top).
 - While playing to an outside clock it corrects by up to 4 % to stay on the sender's beat.
-- **Notes:** channels 1 to 6 play tracks 1 to 6; any other channel, the selected track.
+- **Notes:** channels 1 to 6 play tracks 1 to 6; any other channel, the selected track. Changed in GLOBAL (12b), as is
+  whether the clock is followed and from which input.
 - **Out:** the keyboard's notes, over USB and Bluetooth (channel 1). The FM-1 has no MIDI out jack.
 - **Not yet:** clock or Start/Stop out (EPICYKLOS cannot be the master), CC, program change, song position.
 - Tested in the simulator only. How tight it is with a real clock (Digitone, OXI One, Ableton) is *pending on
   the device*.
+
+## 12b. GLOBAL (HOME round to GLOBAL, after MOD)
+The device's settings, not the project's: saved by themselves 2 s after the last change, kept at power-off. SELECT
+changes page.
+- **Clock [RELOJ]:** K1 **AUTO** (follows an incoming MIDI clock) or **INTERNO** (ignores it, and Start/Stop too). K2
+  **input [ENTRADA]**: where a clock is taken from: all [TODAS], USB, TRS or BT; useful when two clocks arrive. The
+  screen shows which inputs have MIDI coming in now.
+- **Channels [CANALES]:** K1 picks the track, K2 its channel (1-16 or none [NO]). K3 **from [DESDE]**: all six in a
+  row from that channel (e.g. 11-16). A channel no track has plays the selected track, as before. Factory: 1-6.
+- **BLUETOOTH:**
+  - K1 **BT MIDI** on / off (at power-on too).
+  - K2 **AUDIO BT**: the sound to a Bluetooth speaker or headphones (a JBL, say). While it is on, the delay reaches
+    ~1.1 s instead of 1.5 s: Bluetooth's memory comes from the delay's buffer. Turning it on calls the last speaker.
+  - K3 **search [BUSCAR]**: turn right to look for ~10 s. They are listed by number: **white key 1-6** connects.
+    Without a search the list is the remembered ones (up to 4): white connects, **ARP + white** forgets.
+  - 150-300 ms late: for listening, not for playing in time. While it plays over Bluetooth the FM-1's output is quiet.
+- Tested in the simulator only (with a simulated speaker): *pending on the device*, Bluetooth audio above all.
 
 ## 13. To come
 Next: names, a note per step, clock out. Then: more engines and testing on the device (only when decided).

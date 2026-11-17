@@ -23,7 +23,7 @@ knob la salta.
 |---|---|---|
 | FX SCL ENV LFO EDIT GLO | elegir pista 1-6 | mute de la pista |
 | (en vista MEZCLA) | mute de la pista | solo de la pista |
-| HOME | toque: ÓRBITA → MEZCLA → EFECTOS → FLOW → MOD | es la tecla de función |
+| HOME | toque: ÓRBITA → MEZCLA → EFECTOS → FLOW → MOD → GLOBAL | es la tecla de función |
 | PLAY | arrancar / parar | **congelar la evolución** de todas las pistas |
 | SELECT | cambiar de página | **tempo** (1 BPM por clic) |
 | PRESETS | nivel de la pista | envío de la pista al eco |
@@ -412,12 +412,32 @@ Entra por USB, por el jack TRS y por Bluetooth, sin elegir nada.
 - **Start / Stop:** Start arranca desde el principio en el siguiente pulso de reloj; Stop para. Continue se trata
   como Start (desde el principio).
 - Mientras suena con reloj externo, corrige hasta un 4 % para mantenerse sobre el pulso del que manda.
-- **Notas:** los canales 1 a 6 tocan las pistas 1 a 6; cualquier otro canal, la pista elegida.
+- **Notas:** los canales 1 a 6 tocan las pistas 1 a 6; cualquier otro canal, la pista elegida. Se cambia en GLOBAL
+  (sección 12b), igual que si se sigue el reloj y de qué entrada.
 - **Sale:** las notas del teclado, por USB y Bluetooth (canal 1). El FM-1 no tiene salida MIDI por jack.
 - **No hay todavía:** salida de reloj ni de Start/Stop (EPICYKLOS no puede hacer de maestro), CC, cambio de
   programa, ni posición de canción.
 - Probado solo en el simulador. La precisión con un reloj real (Digitone, OXI One, Ableton) está *pendiente en
   el dispositivo*.
+
+## 12b. GLOBAL (HOME hasta GLOBAL, después de MOD)
+Ajustes del aparato, no del proyecto: se guardan solos 2 s después del último cambio y siguen al apagar.
+SELECT cambia de página.
+- **RELOJ:** K1 **AUTO** (sigue el reloj MIDI que llegue) o **INTERNO** (lo ignora, y también Start/Stop). K2
+  **ENTRADA**: de dónde se acepta el reloj: TODAS, USB, TRS o BT. Útil si llegan dos relojes a la vez. La pantalla
+  muestra por qué entradas está llegando MIDI ahora.
+- **CANALES:** K1 elige la pista, K2 su canal (1-16 o NO). K3 **DESDE**: las seis seguidas a partir de ese canal
+  (por ejemplo 11-16). Un canal que no es de ninguna pista toca la pista elegida, como antes. De fábrica, 1-6.
+- **BLUETOOTH:**
+  - K1 **BT MIDI** sí / no (también al encender).
+  - K2 **AUDIO BT**: el sonido a un altavoz o unos auriculares Bluetooth (por ejemplo un JBL). Mientras está en SÍ,
+    el eco llega a ~1,1 s en vez de 1,5 s: la memoria que necesita el Bluetooth sale del búfer del eco. Al
+    encenderlo llama al último altavoz usado.
+  - K3 **BUSCAR**: gira a la derecha y busca durante ~10 s. Salen numerados: **tecla blanca 1-6** conecta. Sin
+    búsqueda, la lista es de los recordados (hasta 4): blanca conecta, **ARP + blanca** lo olvida.
+  - Retraso de 150-300 ms: para escuchar, no para tocar a tiempo. Mientras suena por Bluetooth, la salida del
+    FM-1 se calla.
+- Probado solo en el simulador (con un altavoz simulado): *pendiente en el dispositivo*, sobre todo el audio BT.
 
 ## 13. Pendiente
 Siguiente: nombres, nota por paso, salida de reloj. Después: más motores y prueba en el aparato (solo cuando se
