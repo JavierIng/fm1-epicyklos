@@ -13,6 +13,9 @@ ble_stack = "own"              # fm1-base's own Bluetooth stack: no JieLi binari
 bt_audio = true                # Bluetooth audio to a speaker or headphones (A2DP, SBC): the GLOBAL view, BLUETOOTH page
 bt_audio_mem = "app"           # its 17.7 KB of buffers lent by the app while it is on: the end of the delay's buffer
 bt_audio_sim = true            # the simulator and the emulator get fm1-base's stand-in (script: bta add NAME)
+cpu2 = true                    # the second core: the delay and the reverb run there, a block behind (segundo núcleo)
+cpu2_fallback = true           # a failure of it: one core until power-off, no restart (beta in fm1-base)
+cpu2_stack = 4096              # its jobs' stack: the sends go deeper than the default 2816
 # the site (tools/make_site.py, tools/publish_site.sh)
 tagline = "dub techno, ambient and drone instrument for the FM-1"
 repo = "https://github.com/JavierIng/fm1-epicyklos"

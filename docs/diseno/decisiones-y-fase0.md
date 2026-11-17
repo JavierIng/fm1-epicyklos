@@ -410,3 +410,10 @@
 - 0.1.13: DUCK de fábrica 12; la reverb la alimentan sobre todo los sonidos sostenidos (envío B: acorde 60, dron 72) y poco los golpes (platos 12, percusión 25, bajo 15); caída de la placa 80 (antes 72). Resultado: 3,3 dB, y lo que queda es la propia cola respondiendo a cada golpe de acorde.
 - Son ajustes del proyecto: si Javier tiene un proyecto guardado, manda el suyo (DUCK en EFECTOS > ECO 2, K4; o ARP + SAVE dos veces y reiniciar).
 - Quitar bancos no libera RAM: los bancos generados no ocupan memoria (solo el que suena) y los guardados están en la flash. Los 30 KB del audio Bluetooth tienen que salir de los búferes de efectos.
+
+## Cortes con NUBE y segundo núcleo (2026-11-17)
+- Javier (0.1.14 en el aparato, A01 con NUBE y el filtro DJ movido): **TOT 83 %, CPU 86 %, 159 cortes**. Estimado en el ordenador para ese caso: 77 % (el aparato marca ~6 puntos más). Con NUBE suenan dos reverbs (la placa propia de la nube) y el filtro DJ fuera del centro calcula sus dos etapas.
+- 0.1.15: **eco y reverb (NUBE incluida) en el segundo núcleo**, un bloque (5,8 ms) por detrás de las pistas; el tiempo del eco descuenta ese bloque (el eco cae en la misma muestra, probado). La reverb gana 5,8 ms de pre-delay. Con `cpu2_fallback`: si el segundo núcleo falla, el aparato no se reinicia, vuelve a un núcleo hasta apagarlo. Si el núcleo 2 no acepta un trabajo o lo suelta, lo hace el primero (probado con un núcleo 2 simulado que acepta, que suelta y que rechaza).
+- Filtro DJ: solo calcula el lado activo (a la izquierda del centro el paso alto estaba en 20 Hz, a la derecha el paso bajo en 20 kHz).
+- Estimación (no medida): el primer núcleo baja de ~83 % a ~60 % en ese caso; el segundo carga ~22 %. **Pendiente en el dispositivo:** que el segundo núcleo arranque en esta unidad (la base lo marca beta; hay unidades que leen mal la memoria) y que los cortes desaparezcan.
+- Reverb y eco: Javier dice que hay que mejorarlos. Falta saber qué le molesta concretamente antes de cambiar el diseño.

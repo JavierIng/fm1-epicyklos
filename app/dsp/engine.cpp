@@ -136,7 +136,16 @@ struct Engine {
     float ins_l[kBlock], ins_r[kBlock];    // the insert's stereo out (salida estéreo del inserto)
     float fx_live[EPK_FX_COUNT];           // the effects with the modulation on
     int32_t sixteenths;                    // since play (desde PLAY), for the LFOs
-    float buf[kBlock], bus_a[kBlock], bus_b[kBlock], kick[kBlock], fx_l[kBlock], fx_r[kBlock];
+    float buf[kBlock];
+    // the sends' buses and returns, twice: with the second core, one block's buses go through the sends there while
+    // the next block's tracks render here (dos juegos: el segundo núcleo procesa un bloque mientras aquí va el otro)
+    float sb[2][5][kBlock];                                // [set][bus A, bus B, kick, return L, return R]
+    float *bus_a, *bus_b, *kick;                           // where render_track writes (this set, this sub-block)
+    int cur;                                               // the set being filled (el juego que se llena)
+    int pend;                                              // the other set holds buses still to go through the sends
+    uint32_t pend_n;                                       // ... and their length
+    float fx_job[EPK_FX_COUNT];                            // the effects as they were for that block (copia)
+    float bpm_job;
 };
 
 static Engine g EPK_POOL;
@@ -1385,6 +1394,8 @@ void epk_init(float sample_rate) {
                                                                                 // mid grains, some random, unison
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
+    g.cur = 0; g.pend = 0; g.pend_n = 0;
+    g.bus_a = g.sb[0][0]; g.bus_b = g.sb[0][1]; g.kick = g.sb[0][2];
     g.master.init();
     g.crush.init();
     g.mod.init();
@@ -1579,7 +1590,37 @@ void apply_mod(uint32_t n) {
     apply_scenes(n);                                                 // last: a scene wins (la escena manda)
 }
 
+// the second core (segundo núcleo): the app hands its run/wait (plat_cpu2_run, plat_cpu2_wait); none: one core
+static int (*g_run)(void (*)(uint32_t), uint32_t);
+static int (*g_wait)(void);
+void epk_worker(int (*run)(void (*)(uint32_t), uint32_t), int (*wait)(void)) {
+    g_run = run; g_wait = wait;
+    g.pend = 0;
+    g.sends.delay.lag = 0.0f;
+}
+int epk_worker_on(void) { return g_run != nullptr; }
+
+// one set's buses through the delay and the reverb: on the second core, or here when it cannot (en el núcleo 2)
+static void sends_job(uint32_t set) {
+    const uint32_t p0 = prof_now();
+    float *const fl = g.sb[set][3], *const fr = g.sb[set][4];
+    for (uint32_t i = 0; i < g.pend_n; i++) fl[i] = fr[i] = 0.0f;  // the sends add to them (se suman)
+    g.sends.process(g.sb[set][0], g.sb[set][1], g.sb[set][2], g.sb[set][3], g.sb[set][4], g.pend_n, g.fx_job,
+                    g.bpm_job, g.sr);
+    g_prof[EPK_PROF_SENDS] += prof_now() - p0;
+}
+
+static void render_block(float *left, float *right, uint32_t frames);
 void epk_render(float *left, float *right, uint32_t frames) {
+    // in blocks of kBlock at most: the buses hold one block (como mucho un bloque)
+    while (frames > kBlock) {
+        render_block(left, right, kBlock);
+        left += kBlock; right += kBlock; frames -= kBlock;
+    }
+    if (frames) render_block(left, right, frames);
+}
+
+static void render_block(float *left, float *right, uint32_t frames) {
     const uint32_t prof_start = prof_now();
     uint32_t prof_master = 0;
     if (g_lend_req >= 0) {                                           // lend or take back the delay's tail (préstamo)
@@ -1598,6 +1639,23 @@ void epk_render(float *left, float *right, uint32_t frames) {
     const int place = clampi((int)(g.fx_live[EPK_FX_FLT_PLACE] * (EPK_PLACE_COUNT - 1) + 0.5f), 0, EPK_PLACE_COUNT - 1);
     const int solo = any_solo();
     for (uint32_t i = 0; i < frames; i++) left[i] = right[i] = 0.0f;
+    // the sends (envíos): with a second core the last block's buses go there now, and their returns come in at this
+    // block's end, one block late (the delay takes that off its time); one core: this block's, at its end
+    const int cur = g.cur, prev = cur ^ 1;
+    int launched = 0, have_prev = 0;
+    if (g_run && g.pend) {
+        if (g.pend_n == frames) {
+            have_prev = 1;
+            g.sends.delay.lag = (float)frames * 0.5f;             // half rate (media frecuencia)
+            launched = g_run(sends_job, (uint32_t)prev);
+            if (!launched) sends_job((uint32_t)prev);              // it cannot: here (aquí)
+        } else {
+            sends_job((uint32_t)prev);                             // the block size changed: its returns are dropped
+        }
+        g.pend = 0;
+    }
+    float *const ba = g.sb[cur][0], *const bb = g.sb[cur][1], *const bk = g.sb[cur][2];
+    for (uint32_t i = 0; i < frames; i++) ba[i] = bb[i] = bk[i] = 0.0f;
     // the bar clock (reloj de compás) in sixteenths: a queued pattern comes in on the sample its bar starts
     const uint32_t inc = (uint32_t)(g.bpm * (1.0f / 60.0f) * 4.0f / g.sr * 4294967296.0f);
     uint32_t done = 0;
@@ -1616,31 +1674,44 @@ void epk_render(float *left, float *right, uint32_t frames) {
             until = remain / inc + (remain % inc ? 1u : 0u);
             if (until < n) n = until;
         }
-        for (uint32_t i = 0; i < n; i++) g.bus_a[i] = g.bus_b[i] = g.kick[i] = g.fx_l[i] = g.fx_r[i] = 0.0f;
+        g.bus_a = ba + done; g.bus_b = bb + done; g.kick = bk + done;
         apply_mod(n);
 #ifdef EPK_DESKTOP
         g_desk.base = done;
 #endif
         for (Track &t : g.tr) render_track(t, left + done, right + done, n, solo);
-        {
-            const uint32_t p0 = prof_now();
-            g.sends.process(g.bus_a, g.bus_b, g.kick, g.fx_l, g.fx_r, n, g.fx_live, g.bpm, g.sr);
-            g_prof[EPK_PROF_SENDS] += prof_now() - p0;
-        }
         if (place == EPK_PLACE_DRY) g.master.filter(left + done, right + done, n, g.fx_live, g.sr);   // FLOW
-        else if (place == EPK_PLACE_FX) g.master.filter(g.fx_l, g.fx_r, n, g.fx_live, g.sr);
-        float fx_peak = g.meter_fx;
-        for (uint32_t i = 0; i < n; i++) {                            // the returns (retornos)
-            left[done + i] += g.fx_l[i];
-            right[done + i] += g.fx_r[i];
-            fx_peak = fm_maxf(fx_peak, fm_maxf(fm_fabsf(g.fx_l[i]), fm_fabsf(g.fx_r[i])));
-        }
-        g.meter_fx = fx_peak;
         done += n;
         if (g.playing) {
             g.bar_pos += n * inc;
             if (n == until) g.bar_fire = 1;
         }
+    }
+    // this block's buses: kept for the second core, or through the sends here (o aquí mismo)
+    for (int i = 0; i < EPK_FX_COUNT; i++) g.fx_job[i] = g.fx_live[i];
+    g.bpm_job = g.bpm;
+    int ret = -1;                                                    // the set whose returns go out (retornos)
+    if (g_run) {
+        if (launched && g_wait() != 0) sends_job((uint32_t)prev);    // given up: the job dropped, done here
+        if (have_prev) ret = prev;
+        g.pend = 1; g.pend_n = frames;
+        g.cur = prev;
+    } else {
+        g.pend_n = frames;
+        g.sends.delay.lag = 0.0f;
+        sends_job((uint32_t)cur);
+        ret = cur;
+    }
+    if (ret >= 0) {
+        float *const fl = g.sb[ret][3], *const fr = g.sb[ret][4];
+        if (place == EPK_PLACE_FX) g.master.filter(fl, fr, frames, g.fx_live, g.sr);
+        float fx_peak = g.meter_fx;
+        for (uint32_t i = 0; i < frames; i++) {                      // the returns (retornos)
+            left[i] += fl[i];
+            right[i] += fr[i];
+            fx_peak = fm_maxf(fx_peak, fm_maxf(fm_fabsf(fl[i]), fm_fabsf(fr[i])));
+        }
+        g.meter_fx = fx_peak;
     }
     prof_master = prof_now();
     if (place == EPK_PLACE_ALL) g.master.filter(left, right, frames, g.fx_live, g.sr);   // on everything (en todo)

@@ -1152,6 +1152,12 @@ void app_init(void)
     uint32_t k;
     epk_init(44100.0f);
     epk_prof_clock(plat_ticks24);             /* the CPU profile (perfil): HOME held in FLOW shows it */
+#ifdef FM1B_CPU2
+    /* the second core (segundo núcleo): the delay and the reverb go there. Only now may it start (power-on, before
+     * the audio); it fails: one core, as before */
+    if (plat_cpu2_set(1) == 0)
+        epk_worker(plat_cpu2_run, plat_cpu2_wait);
+#endif
     gs_load();                                /* the GLOBAL settings, before Bluetooth starts (antes del Bluetooth) */
     if (gs.bta)
         gbta_set(1);

@@ -21,6 +21,15 @@ static void start(float sr) {
     epk_render(&l, &r, 1);                                       // stopped: only applies the selection (solo aplica)
 }
 
+
+// a second core faked here (núcleo 2 simulado): it runs the job at once; or it drops it (the engine must do it)
+static int fake_mode = 0;                                         // 0 takes and does it, 1 drops it, 2 refuses it
+static int fake_run(void (*fn)(uint32_t), uint32_t a) {
+    if (fake_mode == 2) return 0;
+    if (fake_mode == 0) fn(a);
+    return 1;
+}
+static int fake_wait(void) { return fake_mode == 1 ? -1 : 0; }
 static int failures = 0;
 #define CHECK(cond, ...) do { if (!(cond)) { std::printf("FAIL %s:%d: ", __FILE__, __LINE__); \
     std::printf(__VA_ARGS__); std::printf("\n"); failures++; } } while (0)
@@ -1833,6 +1842,46 @@ int main() {
         }
     }
 
+
+    {   // the second core: the sends one block behind; the echo lands on the same sample as with one core
+        float l[256], r[256];
+        auto echo_at = [&](int worker, int mode, double &energy) {
+            start(SR);
+            fake_mode = mode;
+            if (worker) epk_worker(fake_run, fake_wait);
+            for (int i = 0; i < EPK_TRACKS; i++) epk_solo(i, i == 5);
+            epk_param_set(5, EPK_P_PAN, 0.5f);
+            epk_param_set(5, EPK_P_SEND_A, 1.0f);
+            epk_param_set(5, EPK_P_SEND_B, 0.0f);
+            epk_param_set(5, EPK_P_DECAY, 0.05f);
+            epk_fx_set(EPK_FX_DLY_TYPE, 0.0f);
+            epk_fx_set(EPK_FX_DLY_FEEDBACK, 0.0f);
+            epk_fx_set(EPK_FX_DLY_TO_REV, 0.0f);
+            epk_fx_set(EPK_FX_DLY_WEAR, 0.0f);
+            for (int k = 0; k < 40; k++) epk_render(l, r, 256);       // the delay settles on its time
+            epk_note_on(5, 52, 1.0f);
+            std::vector<float> A;
+            for (int k = 0; k < (int)(1.0f * SR / 256); k++) {
+                epk_render(l, r, 256);
+                A.insert(A.end(), l, l + 256);
+            }
+            epk_worker(nullptr, nullptr);
+            const double echo = 3.0 * 15.0 / 124.0;
+            const size_t a = (size_t)((echo - 0.1) * SR), b = (size_t)((echo + 0.1) * SR);
+            float top = 0.0f;
+            energy = 0.0;
+            for (size_t i = a; i < b; i++) { top = std::max(top, std::fabs(A[i])); energy += (double)A[i] * A[i]; }
+            for (size_t i = a; i < b; i++) if (std::fabs(A[i]) > top * 0.3f) return (long)i;
+            return -1L;
+        };
+        double e1, e2, e3, e4;
+        const long one = echo_at(0, 0, e1), two = echo_at(1, 0, e2), drop = echo_at(1, 1, e3), refuse = echo_at(1, 2, e4);
+        std::printf("second core: echo at %ld (one core), %ld (two), %ld (dropped), %ld (refused)\n", one, two, drop, refuse);
+        CHECK(one > 0 && std::labs(two - one) <= 4 && std::labs(drop - one) <= 4 && std::labs(refuse - one) <= 4,
+              "second core: the echo moved (%ld, %ld, %ld, %ld)", one, two, drop, refuse);
+        CHECK(std::fabs(e2 / e1 - 1.0) < 0.1 && std::fabs(e3 / e1 - 1.0) < 0.1 && std::fabs(e4 / e1 - 1.0) < 0.1,
+              "second core: the echo's level %.3f %.3f %.3f %.3f", e1, e2, e3, e4);
+    }
     std::printf(failures ? "dsp: %d FAILED\n" : "dsp: all passed\n", failures);
     return failures ? 1 : 0;
 }

@@ -340,6 +340,13 @@ uint32_t epk_prof_frames(void);
  * the next render (the audio's own time): epk_lent() gives the block once it is, NULL before and after. */
 void epk_lend(uint32_t bytes);
 void *epk_lent(void);
+
+/* The second core (segundo núcleo): the app hands its run and wait (plat_cpu2_run, plat_cpu2_wait) once, after
+ * epk_init. The delay and the reverb then run there, one block behind the tracks (the delay's time takes that off);
+ * a job it does not take, or one dropped, runs on the first core. None (or never called): one core, as before.
+ * Main loop, before the audio starts. */
+void epk_worker(int (*run)(void (*)(uint32_t), uint32_t), int (*wait)(void));
+int epk_worker_on(void);
 void epk_step_toggle(int track, int step);
 void epk_step_set(int track, int step, int prob, int cond, int micro);   /* EPK_PROB_*, EPK_COND_*, -3..3 */
 int epk_step_prob(int track, int step);

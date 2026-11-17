@@ -41,6 +41,7 @@ struct Delay {
     Rng rng;
 
     int total;                                         // the buffer's samples in use: less while a block is lent
+    float lag;                                         // half-rate samples the returns come late (a second core)
     void clear() {
         for (int i = 0; i < total; i++) g_delay_buf[i] = 0;
         lp = hp = 0.0f;
@@ -49,7 +50,7 @@ struct Delay {
     void set_total(int t) { total = t; clear(); w = 0; cur = 0.0f; }
     void init() {
         w = 0; type = -1; cur = 0.0f; wow = flutter = 0.0f; a_c = 0.5f; target_c = 0.0f; sub = 0; wf = dwf = 0.0f;
-        total = kDelayLen;
+        total = kDelayLen; lag = 0.0f;
         rng.init(0x51ED270Bu); clear();
     }
 
@@ -75,7 +76,7 @@ struct Delay {
         // FM-1 the divides, the exp and the exp2 of every sample were a good part of the delay's cost
         if (sub == 0 || cur <= 0.0f) {
             const int steps = 1 + (int)(fx[EPK_FX_DLY_TIME] * 15.0f + 0.5f);
-            float target = (float)steps * hsr * 15.0f / bpm;            // a sixteenth = 15 / bpm seconds
+            float target = (float)steps * hsr * 15.0f / bpm - lag;      // a sixteenth = 15 / bpm seconds
             const float longest = (float)(len - 8) * 0.98f;
             while (target > longest) target *= 0.5f;
             target_c = target;
@@ -440,9 +441,10 @@ struct Fx {
     void clear() { delay.clear(); if (rev_type == EPK_REV_NUBE) { nube.clear(); nverb.clear(); } else plate.clear(); acc_a = acc_b = prev_l = prev_r = cur_l = cur_r = 0.0f; }
 
     float b_hp;                                   // bus B's low cut (corte de graves)
+    float b_coef;                                 // its coefficient, once a block (una vez por bloque)
     inline void bus_b(float in, const float *fx, float hsr, float &l, float &r) {
-        const float hz = 20.0f * fm_exp2f(4.32f * fx[EPK_FX_REV_LOWCUT]); // ~20 .. ~400 Hz, 90 in the middle
-        b_hp = fm_flush(b_hp + (in - b_hp) * (6.2831853f * hz / hsr));
+        (void)hsr;
+        b_hp = fm_flush(b_hp + (in - b_hp) * b_coef);
         in -= b_hp;
         if (rev_type == EPK_REV_NUBE) {
             nube.tick(in, fx, hsr, freeze, l, r);
@@ -462,6 +464,7 @@ struct Fx {
     void process(const float *a, const float *b, const float *kick, float *l, float *r, uint32_t n, const float *fx,
                  float bpm, float sr) {
         const float hsr = sr * 0.5f;
+        b_coef = 6.2831853f * 20.0f * fm_exp2f(4.32f * fx[EPK_FX_REV_LOWCUT]) / hsr;   // ~20 .. ~400 Hz, 90 in the middle
         const float duck = fx[EPK_FX_DUCK];
         const float duck_rel = fm_expf(-1.0f / (0.15f * sr));            // ~150 ms back up (vuelve en ~150 ms)
         const float dly_level = fx[EPK_FX_DLY_LEVEL] * fx[EPK_FX_DLY_LEVEL] * 1.5f;

@@ -42,6 +42,7 @@ inline float filter_cut_hz(float v) { return 30.0f * fm_exp2f(v * 9.3f); }   // 
 struct Master {
     Svf lp[2], hp[2], peak[2], one[2];
     SvfCoef c_lp, c_hp, c_peak, c_one;
+    int dj_hp;                                    // DJ: the HP side works, else the LP (lado activo)
     float v_s;                                    // the filter knob, smoothed (suavizado)
     int type;
     float env, gain_db, gr_max;                   // the compressor (compresor)
@@ -58,7 +59,7 @@ struct Master {
         clear_filters();
         for (int c = 0; c < 2; c++) tone[c] = dc_x[c] = dc_y[c] = 0.0f;
         v_s = 0.5f; type = -1; env = 0.0f; gain_db = 0.0f; gr_max = 0.0f; sub = 0;
-        comp_gn = 1.0f; comp_step = 0.0f; comp_sub = 0; idle = 0;
+        comp_gn = 1.0f; comp_step = 0.0f; comp_sub = 0; idle = 0; dj_hp = 0;
         flt_g = comp_g = sat_g = 1.0f;
     }
 
@@ -87,6 +88,11 @@ struct Master {
                 v_s += (fx[EPK_FX_FLT] - v_s) * 0.15f;
                 if (type == EPK_FLT_DJ) {
                     act = fm_minf(fm_fabsf(v_s - 0.5f) * 10.0f, 1.0f);   // 0 in the middle, 1 away from it
+                    const int side = v_s >= 0.5f;
+                    if (side != dj_hp) {                                 // crossed the middle (cruzó el centro)
+                        dj_hp = side;
+                        if (side) { lp[0].clear(); lp[1].clear(); } else { hp[0].clear(); hp[1].clear(); }
+                    }
                     const float k_on = 2.0f - 1.94f * reso * act, k_off = 1.414f;
                     const float f_lp = filter_lp_hz(v_s), f_hp = filter_hp_hz(v_s);
                     c_lp.set(f_lp, v_s < 0.5f ? k_on : k_off, sr);
@@ -108,9 +114,10 @@ struct Master {
                 float a, b, h, y;
                 if (type == EPK_FLT_DJ) {                                // LP then HP (paso bajo y luego alto)
                     float a2, b2, h2;
-                    lp[c].tick(x[c], c_lp.a1, c_lp.a2, c_lp.a3, c_lp.k, a, b, h);
-                    hp[c].tick(a, c_hp.a1, c_hp.a2, c_hp.a3, c_hp.k, a2, b2, h2);
-                    y = h2;
+                    // only the side that works (solo el lado activo): left of the middle the HP sits at 20 Hz, right of
+                    // it the LP at 20 kHz, both as good as open; the one that comes back starts from empty (sin clic)
+                    if (dj_hp) { hp[c].tick(x[c], c_hp.a1, c_hp.a2, c_hp.a3, c_hp.k, a2, b2, h2); y = h2; }
+                    else { lp[c].tick(x[c], c_lp.a1, c_lp.a2, c_lp.a3, c_lp.k, a, b, h); y = a; }
                 } else {
                     one[c].tick(x[c], c_one.a1, c_one.a2, c_one.a3, c_one.k, a, b, h);
                     const float bn = b * c_one.k;                        // band-pass at unity (normalizado)
