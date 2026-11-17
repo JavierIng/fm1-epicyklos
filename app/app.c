@@ -201,7 +201,7 @@ static const char *const FX_NAME[EPK_FX_COUNT] = {"TIPO", "TIEMPO", "REPITE", "T
                                                   "BITS", "MUESTREO", "SHIMMER", "INTERVALO",
                                                   "TIPO", "POSICION", "TAMANO", "DENSIDAD", "AFINA",
                                                   "PREDELAY", "TAMANO", "DIFUSION", "GRAVES", "ANCHO",
-                                                  "REVERB", "CAIDA"};
+                                                  "REVERB", "CAIDA", "RETORNOS"};
 static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Cinta, analogico o de lado a lado", "En semicorcheas: 3, 5, 7...", "Arriba del todo se realimenta solo",
     "Cada repeticion mas oscura", "Cinta gastada / reloj sucio", "El eco entra en la reverb", "Retorno del eco",
@@ -215,14 +215,15 @@ static const char *const FX_HINT[EPK_FX_COUNT] = {
     "Bandas anchas o finas", "Bandas a izquierda y derecha; 0 mono",
     "MAREA activa o quitada", "Eco activo o quitado", "Reverb activa o quitada", "Filtro activo o quitado",
     "Compresor activo o quitado", "Cinta activa o quitada",
-    "Todo, solo pistas o solo efectos", "Quien alimenta a quien (CRUCE)", "Compresor y cinta: en que orden",
+    "Todo, solo pistas o solo efectos", "Quien alimenta a quien (CRUCE)", "F filtro, C comp, S cinta, D digital",
     "Menos bits: mas ruido digital", "Menos muestras: aliasing", "La cola sube de tono y vuelve a entrar",
     "Octava, quinta, 8a+5a, 2 octavas, octava abajo",
     "Placa o nube de granos", "De donde: de ahora a 1 s atras", "Granos cortos o largos",
     "Centro nada; izq. regular, der. al azar", "En semitonos, de -24 a +24",
     "Silencio antes de la cola", "De sala pequena a nave enorme", "Ecos sueltos o todo fundido",
     "Quita graves antes de la reverb", "0 mono, 50 tal cual, 100 mas abierta",
-    "La nube dentro de su propia reverb", "Cuanto dura la reverb de la nube"};
+    "La nube dentro de su propia reverb", "Cuanto dura la reverb de la nube",
+    "Donde entran eco y reverb en el master"};
 static const char *const FLT_TYPE_NAME[EPK_FLT_COUNT] = {"DJ", "PASO BAJO", "PASO ALTO", "BANDA", "NOTCH", "MORPH"};
 static const char *const FLT_TYPE_SHORT[EPK_FLT_COUNT] = {"DJ", "LP", "HP", "BP", "NOTCH", "MORPH"};
 static int flt_type(void) { return (int)(epk_fx_get(EPK_FX_FLT_TYPE) * (float)(EPK_FLT_COUNT - 1) + 0.5f); }
@@ -418,7 +419,21 @@ static void fx_str(int p, char *b)                    /* an effect's value as th
         str_cat(b, PL[(int)(v * (float)(EPK_PLACE_COUNT - 1) + 0.5f)]);
     } else if (p == EPK_FX_SPACE_ORDER)
         str_cat(b, v > 0.5f ? "REV>ECO" : "ECO>REV");
-    else if (p == EPK_FX_DRIVE_ORDER) {    /* the master chain (cadena): F filter, C comp, S tape, D digital */
+    else if (p == EPK_FX_RET_AT) {         /* where the returns join (dónde entran): the start, or after a stage */
+        static const char LET[EPK_STAGES] = {'F', 'C', 'S', 'D'};
+        const int at = (int)(v * (float)EPK_STAGES + 0.5f);
+        int o[EPK_STAGES];
+        epk_chain((int)(epk_fx_get(EPK_FX_DRIVE_ORDER) * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), o);
+        if (at <= 0)
+            str_cat(b, "AL INICIO");
+        else if (at >= EPK_STAGES)
+            str_cat(b, "AL FINAL");
+        else {
+            char t[8] = "TRAS  ";
+            t[5] = LET[o[at - 1]];
+            str_cat(b, t);
+        }
+    } else if (p == EPK_FX_DRIVE_ORDER) {    /* the master chain (cadena): F filter, C comp, S tape, D digital */
         static const char LET[EPK_STAGES] = {'F', 'C', 'S', 'D'};
         int o[EPK_STAGES], k, n = 0;
         epk_chain((int)(v * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), o);
@@ -1537,6 +1552,19 @@ static void flow_swap(int a, int b)
     if ((a == 1 && b == 2) || (a == 2 && b == 1)) {
         epk_fx_set(EPK_FX_SPACE_ORDER, epk_fx_get(EPK_FX_SPACE_ORDER) > 0.5f ? 0.0f : 1.0f);
         app_say("ESPACIO", epk_fx_get(EPK_FX_SPACE_ORDER) > 0.5f ? "REV>ECO" : "ECO>REV");
+    } else if ((a == 1 || a == 2 || b == 1 || b == 2) && (a == 0 || b == 0 || a >= 3 || b >= 3)) {
+        /* ECO or REVERB held + MAREA: the returns join at the start; + a master block: right after it */
+        const int other = a == 1 || a == 2 ? b : a;
+        int o[EPK_STAGES], i, at = 0;
+        char v[16];
+        epk_chain((int)(epk_fx_get(EPK_FX_DRIVE_ORDER) * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), o);
+        if (other >= 3)
+            for (i = 0; i < EPK_STAGES; i++)
+                if (o[i] == other - 3)
+                    at = i + 1;
+        epk_fx_set(EPK_FX_RET_AT, (float)at / (float)EPK_STAGES);
+        fx_str(EPK_FX_RET_AT, v);
+        app_say("ECO Y REVERB", v);
     } else if (a >= 3 && a <= 6 && b >= 3 && b <= 6) {
         int o[EPK_STAGES], i, ia = 0, ib = 0;
         char v[16];
@@ -1552,7 +1580,7 @@ static void flow_swap(int a, int b)
         fx_str(EPK_FX_DRIVE_ORDER, v);
         app_say("MASTER", v);
     } else
-        app_say("NO SE MUEVE", a == 0 || b == 0 ? "MAREA VA EN SU PISTA" : "SOLO EN SU FILA");
+        app_say("NO SE MUEVE", "MAREA VA EN SU PISTA");
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -2666,6 +2694,12 @@ static void draw_flow(void)
                 flow_arrow(46 + k * 48, 50 + k * 48, y + 17, C_RULE);
             }
             flow_box(194, y, 44, 0, "LIM", "SALE", 1);
+            {   /* where the returns come in: a mark over the gap (marca de por dónde entran eco y reverb) */
+                const int at = (int)(epk_fx_get(EPK_FX_RET_AT) * (float)EPK_STAGES + 0.5f);
+                const int32_t x = at <= 0 ? 1 : 46 + (at - 1) * 48 + 1;
+                cv_rect(x, y - 12, 2, 12, C_FX);
+                cv_text(x + (at >= EPK_STAGES ? -40 : 4), y - 14, &FONT_XS, "+EFX", C_FX);
+            }
         }
         (void)w;
     }
@@ -3273,6 +3307,8 @@ int app_expect(const char *what, int *got)
         *got = epk_fx_get(EPK_FX_ON_MAREA + what[2] - '1') > 0.5f;
     else if (!strcmp(what, "transpose"))    /* the whole pattern's transposition, semitones */
         *got = epk_transpose();
+    else if (!strcmp(what, "retat"))        /* where the returns join the master chain, 0..4 */
+        *got = (int)(epk_fx_get(EPK_FX_RET_AT) * (float)EPK_STAGES + 0.5f);
     else if (!strcmp(what, "chain"))        /* the master chain's order, 0..23 */
         *got = (int)(epk_fx_get(EPK_FX_DRIVE_ORDER) * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f);
     else if (!strcmp(what, "scenemode"))

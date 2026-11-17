@@ -1,6 +1,6 @@
 # EPICYKLOS · Manual de usuario (borrador)
 
-> Estado: **versión de prueba 0.1.16.** Desde la 0.1.7 se ha instalado en un FM-1 real: arranca y suena; lo que
+> Estado: **versión de prueba 0.1.17.** Desde la 0.1.7 se ha instalado en un FM-1 real: arranca y suena; lo que
 > no se ha comprobado en el aparato va marcado como *pendiente en el dispositivo*.
 > Este manual crece con cada fase y solo describe lo que ya funciona. English: [en.md](en.md).
 
@@ -358,7 +358,12 @@ master (filtro, compresor, cinta, digital y limitador). Cada bloque tiene un nú
   bloques activos.
 - **Mover bloques (desde la 0.1.16):** mantén una blanca y pulsa otra: cambian de sitio. ECO y REVERB (2 y 3) se
   cambian entre ellos; FILTRO, COMP, CINTA y DIGITAL (4 a 7) en cualquier orden dentro del master. MAREA no se mueve:
-  va en su pista. Al quitar uno, se funde en ~10 ms (sin clic) y deja
+  va en su pista.
+- **Dónde entran eco y reverb (desde la 0.1.17):** mantén ECO o REVERB (2 o 3) y pulsa un bloque del master (4 a 7):
+  los retornos entran justo después de ese bloque; con el último, al final (antes del limitador). Con MAREA (1)
+  vuelven al inicio. Una marca naranja "+EFX" sobre el master enseña el punto. Después del compresor, los ecos y la
+  cola ya no los aprieta el compresor (no bombean con él); después de la cinta o DIGITAL, salen limpios de ellos.
+  Eco y reverb siguen siendo envíos en paralelo: lo que se mueve es dónde se suman, no se ponen en serie con el resto. Al quitar uno, se funde en ~10 ms (sin clic) y deja
   de calcularse: en el FM-1 eso libera CPU (*pendiente en el dispositivo*). Al volver, el eco o la reverb empiezan
   vacíos.
 - **K1 FILTRO EN:** dónde va el filtro del master: TODO (como hasta ahora), SECO (solo las pistas: los ecos y la

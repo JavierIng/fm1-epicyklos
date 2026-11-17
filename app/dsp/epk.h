@@ -155,6 +155,10 @@ enum {
     EPK_FX_REV_WIDTH,     /* bus B's stereo width: 0 mono, 0.5 as it comes, 1 wider (ancho) */
     EPK_FX_NUBE_VERB,     /* NUBE: its own small plate after the grains, how much (reverb de la nube) */
     EPK_FX_NUBE_VERB_TIME,/* NUBE: that plate's decay (caída) */
+    /* FLOW: where the delay's and the reverb's returns join the master chain (dónde entran los retornos): 0 before
+     * it (the start), k after the chain's k-th stage, EPK_STAGES after the last one, before the limiter. After the
+     * compressor, the echoes are not squeezed by it */
+    EPK_FX_RET_AT,
     EPK_FX_COUNT
 };
 /* the filter on everything (todo), on the tracks only, the returns ringing open (seco), or on the returns only */

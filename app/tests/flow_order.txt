@@ -56,3 +56,28 @@ key 4 up
 key 2 up
 wait 30
 expect fx38 1
+# ECO held + the last master block (COMP, the order is D>F>S>C by now): the returns join at the end (al final); + MAREA: back to the start
+key 2 down
+wait 30
+key 7 down
+wait 30
+key 7 up
+key 2 up
+wait 30
+expect retat 4
+key 4 down
+wait 30
+key 0 down
+wait 30
+key 0 up
+key 4 up
+wait 30
+expect retat 0
+key 4 down
+wait 30
+key 9 down
+wait 30
+key 9 up
+key 4 up
+wait 30
+shot flow_returns.png

@@ -1405,7 +1405,8 @@ void epk_init(float sample_rate) {
                                             0.05f, 3.0f / 7.0f, 1.0f,           // PLACA: ~25 ms pre-delay, the size it
                                                                                 // had (1x of 0.25 .. 2x), full diffusion
                                             0.5f, 0.5f,                         // low cut ~90 Hz, width as it comes
-                                            0.45f, 0.65f};                      // NUBE's reverb: some, longish   // PLACA; NUBE: a little back,
+                                            0.45f, 0.65f,                       // NUBE's reverb: some, longish
+                                            0.0f};                              // returns join before the master   // PLACA; NUBE: a little back,
                                                                                 // mid grains, some random, unison
     for (int i = 0; i < EPK_FX_COUNT; i++) g.fx[i] = kFx[i];
     g.sends.init();
@@ -1717,22 +1718,26 @@ static void render_block(float *left, float *right, uint32_t frames) {
         sends_job((uint32_t)cur);
         ret = cur;
     }
-    if (ret >= 0) {
+    prof_master = prof_now();
+    auto add_returns = [&]() {                                       // the returns (retornos) join here
+        if (ret < 0) return;
         float *const fl = g.sb[ret][3], *const fr = g.sb[ret][4];
         if (place == EPK_PLACE_FX) g.master.filter(fl, fr, frames, g.fx_live, g.sr);
         float fx_peak = g.meter_fx;
-        for (uint32_t i = 0; i < frames; i++) {                      // the returns (retornos)
+        for (uint32_t i = 0; i < frames; i++) {
             left[i] += fl[i];
             right[i] += fr[i];
             fx_peak = fm_maxf(fx_peak, fm_maxf(fm_fabsf(fl[i]), fm_fabsf(fr[i])));
         }
         g.meter_fx = fx_peak;
-    }
-    prof_master = prof_now();
-    {   // the master chain in FLOW's order (la cadena del master en el orden de FLOW)
+    };
+    {   // the master chain in FLOW's order (la cadena del master en el orden de FLOW); the returns where FLOW says
         int order[EPK_STAGES];
         epk_chain((int)(g.fx_live[EPK_FX_DRIVE_ORDER] * (float)(EPK_CHAIN_ORDERS - 1) + 0.5f), order);
-        for (int k = 0; k < EPK_STAGES; k++) {
+        const int join = (int)(g.fx_live[EPK_FX_RET_AT] * (float)EPK_STAGES + 0.5f);
+        for (int k = 0; k <= EPK_STAGES; k++) {
+            if (k == join) add_returns();
+            if (k == EPK_STAGES) break;
             if (order[k] == EPK_STAGE_FLT) {
                 if (place == EPK_PLACE_ALL) g.master.filter(left, right, frames, g.fx_live, g.sr);   // on everything
             } else if (order[k] == EPK_STAGE_DIGI) g.crush.process(left, right, frames, g.fx_live);  // bits, rate
@@ -1779,7 +1784,7 @@ int epk_fx_steps(int param) {
     return param == EPK_FX_DLY_TYPE ? EPK_DLY_COUNT : param == EPK_FX_DLY_TIME ? 16 : param == EPK_FX_FLT_TYPE ? EPK_FLT_COUNT :
            param == EPK_FX_MAREA_TRACK ? EPK_TRACKS + 1 : param == EPK_FX_MAREA_SYNC ? 2 :
            (param >= EPK_FX_ON_MAREA && param <= EPK_FX_ON_SAT) ? 2 : param == EPK_FX_FLT_PLACE ? EPK_PLACE_COUNT :
-           param == EPK_FX_SPACE_ORDER ? 2 : param == EPK_FX_DRIVE_ORDER ? EPK_CHAIN_ORDERS :
+           param == EPK_FX_SPACE_ORDER ? 2 : param == EPK_FX_DRIVE_ORDER ? EPK_CHAIN_ORDERS : param == EPK_FX_RET_AT ? EPK_STAGES + 1 :
            param == EPK_FX_REV_SHIM_INT ? EPK_SHIM_COUNT : param == EPK_FX_REV_TYPE ? EPK_REV_COUNT :
            param == EPK_FX_NUBE_PITCH ? EPK_NUBE_PITCH_STEPS : 0;
 }

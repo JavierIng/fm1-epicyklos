@@ -1,6 +1,6 @@
 # EPICYKLOS · User manual (draft)
 
-> Status: **test version 0.1.16.** Since 0.1.7 it has been installed on a real FM-1: it starts and plays; what has
+> Status: **test version 0.1.17.** Since 0.1.7 it has been installed on a real FM-1: it starts and plays; what has
 > not been checked on the device is marked *pending on the device*.
 > The manual grows with each phase and only describes what already works. Español: [es.md](es.md).
 > On-screen text is in Spanish for now; the Spanish label is given in brackets.
@@ -357,6 +357,11 @@ master (filter, compressor, tape, digital and limiter). Each block has a number.
 - **Moving blocks (since 0.1.16):** hold a white key and press another: they swap places. Delay and reverb (2 and 3)
   swap with each other; filter, comp, tape and digital (4 to 7) in any order within the master. MAREA does not move:
   it sits on its track.
+- **Where delay and reverb come in (since 0.1.17):** hold delay or reverb (2 or 3) and press a master block (4 to 7):
+  the returns join right after that block; with the last one, at the end (before the limiter). With MAREA (1) they go
+  back to the start. An orange "+EFX" mark over the master shows the point. After the compressor, the echoes and the
+  tail are no longer squeezed by it; after tape or digital, they come out clean of them. They stay parallel sends:
+  what moves is where they are summed.
 - **White keys 1-6:** turn a block on or off when let go (7 is DIGITAL, on with BITS or RATE): 1 MAREA, 2 delay [ECO], 3 REVERB, 4 filter [FILTRO], 5 COMP, 6 tape
   [CINTA] (saturation). Lit keys are the blocks that are on. A block turned off fades out in ~10 ms (no click) and is
   no longer computed: on the FM-1 that frees CPU (*pending on the device*). Back on, the delay or reverb start empty.
