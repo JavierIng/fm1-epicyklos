@@ -334,6 +334,12 @@ enum { EPK_PROF_TRACK1, EPK_PROF_MAREA = 6, EPK_PROF_SENDS, EPK_PROF_MASTER, EPK
 void epk_prof_clock(uint32_t (*ticks)(void));
 uint32_t epk_prof_ticks(int part);
 uint32_t epk_prof_frames(void);
+
+/* Lend the end of the delay's buffer (presta el final del búfer del eco), e.g. to Bluetooth audio's buffers: the delay
+ * keeps the rest (1.5 s -> about 1.1 s with 17.7 KB lent) and starts empty. bytes 0 takes it back. It is applied at
+ * the next render (the audio's own time): epk_lent() gives the block once it is, NULL before and after. */
+void epk_lend(uint32_t bytes);
+void *epk_lent(void);
 void epk_step_toggle(int track, int step);
 void epk_step_set(int track, int step, int prob, int cond, int micro);   /* EPK_PROB_*, EPK_COND_*, -3..3 */
 int epk_step_prob(int track, int step);

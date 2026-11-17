@@ -23,8 +23,7 @@
 namespace epk {
 
 constexpr int kDelayLen = 33075;                       // 1.5 s at 22050 Hz
-constexpr int kDelayHalf = kDelayLen / 2;              // PINGPONG: one line per side
-static int16_t g_delay_buf[kDelayLen] EPK_POOL;
+static int16_t g_delay_buf[kDelayLen] EPK_POOL;      // PINGPONG: one line per side, half each (mitad cada uno)
 
 // ------------------------------------------------------------------ bus A: the delay (eco)
 // freeze (congelar): the input is cut and the loop writes back what it reads, untouched: it holds until released
@@ -41,12 +40,16 @@ struct Delay {
     int sub;
     Rng rng;
 
+    int total;                                         // the buffer's samples in use: less while a block is lent
     void clear() {
-        for (int i = 0; i < kDelayLen; i++) g_delay_buf[i] = 0;
+        for (int i = 0; i < total; i++) g_delay_buf[i] = 0;
         lp = hp = 0.0f;
     }
+    // Lend the buffer's tail (presta el final del búfer): the delay keeps `t` samples, from empty
+    void set_total(int t) { total = t; clear(); w = 0; cur = 0.0f; }
     void init() {
         w = 0; type = -1; cur = 0.0f; wow = flutter = 0.0f; a_c = 0.5f; target_c = 0.0f; sub = 0; wf = dwf = 0.0f;
+        total = kDelayLen;
         rng.init(0x51ED270Bu); clear();
     }
 
@@ -66,7 +69,7 @@ struct Delay {
     void tick(float in, const float *fx, float bpm, float hsr, int freeze, float &out_l, float &out_r) {
         const int ty = clampi((int)(fx[EPK_FX_DLY_TYPE] * (float)(EPK_DLY_COUNT - 1) + 0.5f), 0, EPK_DLY_COUNT - 1);
         if (ty != type) { type = ty; clear(); w = 0; cur = 0.0f; }      // another machine: an empty tape
-        const int len = type == EPK_DLY_PINGPONG ? kDelayHalf : kDelayLen;
+        const int half = total / 2, len = type == EPK_DLY_PINGPONG ? half : total;
         const float wear = fx[EPK_FX_DLY_WEAR];
         // what does not change from one sample to the next, worked out every 16 (lo lento, cada 16 muestras): on the
         // FM-1 the divides, the exp and the exp2 of every sample were a good part of the delay's cost
@@ -106,9 +109,9 @@ struct Delay {
 
         if (freeze) {                                                   // the loop holds (el bucle se sostiene)
             if (type == EPK_DLY_PINGPONG) {
-                const float yl = rd(0, len, w, delay), yr = rd(kDelayHalf, len, w, delay);
+                const float yl = rd(0, len, w, delay), yr = rd(half, len, w, delay);
                 g_delay_buf[w] = pack(yr);
-                g_delay_buf[kDelayHalf + w] = pack(yl);
+                g_delay_buf[half + w] = pack(yl);
                 out_l = yl; out_r = yr;
             } else {
                 const float y = rd(0, len, w, delay);
@@ -116,11 +119,11 @@ struct Delay {
                 out_l = out_r = y;
             }
         } else if (type == EPK_DLY_PINGPONG) {                          // left line, then right line, and back
-            const float yl = rd(0, len, w, delay), yr = rd(kDelayHalf, len, w, delay);
+            const float yl = rd(0, len, w, delay), yr = rd(half, len, w, delay);
             lp = fm_flush(lp + (yr - lp) * a);
             hp = fm_flush(hp + (lp - hp) * 0.025f);
             g_delay_buf[w] = pack(fm_tanhf(in + (lp - hp) * fb));
-            g_delay_buf[kDelayHalf + w] = pack(yl);
+            g_delay_buf[half + w] = pack(yl);
             out_l = yl; out_r = yr;
         } else {
             const float y = rd(0, len, w, delay);

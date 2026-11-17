@@ -143,6 +143,9 @@ static Engine g EPK_POOL;
 // the CPU profile (perfil): the app's clock, and a running sum of its ticks for each part
 static uint32_t (*g_prof_clock)(void);
 static uint32_t g_prof[EPK_PROF_COUNT], g_prof_frames;
+// the delay buffer's tail lent (prestado): asked from the main loop, applied by the render
+static volatile int32_t g_lend_req = -1;    // bytes asked, -1: nothing to do
+static void *volatile g_lend_ptr;
 static inline uint32_t prof_now() { return g_prof_clock ? g_prof_clock() : 0u; }                  // zero-initialised (pool RAM on the device): no constructor runs at boot
 
 static const float kStepsPerBeat[EPK_DIV_COUNT] = {8.0f, 6.0f, 4.0f, 3.0f, 2.0f, 1.0f};
@@ -1574,6 +1577,18 @@ void apply_mod(uint32_t n) {
 void epk_render(float *left, float *right, uint32_t frames) {
     const uint32_t prof_start = prof_now();
     uint32_t prof_master = 0;
+    if (g_lend_req >= 0) {                                           // lend or take back the delay's tail (préstamo)
+        const int32_t bytes = g_lend_req;
+        g_lend_req = -1;
+        if (bytes > 0) {
+            const int keep = (kDelayLen - (bytes + 1) / 2) & ~1;      // even: the block 4-aligned (alineado a 4)
+            g.sends.delay.set_total(keep);
+            g_lend_ptr = (void *)&g_delay_buf[keep];
+        } else {
+            g_lend_ptr = nullptr;
+            g.sends.delay.set_total(kDelayLen);
+        }
+    }
     drain();
     const int place = clampi((int)(g.fx_live[EPK_FX_FLT_PLACE] * (EPK_PLACE_COUNT - 1) + 0.5f), 0, EPK_PLACE_COUNT - 1);
     const int solo = any_solo();
@@ -1960,5 +1975,11 @@ uint32_t epk_triggers(int track) { return valid(track) ? g.tr[track].triggers : 
 void epk_prof_clock(uint32_t (*ticks)(void)) { g_prof_clock = ticks; }
 uint32_t epk_prof_ticks(int part) { return (part >= 0 && part < EPK_PROF_COUNT) ? g_prof[part] : 0u; }
 uint32_t epk_prof_frames(void) { return g_prof_frames; }
+void epk_lend(uint32_t bytes) {
+    if (bytes > 32768u) bytes = 32768u;                              // half the delay at most (la mitad como mucho)
+    if (bytes > 0) g_lend_ptr = nullptr;                             // not before the render has it (aún no)
+    g_lend_req = (int32_t)bytes;
+}
+void *epk_lent(void) { return g_lend_ptr; }
 
 }  // extern "C"

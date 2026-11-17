@@ -10,6 +10,9 @@ o2_cflags = ["-std=c++14", "-fno-exceptions", "-fno-rtti", "-fno-threadsafe-stat
 ble = true                     # Bluetooth MIDI (--no-ble builds without it)
 ble_central = false            # Bluetooth MIDI devices (the FM-1 as central): phase 6
 ble_stack = "own"              # fm1-base's own Bluetooth stack: no JieLi binaries linked (required for GPL-3.0)
+bt_audio = true                # Bluetooth audio to a speaker or headphones (A2DP, SBC): the GLOBAL view, BLUETOOTH page
+bt_audio_mem = "app"           # its 17.7 KB of buffers lent by the app while it is on: the end of the delay's buffer
+bt_audio_sim = true            # the simulator and the emulator get fm1-base's stand-in (script: bta add NAME)
 # the site (tools/make_site.py, tools/publish_site.sh)
 tagline = "dub techno, ambient and drone instrument for the FM-1"
 repo = "https://github.com/JavierIng/fm1-epicyklos"

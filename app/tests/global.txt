@@ -1,0 +1,85 @@
+# GLOBAL (vista de ajustes): clock AUTO / INTERNO and its input, each track's channel, Bluetooth MIDI and audio to a
+# speaker; the settings survive a reboot. ./build.sh --host, then
+#   app/build/host/epicyklos_host app/tests/global.txt app/build/host
+wait 3500
+expect gclock 0
+expect gch3 3
+# HOME five times: ORBITA -> MEZCLA -> EFECTOS -> FLOW -> MOD -> GLOBAL
+tap HOME
+wait 30
+tap HOME
+wait 30
+tap HOME
+wait 30
+tap HOME
+wait 30
+tap HOME
+wait 30
+expect view 5
+shot global_clock.png
+# INTERNO: a clock no longer sets the tempo
+turn K1 1
+wait 30
+expect gclock 1
+midi FA 00 00
+clock 120 25
+expect playing 0
+expect extclock 0
+expect tempo 124
+turn K1 -1
+wait 30
+expect gclock 0
+# CANALES: track 3 on channel 5; a note on 5 plays it, one on 3 the selected track (1)
+turn SELECT 1
+wait 30
+turn K1 2
+wait 30
+turn K2 2
+wait 30
+expect gch3 5
+shot global_channels.png
+midi 94 3E 64
+wait 100
+expect trig3_1 1
+midi 84 3E 00
+# DESDE: all six from channel 11 (11..16)
+spin K3 10
+wait 30
+expect gch1 11
+expect gch6 16
+spin K3 -10
+wait 30
+expect gch1 1
+expect gch3 3
+# BLUETOOTH: audio on lends the delay's tail, a scan finds the speaker, white key 1 connects it
+turn SELECT 1
+wait 30
+bta add JBL GO 3
+turn K2 1
+wait 200
+expect gbta 2
+expect lent 1
+turn K3 1
+wait 1500
+shot global_bt_found.png
+key 0 down
+wait 30
+key 0 up
+wait 800
+expect bta 7
+shot global_bt.png
+# off: the block goes back to the delay
+turn K2 -1
+wait 300
+expect gbta 0
+expect lent 0
+# BT MIDI off, and everything kept after a reboot (guardado a los 2 s)
+turn K1 -1
+wait 30
+expect gble 0
+wait 2500
+reboot
+wait 3500
+expect gble 0
+expect gch3 3
+expect gclock 0

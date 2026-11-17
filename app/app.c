@@ -286,8 +286,9 @@ static const char *const DEST_NAME[EPK_DEST_COUNT] = {
     "NIVEL 1", "NIVEL 2", "NIVEL 3", "NIVEL 4", "NIVEL 5", "NIVEL 6"};
 
 /* ------------------------------------------------------------------ state (estado) */
-enum { VIEW_ORBIT, VIEW_MIX, VIEW_FX, VIEW_FLOW, VIEW_MOD, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME goes round the first five */
-static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "EFECTOS", "FLOW", "MOD", "PATRONES", "PASOS"};
+enum { VIEW_ORBIT, VIEW_MIX, VIEW_FX, VIEW_FLOW, VIEW_MOD, VIEW_GLOBAL, NVIEWS, VIEW_PATTERNS = NVIEWS, VIEW_STEPS };   /* HOME goes round the first six */
+static const char *const VIEW_NAME[NVIEWS + 2] = {"ORBITA", "MEZCLA", "EFECTOS", "FLOW", "MOD", "GLOBAL", "PATRONES",
+                                                  "PASOS"};
 /* FLOW: the four knobs (K1..K4), and the six blocks the white keys 1..6 turn on and off */
 static const int8_t FLOW_PARAM[4] = {EPK_FX_FLT_PLACE, EPK_FX_SPACE_ORDER, EPK_FX_DRIVE_ORDER, EPK_FX_DLY_TO_REV};
 /* the keys, F3..G5: a white key's place among the whites (0..15), a black key's among the blacks (0..10) */
@@ -326,6 +327,7 @@ static struct {
     int fx_page, pop_fx;                   /* EFFECTS view: its page; the popup is an effect's knob (-1 a track's) */
     float fx_meter, comp_gr;
     int mod_page;                          /* MOD view: the source shown (fuente a la vista) */
+    int g_page, g_track;                   /* GLOBAL view: its page, and the track whose channel is shown */
     int amount;                            /* random: how much, 1..10 (cantidad) */
     uint32_t locked;                       /* random: parameters it leaves alone, a bit each (bloqueados) */
     uint32_t rng;
@@ -1022,11 +1024,137 @@ static void save_press(int slot)
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
+/* ------------------------------------------------------------------ GLOBAL: the settings (ajustes globales)
+ * Not the project's: they hold across projects and are saved by themselves, 2 s after the last change, in OBJ_SETTINGS
+ * ("EPKG" version 1). Clock: follow it (AUTO) or not (INTERNO), and from which input. Notes: each track's channel.
+ * Bluetooth: MIDI on or off, and audio to a speaker (when the build has it: bt_audio). */
+enum { GCLK_AUTO, GCLK_INTERNAL, GCLK_COUNT };
+enum { GIN_ALL, GIN_USB, GIN_TRS, GIN_BT, GIN_COUNT };
+#define GCH_NONE 16                        /* a track that takes no notes (ningún canal) */
+static const char *const GCLK_NAME[GCLK_COUNT] = {"AUTO", "INTERNO"};
+static const char *const GIN_NAME[GIN_COUNT] = {"TODAS", "USB", "TRS", "BT"};
+static const int GIN_PORT[GIN_COUNT] = {-1, PORT_USB, PORT_TRS, PORT_BLE};
+static struct {
+    uint8_t magic[4], version, clock, clock_in, ble, bta, rsv[3];
+    uint8_t ch[EPK_TRACKS];
+} gs;
+static uint32_t gs_save_at;                /* when to write it (ms), 0: nothing to write */
+
+static void gs_defaults(void)
+{
+    int t;
+    gs.magic[0] = 'E'; gs.magic[1] = 'P'; gs.magic[2] = 'K'; gs.magic[3] = 'G';
+    gs.version = 1;
+    gs.clock = GCLK_AUTO;
+    gs.clock_in = GIN_ALL;
+    gs.ble = 1;
+    gs.bta = 0;
+    gs.rsv[0] = gs.rsv[1] = gs.rsv[2] = 0;
+    for (t = 0; t < EPK_TRACKS; t++)
+        gs.ch[t] = (uint8_t)t;             /* channels 1..6 to tracks 1..6, as before (como antes) */
+}
+static void gs_load(void)
+{
+    int t;
+    if (plat_store_load(OBJ_SETTINGS, &gs, sizeof gs) != (int)sizeof gs || gs.magic[0] != 'E' || gs.magic[1] != 'P' ||
+        gs.magic[2] != 'K' || gs.magic[3] != 'G' || gs.version != 1) {
+        gs_defaults();
+        return;
+    }
+    if (gs.clock >= GCLK_COUNT) gs.clock = GCLK_AUTO;   /* whatever was read stays in range (en rango) */
+    if (gs.clock_in >= GIN_COUNT) gs.clock_in = GIN_ALL;
+    gs.ble = gs.ble ? 1 : 0;
+    gs.bta = gs.bta ? 1 : 0;
+    for (t = 0; t < EPK_TRACKS; t++)
+        if (gs.ch[t] > GCH_NONE) gs.ch[t] = (uint8_t)t;
+}
+static void gs_changed(void)
+{
+    gs_save_at = plat_ms() + 2000u;
+    if (!gs_save_at)
+        gs_save_at = 1;
+}
+static void gs_tick(uint32_t now)
+{
+    if (gs_save_at && (int32_t)(now - gs_save_at) >= 0) {
+        gs_save_at = 0;
+        if (plat_store_save(OBJ_SETTINGS, &gs, sizeof gs) != 0)
+            app_say("AJUSTES", "NO SE PUDIERON GUARDAR");
+    }
+}
+int epk_ble_off(void) { return !gs.ble; }  /* Bluetooth MIDI at boot: the setting (APP_BLE_AT_BOOT) */
+
+/* The track a note channel plays (pista de un canal): the first set to it; none, the selected track */
+static int gs_track_of(int ch)
+{
+    int t;
+    for (t = 0; t < EPK_TRACKS; t++)
+        if (gs.ch[t] == ch)
+            return t;
+    return ui.track;
+}
+/* Whether a clock or Start / Stop from this input counts (si cuenta) */
+static int gs_clock_from(int port)
+{
+    return gs.clock == GCLK_AUTO && (gs.clock_in == GIN_ALL || GIN_PORT[gs.clock_in] == port);
+}
+
+/* Bluetooth audio to a speaker (audio a un altavoz): its buffers are the end of the delay's, lent while it is on
+ * (the delay then reaches ~1.1 s instead of 1.5 s). On: lend (the render does it), give it to the radio, start it and
+ * call the last speaker back. Off: stop it, take the block back from the radio, give it back to the delay. */
+enum { GBP_OFF, GBP_LEND, GBP_ON, GBP_BACK };
+static int gbta_phase;
+static void gbta_set(int on)
+{
+#if FM1B_BT_AUDIO
+    if (on && gbta_phase == GBP_OFF) {
+        const uint32_t n = plat_bta_mem_bytes();
+        if (n) {
+            epk_lend(n);
+            gbta_phase = GBP_LEND;
+        } else {                           /* static buffers: nothing to lend (nada que prestar) */
+            plat_bta_on(1);
+            gbta_phase = GBP_ON;
+        }
+    } else if (!on && (gbta_phase == GBP_ON || gbta_phase == GBP_LEND)) {
+        if (gbta_phase == GBP_ON) {
+            plat_bta_hangup();
+            plat_bta_on(0);
+        }
+        gbta_phase = plat_bta_mem_bytes() ? GBP_BACK : GBP_OFF;
+    }
+#else
+    (void)on;
+#endif
+}
+static void gbta_tick(void)
+{
+#if FM1B_BT_AUDIO
+    if (gbta_phase == GBP_LEND && epk_lent()) {
+        if (plat_bta_mem(epk_lent()) == 0) {
+            char nm[17];
+            plat_bta_on(1);
+            if (plat_bta_known(0, nm))     /* the last speaker, again (el último altavoz) */
+                plat_bta_reconnect(0);
+            gbta_phase = GBP_ON;
+            ui.dirty_main = 1;
+        }
+    } else if (gbta_phase == GBP_BACK && plat_bta_mem(0) == 0) {
+        epk_lend(0);                       /* the delay has its whole buffer again (todo el búfer) */
+        gbta_phase = GBP_OFF;
+        ui.dirty_main = 1;
+    }
+#endif
+}
+
 void app_init(void)
 {
     uint32_t k;
     epk_init(44100.0f);
     epk_prof_clock(plat_ticks24);             /* the CPU profile (perfil): HOME held in FLOW shows it */
+    gs_load();                                /* the GLOBAL settings, before Bluetooth starts (antes del Bluetooth) */
+    if (gs.bta)
+        gbta_set(1);
     ui.track = 0;
     ui.page = PAGE_SOUND;
     ui.view = VIEW_ORBIT;
@@ -1050,8 +1178,6 @@ void app_init(void)
     for (k = 0; k < NKEYS; k++)
         ui.key_note[k] = -1;
 }
-
-int epk_ble_off(void) { return 0; }       /* Bluetooth MIDI on at boot (settings: fase 6) */
 
 /* ------------------------------------------------------------------ actions (acciones) */
 static void select_track(int t)
@@ -1093,7 +1219,7 @@ static void set_view(int v)
     if (v == VIEW_PATTERNS)
         ui.bank = epk_bank_current();
     app_say(VIEW_NAME[v], v == VIEW_PATTERNS ? "NEGRAS BANCO" : v == VIEW_STEPS ? "TECLAS BLANCAS" : v == VIEW_FX ? "ECO+REV" : v == VIEW_MOD ? "LFO+SEG" :
-            v == VIEW_FLOW ? "BLANCAS 1-6" : "");
+            v == VIEW_FLOW ? "BLANCAS 1-6" : v == VIEW_GLOBAL ? "AJUSTES" : "");
     ui.dirty_main = ui.dirty_foot = 1;
 }
 
@@ -1181,6 +1307,127 @@ static void turn_flow(int slot, int32_t detents, int fine)
     ui.pop_fx = p;
     ui.pop_until = plat_ms() + 1000u;
     ui.dirty_main = ui.dirty_foot = 1;
+}
+
+/* ------------------------------------------------------------------ GLOBAL view (vista GLOBAL) */
+enum { GP_CLOCK, GP_CHANNELS, GP_BT, NGPAGES };
+static const char *const GPAGE_NAME[NGPAGES] = {"RELOJ", "CANALES", "BLUETOOTH"};
+static const char *const GKNOB_NAME[NGPAGES][4] = {{"RELOJ", "ENTRADA", "", ""},
+                                                   {"PISTA", "CANAL", "DESDE", ""},
+                                                   {"BT MIDI", "AUDIO BT", "BUSCAR", ""}};
+#if FM1B_BT_AUDIO
+static const char *const BTA_STATE_NAME[] = {"APAGADO", "BUSCANDO", "ENCONTRADOS", "NINGUNO", "LLAMANDO", "ENLAZADO",
+                                             "PREPARANDO", "SONANDO", "RECHAZADO", "SIN ULTIMO", "FALLO", "LISTO"};
+#endif
+static void ch_str(int c, char *b)                 /* a channel as shown (canal): 1..16 or NO */
+{
+    b[0] = 0;
+    if (c >= GCH_NONE) { str_cat(b, "NO"); return; }
+    int_str(c + 1, b);
+}
+/* A knob's value text on the GLOBAL view (valor de un knob) */
+static void global_str(int page, int slot, char *b)
+{
+    b[0] = 0;
+    if (page == GP_CLOCK) {
+        if (slot == 0) str_cat(b, GCLK_NAME[gs.clock]);
+        else if (slot == 1) str_cat(b, GIN_NAME[gs.clock_in]);
+    } else if (page == GP_CHANNELS) {
+        if (slot == 0) { str_cat(b, "P"); int_str(ui.g_track + 1, b + 1); }
+        else if (slot == 1) ch_str(gs.ch[ui.g_track], b);
+        else if (slot == 2) { ch_str(gs.ch[0] < GCH_NONE ? gs.ch[0] : 0, b); str_cat(b, "+"); }
+    } else {
+        if (slot == 0) str_cat(b, gs.ble ? "SI" : "NO");
+#if FM1B_BT_AUDIO
+        else if (slot == 1) str_cat(b, gs.bta ? "SI" : "NO");
+        else if (slot == 2) str_cat(b, gs.bta ? ">" : "-");
+#else
+        else if (slot == 1 || slot == 2) str_cat(b, "-");
+#endif
+    }
+}
+static void turn_global(int slot, int32_t e)
+{
+    const int dir = e > 0 ? 1 : -1;
+    char v[16];
+    if (slot < 0)
+        return;
+    if (ui.g_page == GP_CLOCK) {
+        if (slot == 0) gs.clock = (uint8_t)clamp(gs.clock + dir, 0, GCLK_COUNT - 1);
+        else if (slot == 1) gs.clock_in = (uint8_t)clamp(gs.clock_in + dir, 0, GIN_COUNT - 1);
+        else return;
+    } else if (ui.g_page == GP_CHANNELS) {
+        if (slot == 0) {
+            ui.g_track = clamp(ui.g_track + dir, 0, EPK_TRACKS - 1);
+            ui.dirty_main = ui.dirty_foot = 1;
+            global_str(GP_CHANNELS, 0, v);
+            app_say("PISTA", v);
+            return;
+        } else if (slot == 1) gs.ch[ui.g_track] = (uint8_t)clamp(gs.ch[ui.g_track] + (int)e, 0, GCH_NONE);
+        else if (slot == 2) {              /* all six in a row from this channel (las seis seguidas) */
+            const int base = clamp((gs.ch[0] < GCH_NONE ? gs.ch[0] : 0) + (int)e, 0, 16 - EPK_TRACKS);
+            int t;
+            for (t = 0; t < EPK_TRACKS; t++)
+                gs.ch[t] = (uint8_t)(base + t);
+        } else return;
+    } else {
+        if (slot == 0) {
+            gs.ble = dir > 0;
+            plat_ble_enable(gs.ble);
+        } else if (slot == 1) {
+#if FM1B_BT_AUDIO
+            gs.bta = dir > 0;
+            gbta_set(gs.bta);
+#else
+            app_say("AUDIO BT", "NO ESTA EN ESTA VERSION");
+            return;
+#endif
+        } else if (slot == 2) {
+#if FM1B_BT_AUDIO
+            if (gbta_phase != GBP_ON) {
+                app_say("BUSCAR", "PRIMERO AUDIO BT: SI");
+                return;
+            }
+            if (dir > 0) {
+                plat_bta_scan(1);
+                app_say("BUSCANDO", "ALTAVOCES ~10 S");
+            } else
+                plat_bta_scan(0);
+            ui.dirty_main = 1;
+#endif
+            return;
+        } else return;
+    }
+    gs_changed();
+    global_str(ui.g_page, slot, v);
+    app_say(GKNOB_NAME[ui.g_page][slot], v);
+    ui.dirty_main = ui.dirty_foot = 1;
+}
+/* A white key on the BLUETOOTH page: a speaker found (or remembered) to connect; with ARP, forget it (olvidar) */
+static void global_key(int n, int arp)
+{
+#if FM1B_BT_AUDIO
+    char nm[17];
+    if (ui.g_page != GP_BT || gbta_phase != GBP_ON)
+        return;
+    if (arp) {
+        if (plat_bta_known(n, nm)) {
+            plat_bta_forget(n);
+            app_say("OLVIDADO", nm);
+        }
+    } else if (plat_bta_found(0, nm)) {
+        if (plat_bta_found(n, nm)) {
+            plat_bta_pick(n);
+            app_say("CONECTANDO", nm);
+        }
+    } else if (plat_bta_known(n, nm)) {
+        plat_bta_reconnect(n);
+        app_say("CONECTANDO", nm);
+    }
+    ui.dirty_main = 1;
+#else
+    (void)n; (void)arp;
+#endif
 }
 
 /* ------------------------------------------------------------------ scenes (escenas) */
@@ -1414,10 +1661,11 @@ static void input(void)
     const int choosing = ui.view == VIEW_PATTERNS || save;   /* the keys choose banks and patterns */
     const int stepping = !choosing && ui.view == VIEW_STEPS; /* the white keys are steps */
     const int flowing = !choosing && ui.view == VIEW_FLOW;   /* the white keys 1..6 are the blocks (bloques) */
+    const int picking = !choosing && ui.view == VIEW_GLOBAL && ui.g_page == GP_BT;   /* whites 1..6: speakers */
     for (k = 0; k < NKEYS; k++) {
         uint32_t bit = 1u << k;
         const int down = (keys & bit) && !(ui.keys & bit), up = !(keys & bit) && (ui.keys & bit);
-        if ((choosing || stepping || flowing) && up && ui.key_note[k] >= 0) {   /* a note held from before */
+        if ((choosing || stepping || flowing || picking) && up && ui.key_note[k] >= 0) {   /* a note held from before */
             epk_note_off(ui.track, ui.key_note[k]);
             ui.key_note[k] = -1;
         }
@@ -1461,6 +1709,14 @@ static void input(void)
                 epk_scene_hold(ui.scene_held, 0);
                 ui.scene_held = ui.scene_key = -1;
                 ui.dirty_main = 1;
+            }
+            continue;
+        }
+        if (picking) {
+            if (down && WHITE_OF[k] >= 0 && WHITE_OF[k] < 6) {
+                global_key(WHITE_OF[k], arp);
+                if (arp)
+                    ui.arp_used = 1;
             }
             continue;
         }
@@ -1600,7 +1856,7 @@ static void input(void)
     if (!arp && (ui.btn >> B_ARP & 1u)) {     /* ARP released: random (aleatorio) */
         if (!ui.arp_used)
 {
-            if (ui.view == VIEW_FX || ui.view == VIEW_MOD)
+            if (ui.view == VIEW_FX || ui.view == VIEW_MOD || ui.view == VIEW_GLOBAL)
                 app_say("ALEATORIO", "SOLO EN PISTAS");
             else
                 ui.view == VIEW_PATTERNS ? random_pattern() : random_page();
@@ -1639,7 +1895,8 @@ static void input(void)
                 epk_random_scope(clamp(epk_random_scope_get() + (e > 0 ? 1 : -1), 0, EPK_RSCOPE_COUNT - 1));
                 app_say("ALEATORIO DE", RSCOPE_NAME[epk_random_scope_get()]);
                 ui.dirty_main = ui.dirty_foot = 1;
-            } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX && ui.view != VIEW_MOD && ui.view != VIEW_FLOW) {
+            } else if (ENC_SLOT[k] >= 0 && ui.view != VIEW_FX && ui.view != VIEW_MOD && ui.view != VIEW_FLOW &&
+                       ui.view != VIEW_GLOBAL) {
                 const int p = slot_param(ui.track, ui.page, ENC_SLOT[k]);
                 if (p >= 0) {
                     ui.locked ^= 1u << p;
@@ -1659,6 +1916,10 @@ static void input(void)
                 epk_set_tempo(epk_tempo() + (float)e);
                 int_str((int32_t)(epk_tempo() + 0.5f), t);
                 app_say("TEMPO", t);
+            } else if (ui.view == VIEW_GLOBAL) {
+                ui.g_page = ((ui.g_page + (int)e) % NGPAGES + NGPAGES) % NGPAGES;
+                app_say("PAGINA", GPAGE_NAME[ui.g_page]);
+                ui.dirty_main = ui.dirty_foot = 1;
             } else if (ui.view == VIEW_MOD) {
                 ui.mod_page = ((ui.mod_page + (int)e) % EPK_MOD_SOURCES + EPK_MOD_SOURCES) % EPK_MOD_SOURCES;
                 app_say("FUENTE", MOD_LONG_NAME[ui.mod_page]);
@@ -1693,6 +1954,8 @@ static void input(void)
             turn_flow(ENC_SLOT[k], e, shift);
         else if (ui.view == VIEW_MOD)
             turn_mod(ENC_SLOT[k], e, shift);
+        else if (ui.view == VIEW_GLOBAL)
+            turn_global(ENC_SLOT[k], e);
         else
             turn_param(ui.page, ENC_SLOT[k], e, shift);
     }
@@ -1720,6 +1983,8 @@ static void midi_in(void)
     int port;
     while (plat_midi_in(&pkt, &port)) {
         const uint32_t st = pkt >> 8 & 0xFFu, d1 = pkt >> 16 & 0x7Fu, d2 = pkt >> 24 & 0x7Fu;
+        if ((st == 0xF8u || st == 0xFAu || st == 0xFBu || st == 0xFCu) && !gs_clock_from(port))
+            continue;                      /* GLOBAL: not this clock (este reloj no cuenta) */
         if (st == 0xF8u) {
 #ifdef PLAT_HOST                           /* the simulator's scripts run faster than the wall clock: its own time, in ms */
             const uint32_t t = plat_ms();
@@ -1767,12 +2032,10 @@ static void midi_in(void)
             ext.armed = ext.running = 0;
             epk_play(0);
             ui.dirty_main = 1;
-        } else if ((st & 0xF0u) == 0x90u && d2) {
-            const int ch = (int)(st & 0x0Fu);
-            epk_note_on(ch < EPK_TRACKS ? ch : ui.track, (int)d1, (float)d2 * (1.0f / 127.0f));
+        } else if ((st & 0xF0u) == 0x90u && d2) {   /* each track's channel (GLOBAL); another, the selected track */
+            epk_note_on(gs_track_of((int)(st & 0x0Fu)), (int)d1, (float)d2 * (1.0f / 127.0f));
         } else if ((st & 0xF0u) == 0x80u || (st & 0xF0u) == 0x90u) {
-            const int ch = (int)(st & 0x0Fu);
-            epk_note_off(ch < EPK_TRACKS ? ch : ui.track, (int)d1);
+            epk_note_off(gs_track_of((int)(st & 0x0Fu)), (int)d1);
         }
     }
     if (ext.have && !ext_clock()) {        /* it went quiet (se calló) */
@@ -2164,6 +2427,83 @@ static void draw_fx(void)                         /* the delay, the reverb, and 
     cv_text(4, 104, &FONT_XS, "A  B", C_RULE);
 }
 
+static void draw_global(void)                      /* GLOBAL: what each setting does now (lo que hace ahora) */
+{
+    char v[24], w[24];
+    int i;
+    cv_rect(2, 3, 236, 140, C_PANEL);
+    cv_text(9, 6, &FONT_S, GPAGE_NAME[ui.g_page], C_FX);
+    if (ui.g_page == GP_CLOCK) {
+        static const char *const PN[NPORTS] = {"USB", "BT", "TRS"};
+        cv_text(9, 30, &FONT_M, gs.clock == GCLK_AUTO ? "SIGUE EL RELOJ" : "TEMPO PROPIO", C_TEXT);
+        v[0] = 0;
+        str_cat(v, "de: ");
+        str_cat(v, gs.clock_in == GIN_ALL ? "cualquier entrada" : GIN_NAME[gs.clock_in]);
+        cv_text(9, 56, &FONT_S, gs.clock == GCLK_AUTO ? v : "el reloj externo no cuenta", C_LABEL);
+        if (ext_clock()) {
+            w[0] = 0;
+            str_cat(w, "RECIBIENDO RELOJ  ");
+            int_str(ui.ext_bpm, v);
+            str_cat(w, v);
+            str_cat(w, " BPM");
+            cv_text(9, 80, &FONT_S, w, C_SOLO);
+        } else
+            cv_text(9, 80, &FONT_S, "sin reloj externo", C_LABEL);
+        cv_text(9, 106, &FONT_XS, "MIDI llegando (ultimo segundo):", C_LABEL);
+        for (i = 0; i < NPORTS; i++) {                     /* where MIDI comes in now (por dónde llega) */
+            const uint32_t ago = plat_midi_ago(i, 0);
+            cv_text(9 + i * 60, 120, &FONT_S, PN[i], ago < 1000u ? C_FX : C_RULE);
+        }
+    } else if (ui.g_page == GP_CHANNELS) {
+        for (i = 0; i < EPK_TRACKS; i++) {
+            const int32_t y = 26 + i * 17;
+            const uint16_t c = i == ui.g_track ? C_TEXT : C_LABEL;
+            v[0] = 'P'; v[1] = (char)('1' + i); v[2] = 0;
+            cv_text(12, y, &FONT_S, v, i == ui.g_track ? C_FX : C_LABEL);
+            cv_text(40, y, &FONT_S, ENG_NAME[epk_engine(i)], c);
+            w[0] = 0;
+            str_cat(w, "CANAL ");
+            ch_str(gs.ch[i], v);
+            str_cat(w, v);
+            cv_text(150, y, &FONT_S, w, c);
+        }
+        cv_text(9, 136 - 4, &FONT_XS, "otros canales: la pista elegida", C_RULE);
+    } else {
+        cv_text(9, 28, &FONT_S, gs.ble ? (plat_ble_connected() ? "BT MIDI: CONECTADO" : "BT MIDI: ESPERANDO") : "BT MIDI: APAGADO",
+                gs.ble && plat_ble_connected() ? C_FX : C_LABEL);
+#if FM1B_BT_AUDIO
+        {
+            const int st = plat_bta_state();
+            int n = 0, found;
+            char nm[17];
+            w[0] = 0;
+            str_cat(w, "AUDIO: ");
+            str_cat(w, gbta_phase == GBP_OFF ? "NO" : gbta_phase == GBP_ON && st >= 0 && st <= PLAT_BTA_READY ? BTA_STATE_NAME[st]
+                                                                                                            : "...");
+            cv_text(9, 46, &FONT_S, w, st == PLAT_BTA_STREAMING ? C_FX : C_TEXT);
+            found = gbta_phase == GBP_ON && plat_bta_found(0, nm);
+            cv_text(9, 66, &FONT_XS, found ? "ENCONTRADOS (blanca 1-6: conectar)" : "RECORDADOS (blanca: conectar, ARP+blanca: olvidar)",
+                    C_LABEL);
+            if (gbta_phase == GBP_ON)
+                for (i = 0; i < 6; i++) {
+                    if (!(found ? plat_bta_found(i, nm) : plat_bta_known(i, nm)))
+                        break;
+                    v[0] = (char)('1' + i); v[1] = ' '; v[2] = 0;
+                    str_cat(v, nm);
+                    cv_text(12, 80 + i * 10, &FONT_XS, v, C_TEXT);
+                    n++;
+                }
+            if (gbta_phase == GBP_ON && !n)
+                cv_text(12, 80, &FONT_XS, "ninguno: gira BUSCAR (K3) a la derecha", C_RULE);
+            if (gbta_phase != GBP_OFF)
+                cv_text(9, 136 - 4, &FONT_XS, "con AUDIO el eco llega a ~1,1 s (memoria)", C_RULE);
+        }
+#else
+        cv_text(9, 46, &FONT_S, "AUDIO BT: no esta en esta version", C_LABEL);
+#endif
+    }
+}
+
 static void draw_mod(void)                         /* the four sources, moving, and where they go */
 {
     char v[16], w[24];
@@ -2307,6 +2647,8 @@ static void draw_main(void)
         draw_flow();
     else if (ui.view == VIEW_MOD)
         draw_mod();
+    else if (ui.view == VIEW_GLOBAL)
+        draw_global();
     else if (ui.view == VIEW_ORBIT)
         draw_orbit();
     else
@@ -2445,6 +2787,25 @@ static void draw_foot(void)                       /* the page tabs and the four 
                 cv_rect(m0 < m1 ? m0 : m1, 63, (m0 < m1 ? m1 - m0 : m0 - m1) + 1, 3, C_FX);
             } else if (!steps || i != 2)
                 cv_rect(cx + 4, 63, (int32_t)(val * 48.0f + 0.5f), 3, C_FX);
+        }
+        cv_blit(0, 168);
+        return;
+    }
+    if (ui.view == VIEW_GLOBAL) {             /* GLOBAL's knobs (los knobs de GLOBAL) */
+        {
+            const int prev = (ui.g_page + NGPAGES - 1) % NGPAGES, next = (ui.g_page + 1) % NGPAGES;
+            x = cv_text(x, 3, &FONT_XS, GPAGE_NAME[prev], C_RULE) + 8;
+            x = cv_text(x, 3, &FONT_XS, GPAGE_NAME[ui.g_page], C_FX) + 8;
+            cv_text(x, 3, &FONT_XS, GPAGE_NAME[next], C_RULE);
+        }
+        for (i = 0; i < 4; i++) {
+            const int32_t cx = i * 60 + 2;
+            cv_rect(cx, 18, 56, 52, C_PANEL);
+            if (!GKNOB_NAME[ui.g_page][i][0])
+                continue;
+            global_str(ui.g_page, i, v);
+            cv_text(cx + 4, 22, &FONT_XS, GKNOB_NAME[ui.g_page][i], C_LABEL);
+            cv_text(cx + 4, 36, text_w(&FONT_M, v) > 50 ? &FONT_S : &FONT_M, v, C_TEXT);
         }
         cv_blit(0, 168);
         return;
@@ -2680,6 +3041,8 @@ void app_frame(void)
     uint32_t now = plat_ms(), t;
     midi_in();
     input();
+    gs_tick(now);                             /* GLOBAL: saved 2 s after the last change (guardado) */
+    gbta_tick();                               /* Bluetooth audio's memory lent and given back (préstamo) */
     if (ui.splash) {                          /* the boot screen until time or a touch (hasta tocar algo) */
         static uint32_t drawn;
         if (!ui.splash_at)
@@ -2829,6 +3192,16 @@ int app_expect(const char *what, int *got)
         *got = d >= -3 && d <= 3;
     } else if (!strcmp(what, "extclock"))        /* 1: following an outside clock (reloj externo) */
         *got = ext_clock();
+    else if (!strcmp(what, "gclock"))          /* GLOBAL: 0 AUTO, 1 INTERNO */
+        *got = gs.clock;
+    else if (!strncmp(what, "gch", 3) && what[3] >= '1' && what[3] <= '6' && !what[4])   /* gchN: track N's channel */
+        *got = gs.ch[what[3] - '1'] + 1;
+    else if (!strcmp(what, "gble"))
+        *got = gs.ble;
+    else if (!strcmp(what, "gbta"))            /* Bluetooth audio's phase: 0 off, 1 lending, 2 on, 3 giving back */
+        *got = gbta_phase;
+    else if (!strcmp(what, "lent"))            /* 1: the delay's tail lent (prestado) */
+        *got = epk_lent() != 0;
     else if (!strcmp(what, "saves"))           /* saves done (guardados) */
         *got = ui.saves;
     else if (!strcmp(what, "saved")) {         /* 1: the current pattern was saved (lleva '*') */
